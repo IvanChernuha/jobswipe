@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jobswipe-config
+  namespace: jobswipe
+data:
+  REDIS_URL: "redis://redis-service:6379/0"
+  CELERY_BROKER_URL: "redis://redis-service:6379/1"
+  # Set SUPABASE_URL to your Cloud SQL / Supabase Cloud endpoint via Secret

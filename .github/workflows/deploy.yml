@@ -1,0 +1,71 @@
+name: Build & Deploy to GKE
+
+on:
+  push:
+    branches: [main]
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  CLUSTER: jobswipe-cluster
+  REGISTRY: us-central1-docker.pkg.dev
+
+jobs:
+  build-and-deploy:
+    name: Build, Push, Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGISTRY }}
+
+      - name: Build & Push backend
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/jobswipe/backend:$GITHUB_SHA ./backend
+          docker push $REGISTRY/$PROJECT_ID/jobswipe/backend:$GITHUB_SHA
+          docker tag $REGISTRY/$PROJECT_ID/jobswipe/backend:$GITHUB_SHA \
+                     $REGISTRY/$PROJECT_ID/jobswipe/backend:latest
+          docker push $REGISTRY/$PROJECT_ID/jobswipe/backend:latest
+
+      - name: Build & Push frontend
+        run: |
+          docker build -t $REGISTRY/$PROJECT_ID/jobswipe/frontend:$GITHUB_SHA ./frontend
+          docker push $REGISTRY/$PROJECT_ID/jobswipe/frontend:$GITHUB_SHA
+          docker tag $REGISTRY/$PROJECT_ID/jobswipe/frontend:$GITHUB_SHA \
+                     $REGISTRY/$PROJECT_ID/jobswipe/frontend:latest
+          docker push $REGISTRY/$PROJECT_ID/jobswipe/frontend:latest
+
+      - name: Get GKE credentials
+        run: gcloud container clusters get-credentials $CLUSTER --region $REGION --project $PROJECT_ID
+
+      - name: Update image tags in manifests
+        run: |
+          sed -i "s|:latest|:$GITHUB_SHA|g" k8s/deployments/backend.yaml
+          sed -i "s|:latest|:$GITHUB_SHA|g" k8s/deployments/frontend.yaml
+          sed -i "s|:latest|:$GITHUB_SHA|g" k8s/deployments/celery.yaml
+
+      - name: Apply K8s manifests
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/deployments/
+          kubectl apply -f k8s/services/
+          kubectl apply -f k8s/ingress.yaml
+          kubectl apply -f k8s/hpa.yaml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/backend  -n jobswipe --timeout=120s
+          kubectl rollout status deployment/frontend -n jobswipe --timeout=120s
+          kubectl rollout status deployment/celery   -n jobswipe --timeout=120s

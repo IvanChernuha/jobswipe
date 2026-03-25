@@ -1,0 +1,103 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────
+# JobSwipe — POC Stack
+# Prerequisites on host:
+#   - Supabase running separately (see https://supabase.com/docs/guides/self-hosting/docker)
+#   - Set SUPABASE_URL in .env to your Supabase instance URL
+# ─────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Reverse Proxy ──────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: jobswipe-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - jobswipe
+    depends_on:
+      - backend
+      - frontend
+
+  # ── FastAPI Backend ─────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jobswipe-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - jobswipe
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Celery Worker ───────────────────────────────────────────
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jobswipe-celery
+    restart: unless-stopped
+    command: celery -A app.tasks.notifications worker --loglevel=info --concurrency=4
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - jobswipe
+
+  # ── React Frontend ──────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jobswipe-frontend
+    restart: unless-stopped
+    networks:
+      - jobswipe
+
+  # ── Redis ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: jobswipe-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - jobswipe
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+
+networks:
+  jobswipe:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  redis_data:
