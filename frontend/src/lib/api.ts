@@ -391,6 +391,10 @@ export function uploadResume(token: string, file: File): Promise<UploadResponse>
   })
 }
 
+export function getCvStatus(token: string): Promise<{ cv_extraction_status: string | null; cv_extracted_tag_count: number }> {
+  return request('/cv/status', { token })
+}
+
 // ---------------------------------------------------------------------------
 // Organizations
 // ---------------------------------------------------------------------------

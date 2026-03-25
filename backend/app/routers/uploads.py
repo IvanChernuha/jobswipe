@@ -6,7 +6,16 @@ from app.db.client import get_client
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
-ALLOWED_RESUME_TYPES = {"application/pdf"}
+ALLOWED_RESUME_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
+    "text/plain",  # .txt
+}
+RESUME_EXTENSIONS = {
+    "application/pdf": "pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "text/plain": "txt",
+}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024   # 5 MB
 MAX_RESUME_BYTES = 10 * 1024 * 1024  # 10 MB
 
@@ -50,16 +59,17 @@ async def upload_resume(
     if user["role"] != "worker":
         raise HTTPException(403, "Only workers can upload resumes")
     if file.content_type not in ALLOWED_RESUME_TYPES:
-        raise HTTPException(400, "Only PDF files allowed")
+        raise HTTPException(400, "Only PDF, DOCX, or TXT files allowed")
 
     content = await file.read()
     if len(content) > MAX_RESUME_BYTES:
         raise HTTPException(400, "Resume must be under 10 MB")
 
-    path = f"resumes/{user['id']}/resume.pdf"
+    ext = RESUME_EXTENSIONS[file.content_type]
+    path = f"resumes/{user['id']}/resume.{ext}"
     db = get_client()
     try:
-        db.storage.from_("resumes").upload(path, content, {"content-type": "application/pdf", "upsert": "true"})
+        db.storage.from_("resumes").upload(path, content, {"content-type": file.content_type, "upsert": "true"})
     except Exception:
         raise HTTPException(500, "Failed to upload resume")
 
@@ -71,6 +81,6 @@ async def upload_resume(
 
     # Trigger async CV tag extraction
     from app.tasks.cv_processing import extract_cv_tags
-    extract_cv_tags.delay(user["id"], base64.b64encode(content).decode(), "application/pdf")
+    extract_cv_tags.delay(user["id"], base64.b64encode(content).decode(), file.content_type)
 
     return {"url": url}

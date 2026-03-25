@@ -36,18 +36,29 @@ def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: s
 
         taxonomy = _fetch_taxonomy()
         provider = get_llm_provider()
-        matched_names = _run(provider.extract_tags(raw_text, list(taxonomy.keys())))
+        profile = _run(provider.extract_cv_profile(raw_text, list(taxonomy.keys())))
 
-        tag_ids = [taxonomy[name] for name in matched_names if name in taxonomy]
+        tag_ids = [taxonomy[name] for name in profile.tags if name in taxonomy]
 
         db.table("worker_tags").delete().eq("worker_id", worker_id).execute()
         if tag_ids:
             db.table("worker_tags").insert([{"worker_id": worker_id, "tag_id": tid} for tid in tag_ids]).execute()
 
-        db.table("worker_profiles").update({
+        # Build profile update — only overwrite fields that were extracted
+        profile_update: dict = {
             "cv_extraction_status": "done",
             "cv_extracted_tag_count": len(tag_ids),
-        }).eq("user_id", worker_id).execute()
+        }
+        if profile.name:
+            profile_update["name"] = profile.name
+        if profile.location:
+            profile_update["location"] = profile.location
+        if profile.experience_years is not None:
+            profile_update["experience_years"] = profile.experience_years
+        if profile.bio:
+            profile_update["bio"] = profile.bio
+
+        db.table("worker_profiles").update(profile_update).eq("user_id", worker_id).execute()
 
     except Exception as exc:
         db.table("worker_profiles").update({"cv_extraction_status": "error"}).eq("user_id", worker_id).execute()

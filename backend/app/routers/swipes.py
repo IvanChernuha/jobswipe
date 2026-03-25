@@ -57,6 +57,16 @@ async def record_swipe(body: SwipeRequest, user: dict = Depends(get_current_user
     if existing.data:
         raise HTTPException(409, "Already swiped on this target")
 
+    # Validate target type matches role
+    if role == "worker":
+        valid = db.table("job_postings").select("id").eq("id", body.target_id).execute()
+        if not valid.data:
+            raise HTTPException(400, "Target must be a valid job posting")
+    else:
+        valid = db.table("worker_profiles").select("user_id").eq("user_id", body.target_id).execute()
+        if not valid.data:
+            raise HTTPException(400, "Target must be a valid worker profile")
+
     # Insert swipe
     db.table("swipes").insert({
         "swiper_id": user_id,

@@ -3,6 +3,7 @@ from app.deps import require_worker, require_employer
 from app.models.worker import WorkerProfile, WorkerProfileUpdate, WorkerCard
 from app.db.client import get_client
 from app.services.scoring import expand_tags_with_implications, compute_match_score
+from app.routers.employers import _get_org_employer_ids
 
 router = APIRouter(prefix="/workers", tags=["workers"])
 
@@ -134,11 +135,12 @@ async def employer_feed(
     if not workers:
         return []
 
-    # 3. Get employer's job posting tags with requirement types (per-job)
+    # 3. Get all job posting IDs for this employer (or their whole org)
+    org_employer_ids = _get_org_employer_ids(db, user)
     employer_jobs = (
         db.table("job_postings")
         .select("id")
-        .eq("employer_id", user["id"])
+        .in_("employer_id", org_employer_ids)
         .eq("active", True)
         .execute()
     )

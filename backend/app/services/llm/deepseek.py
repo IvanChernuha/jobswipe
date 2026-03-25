@@ -1,11 +1,25 @@
 import json
 import httpx
-from app.services.llm.base import LLMProvider
+from app.services.llm.base import LLMProvider, CVProfile
 
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
-_SYSTEM_PROMPT = "You are a skill extractor for a job platform. Extract only skills present in the provided taxonomy."
+_SYSTEM_PROMPT = "You are a CV parser for a job platform. Extract only skills present in the provided taxonomy."
+
+_CV_PROFILE_PROMPT = """Extract profile data from this CV. Return ONLY a JSON object with:
+- "name": full name (string or null)
+- "location": city/country (string or null)
+- "experience_years": total years of experience as integer (null if unclear)
+- "bio": 2-3 sentence professional summary (string or null)
+- "tags": matched skills from taxonomy ONLY
+
+Taxonomy: {taxonomy}
+
+CV:
+{text}
+
+Respond with ONLY a JSON object."""
 
 _SINGLE_USER_PROMPT = """Extract skills from this text. Return ONLY a JSON array of tags from the taxonomy below.
 
@@ -56,6 +70,21 @@ class DeepSeekProvider(LLMProvider):
             resp.raise_for_status()
             data = resp.json()
         return data["choices"][0]["message"]["content"].strip()
+
+    async def extract_cv_profile(self, text: str, taxonomy: list[str]) -> CVProfile:
+        prompt = _CV_PROFILE_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])
+        raw = _strip_fences(await self._call(prompt))
+        data = json.loads(raw)
+        taxonomy_lower = {t.lower(): t for t in taxonomy}
+        tags = [taxonomy_lower[t.lower()] for t in (data.get("tags") or []) if t.lower() in taxonomy_lower]
+        exp = data.get("experience_years")
+        return CVProfile(
+            tags=tags,
+            name=data.get("name") or None,
+            location=data.get("location") or None,
+            experience_years=int(exp) if exp is not None else None,
+            bio=data.get("bio") or None,
+        )
 
     async def extract_tags(self, text: str, taxonomy: list[str]) -> list[str]:
         prompt = _SINGLE_USER_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])

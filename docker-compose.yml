@@ -56,7 +56,7 @@ services:
       dockerfile: Dockerfile
     container_name: jobswipe-celery
     restart: unless-stopped
-    command: celery -A app.tasks.notifications worker --loglevel=info --concurrency=4
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0

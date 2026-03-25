@@ -1,6 +1,6 @@
 import json
 import httpx
-from app.services.llm.base import LLMProvider
+from app.services.llm.base import LLMProvider, CVProfile
 
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -18,6 +18,24 @@ Text to analyze:
 {text}
 
 Respond with ONLY a JSON array, e.g.: ["Python", "FastAPI", "PostgreSQL"]"""
+
+_CV_PROFILE_PROMPT = """You are a CV parser for a job platform.
+
+Extract the following from the CV text below and return ONLY a JSON object:
+- "name": full name of the person (string or null)
+- "location": city/country (string or null)
+- "experience_years": total years of work experience as an integer (null if unclear)
+- "bio": a 2-3 sentence professional summary of the person (string or null)
+- "tags": array of matched skills/tools from the taxonomy ONLY (no invented tags)
+
+Taxonomy (valid tags):
+{taxonomy}
+
+CV text:
+{text}
+
+Respond with ONLY a JSON object, e.g.:
+{{"name": "John Smith", "location": "London, UK", "experience_years": 5, "bio": "Backend developer...", "tags": ["Python", "FastAPI"]}}"""
 
 _BATCH_PROMPT = """You are a skill extractor for a job platform.
 
@@ -63,6 +81,21 @@ class GeminiProvider(LLMProvider):
         if not candidates:
             raise ValueError(f"Gemini returned no candidates: {data}")
         return candidates[0]["content"]["parts"][0]["text"].strip()
+
+    async def extract_cv_profile(self, text: str, taxonomy: list[str]) -> CVProfile:
+        prompt = _CV_PROFILE_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])
+        raw = _strip_fences(await self._call(prompt))
+        data = json.loads(raw)
+        taxonomy_lower = {t.lower(): t for t in taxonomy}
+        tags = [taxonomy_lower[t.lower()] for t in (data.get("tags") or []) if t.lower() in taxonomy_lower]
+        exp = data.get("experience_years")
+        return CVProfile(
+            tags=tags,
+            name=data.get("name") or None,
+            location=data.get("location") or None,
+            experience_years=int(exp) if exp is not None else None,
+            bio=data.get("bio") or None,
+        )
 
     async def extract_tags(self, text: str, taxonomy: list[str]) -> list[str]:
         prompt = _SINGLE_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])

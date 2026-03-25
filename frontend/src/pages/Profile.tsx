@@ -7,6 +7,7 @@ import {
   updateEmployerProfile,
   uploadAvatar,
   uploadResume,
+  getCvStatus,
   exportMyData,
   deleteMyAccount,
 } from '../lib/api'
@@ -118,7 +119,9 @@ function WorkerProfileForm({ token }: { token: string }) {
   const [resumeUrl, setResumeUrl] = useState<string | null>(null)
   const [uploadingResume, setUploadingResume] = useState(false)
   const [resumeErr, setResumeErr] = useState<string | null>(null)
+  const [cvAnalyzing, setCvAnalyzing] = useState(false)
   const resumeRef = useRef<HTMLInputElement>(null)
+  const cvPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     getWorkerProfile(token)
@@ -168,9 +171,23 @@ function WorkerProfileForm({ token }: { token: string }) {
     try {
       const res = await uploadResume(token, file)
       setResumeUrl(res.url)
+      setUploadingResume(false)
+      setCvAnalyzing(true)
+      // Poll until extraction is done then reload
+      cvPollRef.current = setInterval(async () => {
+        try {
+          const status = await getCvStatus(token)
+          if (status.cv_extraction_status === 'done' || status.cv_extraction_status === 'error') {
+            clearInterval(cvPollRef.current!)
+            window.location.reload()
+          }
+        } catch {
+          clearInterval(cvPollRef.current!)
+          window.location.reload()
+        }
+      }, 2000)
     } catch (err) {
       setResumeErr(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
       setUploadingResume(false)
     }
   }
@@ -246,7 +263,18 @@ function WorkerProfileForm({ token }: { token: string }) {
       {/* Resume */}
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
         <p className="text-sm font-medium text-gray-700 mb-2">Resume</p>
-        {resumeUrl ? (
+
+        {cvAnalyzing && (
+          <div className="flex items-center gap-3 py-2">
+            <svg className="animate-spin h-5 w-5 text-brand-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+            <span className="text-sm text-gray-500">Analyzing your CV, profile will update shortly…</span>
+          </div>
+        )}
+
+        {!cvAnalyzing && resumeUrl ? (
           <div className="flex items-center gap-3">
             <a
               href={resumeUrl}
@@ -265,21 +293,21 @@ function WorkerProfileForm({ token }: { token: string }) {
               Replace
             </button>
           </div>
-        ) : (
+        ) : !cvAnalyzing ? (
           <button
             type="button"
             onClick={() => resumeRef.current?.click()}
             disabled={uploadingResume}
             className="btn-secondary text-sm"
           >
-            {uploadingResume ? 'Uploading…' : 'Upload resume (PDF)'}
+            {uploadingResume ? 'Uploading…' : 'Upload resume (PDF, DOCX, TXT)'}
           </button>
-        )}
+        ) : null}
         {resumeErr && <p className="text-xs text-red-500 mt-1">{resumeErr}</p>}
         <input
           ref={resumeRef}
           type="file"
-          accept=".pdf"
+          accept=".pdf,.docx,.txt"
           className="hidden"
           onChange={handleResumeUpload}
         />
