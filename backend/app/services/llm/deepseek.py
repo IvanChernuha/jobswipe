@@ -1,11 +1,35 @@
 import json
 import httpx
-from app.services.llm.base import LLMProvider, CVProfile
+import json_repair
+from app.services.llm.base import LLMProvider, CVProfile, JobProfile
 
 
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 _SYSTEM_PROMPT = "You are a CV parser for a job platform. Extract only skills present in the provided taxonomy."
+
+_JOB_PROFILE_PROMPT = """Parse this job description. The text may be in any language — respond in English only.
+
+Return ONLY a JSON object with fields IN THIS ORDER:
+1. "title": job title in English (string or null)
+2. "location": city/country in English (string or null)
+3. "remote": true if remote/hybrid (boolean)
+4. "salary_min": min annual salary USD integer (null if not mentioned)
+5. "salary_max": max annual salary USD integer (null if not mentioned)
+6. "required_tags": must-have skills from taxonomy ONLY
+7. "preferred_tags": preferred skills from taxonomy ONLY
+8. "nice_tags": nice-to-have skills from taxonomy ONLY
+9. "description": 1-2 sentence summary, under 50 words (string or null)
+10. "min_experience_years": minimum years of experience required as integer (null if not mentioned)
+
+Tags MUST come from the taxonomy list. Keep description SHORT.
+
+Taxonomy: {taxonomy}
+
+Job description:
+{text}
+
+Respond with ONLY a JSON object."""
 
 _CV_PROFILE_PROMPT = """Extract profile data from this CV. Return ONLY a JSON object with:
 - "name": full name (string or null)
@@ -45,7 +69,14 @@ def _strip_fences(raw: str) -> str:
         raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
-    return raw.strip()
+    raw = raw.strip()
+    # Extract JSON object or array — handles extra prose around the JSON
+    for start_char, end_char in [('{', '}'), ('[', ']')]:
+        start = raw.find(start_char)
+        end = raw.rfind(end_char)
+        if start != -1 and end != -1 and end > start:
+            return raw[start:end + 1]
+    return raw
 
 
 class DeepSeekProvider(LLMProvider):
@@ -71,10 +102,32 @@ class DeepSeekProvider(LLMProvider):
             data = resp.json()
         return data["choices"][0]["message"]["content"].strip()
 
+    async def extract_job_profile(self, text: str, taxonomy: list[str]) -> JobProfile:
+        prompt = _JOB_PROFILE_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])
+        raw = _strip_fences(await self._call(prompt))
+        data = json_repair.loads(raw)
+        taxonomy_lower = {t.lower(): t for t in taxonomy}
+
+        def match(tags: list) -> list[str]:
+            return [taxonomy_lower[t.lower()] for t in (tags or []) if t.lower() in taxonomy_lower]
+
+        return JobProfile(
+            title=data.get("title") or None,
+            description=data.get("description") or None,
+            location=data.get("location") or None,
+            remote=bool(data.get("remote", False)),
+            salary_min=int(data["salary_min"]) if data.get("salary_min") else None,
+            salary_max=int(data["salary_max"]) if data.get("salary_max") else None,
+            required_tags=match(data.get("required_tags", [])),
+            preferred_tags=match(data.get("preferred_tags", [])),
+            nice_tags=match(data.get("nice_tags", [])),
+            min_experience_years=int(data["min_experience_years"]) if data.get("min_experience_years") else None,
+        )
+
     async def extract_cv_profile(self, text: str, taxonomy: list[str]) -> CVProfile:
         prompt = _CV_PROFILE_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])
         raw = _strip_fences(await self._call(prompt))
-        data = json.loads(raw)
+        data = json_repair.loads(raw)
         taxonomy_lower = {t.lower(): t for t in taxonomy}
         tags = [taxonomy_lower[t.lower()] for t in (data.get("tags") or []) if t.lower() in taxonomy_lower]
         exp = data.get("experience_years")
@@ -89,7 +142,7 @@ class DeepSeekProvider(LLMProvider):
     async def extract_tags(self, text: str, taxonomy: list[str]) -> list[str]:
         prompt = _SINGLE_USER_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])
         raw = _strip_fences(await self._call(prompt))
-        extracted = json.loads(raw)
+        extracted = json_repair.loads(raw)
         taxonomy_lower = {t.lower(): t for t in taxonomy}
         return [taxonomy_lower[e.lower()] for e in extracted if e.lower() in taxonomy_lower]
 
@@ -101,7 +154,7 @@ class DeepSeekProvider(LLMProvider):
         )
         prompt = _BATCH_USER_PROMPT.format(taxonomy=", ".join(taxonomy), jobs=jobs_text)
         raw = _strip_fences(await self._call(prompt))
-        result = json.loads(raw)
+        result = json_repair.loads(raw)
 
         taxonomy_lower = {t.lower(): t for t in taxonomy}
         return {

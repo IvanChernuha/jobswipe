@@ -52,6 +52,7 @@ class JobPostingCreate(BaseModel):
     required_tag_ids: list[str] = []     # must have ALL
     preferred_tag_ids: list[str] = []    # must have at least 1
     expires_in_days: int = 30            # how many days until expiry (default 30)
+    min_experience_years: int | None = None
 
     @field_validator("title")
     @classmethod
@@ -96,6 +97,7 @@ class JobPosting(BaseModel):
     active: bool = True
     created_at: Optional[str] = None
     expires_at: Optional[str] = None
+    min_experience_years: int | None = None
     tags: list[Tag] = []
 
     model_config = {"extra": "ignore"}
@@ -113,6 +115,7 @@ class JobPostingUpdate(BaseModel):
     required_tag_ids: Optional[list[str]] = None
     preferred_tag_ids: Optional[list[str]] = None
     expires_in_days: Optional[int] = None
+    min_experience_years: int | None = None
 
     @field_validator("title")
     @classmethod
@@ -151,6 +154,7 @@ class JobPostingWithStats(BaseModel):
     active: bool = True
     created_at: Optional[str] = None
     expires_at: Optional[str] = None
+    min_experience_years: int | None = None
     tags: list[Tag] = []
     swipe_count: int = 0
     like_count: int = 0

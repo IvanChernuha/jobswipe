@@ -12,10 +12,19 @@ def get_llm_provider() -> LLMProvider:
         from app.services.llm.gemini import GeminiProvider
         return GeminiProvider(api_key=settings.GEMINI_API_KEY)
 
+    if provider == "vertex":
+        if not settings.GOOGLE_CLOUD_PROJECT:
+            raise ValueError("GOOGLE_CLOUD_PROJECT is not set in environment")
+        from app.services.llm.vertex import VertexGeminiProvider
+        return VertexGeminiProvider(
+            project=settings.GOOGLE_CLOUD_PROJECT,
+            location=settings.GOOGLE_CLOUD_LOCATION,
+        )
+
     if provider == "deepseek":
         if not settings.DEEPSEEK_API_KEY:
             raise ValueError("DEEPSEEK_API_KEY is not set in environment")
         from app.services.llm.deepseek import DeepSeekProvider
         return DeepSeekProvider(api_key=settings.DEEPSEEK_API_KEY)
 
-    raise ValueError(f"Unknown LLM_PROVIDER: '{provider}'. Use 'gemini' or 'deepseek'.")
+    raise ValueError(f"Unknown LLM_PROVIDER: '{provider}'. Use 'gemini', 'vertex', or 'deepseek'.")

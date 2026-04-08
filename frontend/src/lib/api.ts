@@ -50,6 +50,7 @@ export interface JobPosting {
   active: boolean
   created_at: string
   expires_at: string
+  min_experience_years: number | null
   tags: Tag[]
   swipe_count: number
   like_count: number
@@ -393,6 +394,36 @@ export function uploadResume(token: string, file: File): Promise<UploadResponse>
 
 export function getCvStatus(token: string): Promise<{ cv_extraction_status: string | null; cv_extracted_tag_count: number }> {
   return request('/cv/status', { token })
+}
+
+export interface ParsedJobFile {
+  filename: string
+  title: string | null
+  description: string | null
+  location: string | null
+  remote: boolean
+  salary_min: number | null
+  salary_max: number | null
+  required_tag_ids: string[]
+  preferred_tag_ids: string[]
+  tag_ids: string[]
+  required_tags: string[]
+  preferred_tags: string[]
+  nice_tags: string[]
+  min_experience_years: number | null
+  error: string | null
+}
+
+export async function parseJobFiles(token: string, files: File[]): Promise<ParsedJobFile[]> {
+  const form = new FormData()
+  files.forEach((f) => form.append('files', f))
+  const res = await request<{ parsed: ParsedJobFile[] }>('/cv/parse-job-files', {
+    method: 'POST',
+    token,
+    headers: {},
+    body: form,
+  })
+  return res.parsed
 }
 
 // ---------------------------------------------------------------------------

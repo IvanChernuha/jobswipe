@@ -1,0 +1,30 @@
+Senior Full Stack Developer
+
+We are looking for an experienced Full Stack Developer to join our growing team at TechCorp Solutions.
+
+Responsibilities:
+- Design and build scalable web applications using React and FastAPI
+- Work with PostgreSQL databases and write complex queries
+- Deploy and manage applications using Docker and Kubernetes
+- Implement CI/CD pipelines using GitHub Actions
+- Collaborate with the team using Git and code reviews
+- Integrate third-party APIs and services
+- Write unit and integration tests
+
+Requirements:
+- 5+ years of experience in software development
+- Strong proficiency in Python and JavaScript/TypeScript
+- Experience with React and modern frontend frameworks
+- Solid understanding of PostgreSQL and Redis
+- Hands-on experience with Docker and cloud platforms (AWS or GCP)
+- Familiarity with REST API design
+- Experience with Celery for async task processing
+
+Nice to have:
+- Experience with FastAPI
+- Knowledge of Kubernetes
+- Familiarity with CI/CD tools
+- Experience with Supabase or Firebase
+
+Salary: $90,000 - $130,000 per year
+Location: New York, NY (Remote friendly)

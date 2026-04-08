@@ -11,9 +11,12 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = "noreply@jobswipe.example.com"
 
     # LLM tag extraction
-    LLM_PROVIDER: str = "gemini"   # "gemini" | "deepseek"
+    LLM_PROVIDER: str = "gemini"   # "gemini" | "vertex" | "deepseek"
     GEMINI_API_KEY: str = ""
     DEEPSEEK_API_KEY: str = ""
+    # Vertex AI (for Google Cloud $300 credits)
+    GOOGLE_CLOUD_PROJECT: str = ""
+    GOOGLE_CLOUD_LOCATION: str = "us-central1"
 
     class Config:
         env_file = ".env"

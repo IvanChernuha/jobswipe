@@ -1,10 +1,13 @@
 """CV parsing and bulk job description tag extraction endpoints."""
+import asyncio
 import base64
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from app.deps import get_current_user, require_worker, require_employer
 from app.db.client import get_client
 from app.tasks.cv_processing import extract_cv_tags, extract_job_tags, extract_job_tags_bulk
+from app.services.cv_parser import extract_text
+from app.services.llm.factory import get_llm_provider
 
 router = APIRouter(prefix="/cv", tags=["cv"])
 
@@ -82,12 +85,12 @@ async def bulk_extract_job_tags(
     # Verify all jobs belong to this employer
     job_ids = [j.job_id for j in payload.jobs]
     result = db.table("job_postings").select("id, employer_id").in_("id", job_ids).execute()
-    employer_result = db.table("employer_profiles").select("id").eq("user_id", user["id"]).single().execute()
+    employer_result = db.table("employer_profiles").select("user_id").eq("user_id", user["id"]).single().execute()
 
     if not employer_result.data:
         raise HTTPException(403, "Employer profile not found")
 
-    employer_id = employer_result.data["id"]
+    employer_id = employer_result.data["user_id"]
     valid_ids = {str(r["id"]) for r in (result.data or []) if str(r["employer_id"]) == str(employer_id)}
     invalid = [j.job_id for j in payload.jobs if j.job_id not in valid_ids]
 
@@ -117,7 +120,7 @@ async def extract_single_job_tags(
     """Re-trigger tag extraction for a single existing job posting."""
     db = get_client()
 
-    employer_result = db.table("employer_profiles").select("id").eq("user_id", user["id"]).single().execute()
+    employer_result = db.table("employer_profiles").select("user_id").eq("user_id", user["id"]).single().execute()
     if not employer_result.data:
         raise HTTPException(403, "Employer profile not found")
 
@@ -125,9 +128,90 @@ async def extract_single_job_tags(
     if not job_result.data:
         raise HTTPException(404, "Job not found")
 
-    if str(job_result.data["employer_id"]) != str(employer_result.data["id"]):
+    if str(job_result.data["employer_id"]) != str(employer_result.data["user_id"]):
         raise HTTPException(403, "Not your job posting")
 
     extract_job_tags.delay(job_id, job_result.data.get("description", ""))
 
     return {"status": "queued", "message": "Tag extraction queued for this job."}
+
+
+ALLOWED_JOB_FILE_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
+}
+MAX_JOB_FILE_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_JOB_FILES = 50
+
+
+@router.post("/parse-job-files")
+async def parse_job_files(
+    files: list[UploadFile] = File(...),
+    user: dict = Depends(require_employer),
+):
+    """
+    Parse 1–50 job description files (PDF/DOCX/TXT).
+    Returns structured job data for each file — no DB writes.
+    Employer reviews the results in the UI then confirms creation.
+    """
+    if len(files) > MAX_JOB_FILES:
+        raise HTTPException(400, f"Maximum {MAX_JOB_FILES} files per request")
+
+    db = get_client()
+    taxonomy_rows = db.table("tags").select("id, name").execute()
+    taxonomy = {row["name"]: row["id"] for row in (taxonomy_rows.data or [])}
+    taxonomy_names = list(taxonomy.keys())
+
+    provider = get_llm_provider()
+
+    async def parse_one(file: UploadFile) -> dict:
+        import logging as _log
+        _log.getLogger(__name__).info("parse_one: filename=%s content_type=%s", file.filename, file.content_type)
+        ct = (file.content_type or "").lower()
+        # Be permissive: also accept octet-stream for txt/docx uploaded from Windows
+        is_txt = file.filename.endswith(".txt")
+        is_pdf = file.filename.endswith(".pdf")
+        is_docx = file.filename.endswith(".docx")
+        effective_type = file.content_type
+        if ct == "application/octet-stream":
+            if is_txt: effective_type = "text/plain"
+            elif is_pdf: effective_type = "application/pdf"
+            elif is_docx: effective_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        if effective_type not in ALLOWED_JOB_FILE_TYPES:
+            return {"filename": file.filename, "error": f"Unsupported type: {file.content_type}"}
+
+        content = await file.read()
+        if len(content) > MAX_JOB_FILE_BYTES:
+            return {"filename": file.filename, "error": "File too large (max 10 MB)"}
+
+        try:
+            raw_text = extract_text(content, effective_type)
+            print(f"[PARSE] file={file.filename} ct={file.content_type} eff={effective_type} size={len(content)} text_len={len(raw_text)}", flush=True)
+            print(f"[PARSE] text[:300]={raw_text[:300]!r}", flush=True)
+            profile = await provider.extract_job_profile(raw_text, taxonomy_names)
+            print(f"[PARSE] result: title={profile.title} loc={profile.location} req={profile.required_tags} pref={profile.preferred_tags} nice={profile.nice_tags}", flush=True)
+            return {
+                "filename": file.filename,
+                "title": profile.title,
+                "description": profile.description,
+                "location": profile.location,
+                "remote": profile.remote,
+                "salary_min": profile.salary_min,
+                "salary_max": profile.salary_max,
+                "required_tag_ids": [taxonomy[t] for t in profile.required_tags if t in taxonomy],
+                "preferred_tag_ids": [taxonomy[t] for t in profile.preferred_tags if t in taxonomy],
+                "tag_ids": [taxonomy[t] for t in profile.nice_tags if t in taxonomy],
+                "required_tags": profile.required_tags,
+                "preferred_tags": profile.preferred_tags,
+                "nice_tags": profile.nice_tags,
+                "min_experience_years": profile.min_experience_years,
+                "error": None,
+            }
+        except Exception as e:
+            import logging as _log
+            _log.getLogger(__name__).error("parse-job-files error for %s: %s", file.filename, e)
+            return {"filename": file.filename, "error": "Failed to parse file. Please try again later."}
+
+    results = await asyncio.gather(*[parse_one(f) for f in files])
+    return {"parsed": results}

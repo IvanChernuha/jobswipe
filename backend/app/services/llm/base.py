@@ -12,6 +12,21 @@ class CVProfile:
     bio: str | None = None
 
 
+@dataclass
+class JobProfile:
+    """Structured data extracted from a job description file."""
+    title: str | None = None
+    description: str | None = None
+    location: str | None = None
+    remote: bool = False
+    salary_min: int | None = None
+    salary_max: int | None = None
+    min_experience_years: int | None = None
+    required_tags: list[str] = field(default_factory=list)
+    preferred_tags: list[str] = field(default_factory=list)
+    nice_tags: list[str] = field(default_factory=list)
+
+
 class LLMProvider(ABC):
     """Abstract base for LLM tag extraction providers."""
 
@@ -20,6 +35,14 @@ class LLMProvider(ABC):
         """
         Given raw text and the full list of valid tag names,
         return the subset of tags that apply.
+        """
+        ...
+
+    @abstractmethod
+    async def extract_job_profile(self, text: str, taxonomy: list[str]) -> JobProfile:
+        """
+        Extract structured job data from a job description file in a single LLM call:
+        title, description, location, remote, salary range, and tags split by requirement level.
         """
         ...
 

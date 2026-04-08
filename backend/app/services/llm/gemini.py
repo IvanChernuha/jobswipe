@@ -1,6 +1,10 @@
 import json
+import logging
 import httpx
-from app.services.llm.base import LLMProvider, CVProfile
+import json_repair
+from app.services.llm.base import LLMProvider, CVProfile, JobProfile
+
+logger = logging.getLogger(__name__)
 
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -37,6 +41,33 @@ CV text:
 Respond with ONLY a JSON object, e.g.:
 {{"name": "John Smith", "location": "London, UK", "experience_years": 5, "bio": "Backend developer...", "tags": ["Python", "FastAPI"]}}"""
 
+_JOB_PROFILE_PROMPT = """You are a job posting parser for a job platform.
+
+The job description may be in any language. Extract the data and respond ONLY in English.
+
+Return ONLY a valid JSON object with these fields IN THIS EXACT ORDER:
+1. "title": job title in English (string or null)
+2. "location": city/country in English (string or null)
+3. "remote": true if remote or hybrid, false otherwise (boolean)
+4. "salary_min": minimum annual salary in USD as integer, null if not mentioned
+5. "salary_max": maximum annual salary in USD as integer, null if not mentioned
+6. "required_tags": skills the candidate MUST have — from taxonomy ONLY (array of strings)
+7. "preferred_tags": skills that are preferred — from taxonomy ONLY (array of strings)
+8. "nice_tags": nice-to-have skills — from taxonomy ONLY (array of strings)
+9. "description": 1-2 sentence summary in English, keep it SHORT (string or null)
+10. "min_experience_years": minimum years of experience required as integer (null if not mentioned)
+
+IMPORTANT: Tags MUST come from the taxonomy list below. Keep description under 50 words.
+
+Taxonomy (valid tags):
+{taxonomy}
+
+Job description:
+{text}
+
+Respond with ONLY a JSON object, e.g.:
+{{"title": "Senior Python Developer", "location": "New York, NY", "remote": true, "salary_min": 90000, "salary_max": 130000, "required_tags": ["Python", "PostgreSQL"], "preferred_tags": ["FastAPI"], "nice_tags": ["Docker"], "description": "Backend role building payment APIs.", "min_experience_years": 5}}"""
+
 _BATCH_PROMPT = """You are a skill extractor for a job platform.
 
 Extract skills/technologies/tools from each job description below. Use ONLY tags from the taxonomy.
@@ -58,7 +89,14 @@ def _strip_fences(raw: str) -> str:
         raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
-    return raw.strip()
+    raw = raw.strip()
+    # Extract JSON object or array — handles extra prose around the JSON
+    for start_char, end_char in [('{', '}'), ('[', ']')]:
+        start = raw.find(start_char)
+        end = raw.rfind(end_char)
+        if start != -1 and end != -1 and end > start:
+            return raw[start:end + 1]
+    return raw
 
 
 class GeminiProvider(LLMProvider):
@@ -71,7 +109,7 @@ class GeminiProvider(LLMProvider):
                 f"{GEMINI_API_URL}?key={self.api_key}",
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
+                    "generationConfig": {"temperature": 0.0, "maxOutputTokens": 8192},
                 },
             )
             resp.raise_for_status()
@@ -82,10 +120,40 @@ class GeminiProvider(LLMProvider):
             raise ValueError(f"Gemini returned no candidates: {data}")
         return candidates[0]["content"]["parts"][0]["text"].strip()
 
+    async def extract_job_profile(self, text: str, taxonomy: list[str]) -> JobProfile:
+        prompt = _JOB_PROFILE_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])
+        raw_response = await self._call(prompt)
+        raw = _strip_fences(raw_response)
+        print(f"[GEMINI] raw_response_FULL={raw_response!r}", flush=True)
+        print(f"[GEMINI] stripped[:500]={raw[:500]!r}", flush=True)
+        try:
+            data = json_repair.loads(raw)
+        except json.JSONDecodeError as e:
+            logger.error("Gemini JSON parse error: %s\nRaw response: %.500s", e, raw)
+            raise
+        print(f"[GEMINI] parsed data keys={list(data.keys())} req_tags={data.get('required_tags')} loc={data.get('location')}", flush=True)
+        taxonomy_lower = {t.lower(): t for t in taxonomy}
+
+        def match(tags: list) -> list[str]:
+            return [taxonomy_lower[t.lower()] for t in (tags or []) if t.lower() in taxonomy_lower]
+
+        return JobProfile(
+            title=data.get("title") or None,
+            description=data.get("description") or None,
+            location=data.get("location") or None,
+            remote=bool(data.get("remote", False)),
+            salary_min=int(data["salary_min"]) if data.get("salary_min") else None,
+            salary_max=int(data["salary_max"]) if data.get("salary_max") else None,
+            required_tags=match(data.get("required_tags", [])),
+            preferred_tags=match(data.get("preferred_tags", [])),
+            nice_tags=match(data.get("nice_tags", [])),
+            min_experience_years=int(data["min_experience_years"]) if data.get("min_experience_years") else None,
+        )
+
     async def extract_cv_profile(self, text: str, taxonomy: list[str]) -> CVProfile:
         prompt = _CV_PROFILE_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])
         raw = _strip_fences(await self._call(prompt))
-        data = json.loads(raw)
+        data = json_repair.loads(raw)
         taxonomy_lower = {t.lower(): t for t in taxonomy}
         tags = [taxonomy_lower[t.lower()] for t in (data.get("tags") or []) if t.lower() in taxonomy_lower]
         exp = data.get("experience_years")
@@ -100,7 +168,7 @@ class GeminiProvider(LLMProvider):
     async def extract_tags(self, text: str, taxonomy: list[str]) -> list[str]:
         prompt = _SINGLE_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])
         raw = _strip_fences(await self._call(prompt))
-        extracted = json.loads(raw)
+        extracted = json_repair.loads(raw)
         taxonomy_lower = {t.lower(): t for t in taxonomy}
         return [taxonomy_lower[e.lower()] for e in extracted if e.lower() in taxonomy_lower]
 
@@ -112,7 +180,7 @@ class GeminiProvider(LLMProvider):
         )
         prompt = _BATCH_PROMPT.format(taxonomy=", ".join(taxonomy), jobs=jobs_text)
         raw = _strip_fences(await self._call(prompt))
-        result = json.loads(raw)
+        result = json_repair.loads(raw)
 
         taxonomy_lower = {t.lower(): t for t in taxonomy}
         return {

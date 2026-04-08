@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import {
   getJobPostings, toggleJobActive, deleteJobPosting, updateJobPosting,
-  createJobPosting,
-  type JobPosting, type Tag,
+  createJobPosting, parseJobFiles,
+  type JobPosting, type Tag, type ParsedJobFile,
 } from '../lib/api'
 import TagPicker from '../components/TagPicker'
 import TagBadge from '../components/TagBadge'
@@ -16,7 +16,10 @@ export default function Jobs() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingJob, setEditingJob] = useState<JobPosting | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
+  const [createModal, setCreateModal] = useState<{ open: boolean; prefilled: ParsedJobFile | null }>({ open: false, prefilled: null })
+  const [parsedJobs, setParsedJobs] = useState<ParsedJobFile[] | null>(null)
+  const [parsing, setParsing] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!token) return
@@ -53,8 +56,46 @@ export default function Jobs() {
   async function handleCreate(data: Record<string, unknown>) {
     try {
       const created = await createJobPosting(token, data as any)
-      setJobs((prev) => [{ ...created, swipe_count: 0, like_count: 0, match_count: 0, tags: [], active: true } as JobPosting, ...prev])
-      setShowCreate(false)
+      setJobs((prev) => [{ ...created, swipe_count: 0, like_count: 0, match_count: 0, active: true } as JobPosting, ...prev])
+      setCreateModal({ open: false, prefilled: null })
+    } catch { /* silent */ }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+    e.target.value = ''
+    setParsing(true)
+    try {
+      const results = await parseJobFiles(token, files)
+      if (results.length === 1 && !results[0].error) {
+        // Single file → pre-fill the create form
+        setCreateModal({ open: true, prefilled: results[0] })
+      } else {
+        // Multiple files → show review list
+        setParsedJobs(results)
+      }
+    } catch { /* silent */ }
+    finally { setParsing(false) }
+  }
+
+  async function handleCreateParsed(parsed: ParsedJobFile) {
+    try {
+      const created = await createJobPosting(token, {
+        title: parsed.title ?? 'Untitled',
+        description: parsed.description ?? '',
+        location: parsed.location ?? '',
+        remote: parsed.remote,
+        salary_min: parsed.salary_min ?? 0,
+        salary_max: parsed.salary_max ?? 0,
+        min_experience_years: parsed.min_experience_years ?? null,
+        tag_ids: parsed.tag_ids,
+        required_tag_ids: parsed.required_tag_ids,
+        preferred_tag_ids: parsed.preferred_tag_ids,
+        expires_in_days: 30,
+      } as any)
+      setJobs((prev) => [{ ...created, swipe_count: 0, like_count: 0, match_count: 0, active: true } as JobPosting, ...prev])
+      setParsedJobs((prev) => prev?.filter((p) => p.filename !== parsed.filename) ?? null)
     } catch { /* silent */ }
   }
 
@@ -93,22 +134,87 @@ export default function Jobs() {
             <h1 className="text-2xl font-bold text-gray-900">Your Jobs</h1>
             <p className="text-sm text-gray-500 mt-0.5">{jobs.length} posting{jobs.length !== 1 ? 's' : ''}</p>
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="btn-primary text-sm py-2 px-4 flex items-center gap-1.5"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            New Job
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={parsing}
+              className="btn-secondary text-sm py-2 px-4 flex items-center gap-1.5"
+            >
+              {parsing ? (
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+              )}
+              {parsing ? 'Analyzing...' : 'Upload Job File'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt"
+              multiple
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <button
+              onClick={() => setCreateModal({ open: true, prefilled: null })}
+              className="btn-primary text-sm py-2 px-4 flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              New Job
+            </button>
+          </div>
         </div>
 
+        {/* Bulk review list */}
+        {parsedJobs && parsedJobs.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-700">
+                Review parsed jobs ({parsedJobs.length} remaining)
+              </h2>
+              <button onClick={() => setParsedJobs(null)} className="text-xs text-gray-400 hover:text-gray-600">
+                Dismiss all
+              </button>
+            </div>
+            <div className="space-y-3">
+              {parsedJobs.map((parsed) => (
+                <ParsedJobCard
+                  key={parsed.filename}
+                  parsed={parsed}
+                  onCreate={() => handleCreateParsed(parsed)}
+                  onEdit={() => { setCreateModal({ open: true, prefilled: parsed }); setParsedJobs(null) }}
+                  onDiscard={() => setParsedJobs((prev) => prev?.filter((p) => p.filename !== parsed.filename) ?? null)}
+                />
+              ))}
+            </div>
+            {parsedJobs.filter((p) => !p.error).length > 1 && (
+              <button
+                onClick={async () => {
+                  for (const p of parsedJobs.filter((j) => !j.error)) {
+                    await handleCreateParsed(p)
+                  }
+                }}
+                className="mt-4 w-full btn-primary py-2.5 text-sm"
+              >
+                Create All ({parsedJobs.filter((p) => !p.error).length} jobs)
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Create modal */}
-        {showCreate && (
+        {createModal.open && (
           <JobFormModal
+            prefilled={createModal.prefilled ?? undefined}
             onSave={(data) => handleCreate(data)}
-            onClose={() => setShowCreate(false)}
+            onClose={() => setCreateModal({ open: false, prefilled: null })}
             title="Create Job Posting"
           />
         )}
@@ -129,7 +235,7 @@ export default function Jobs() {
             <p className="text-5xl mb-3">📋</p>
             <h2 className="text-xl font-bold text-gray-800 mb-2">No job postings yet</h2>
             <p className="text-gray-500 text-sm mb-4">Create your first job to start receiving candidates.</p>
-            <button onClick={() => setShowCreate(true)} className="btn-primary text-sm">
+            <button onClick={() => setCreateModal({ open: true, prefilled: null })} className="btn-primary text-sm">
               Create Job
             </button>
           </div>
@@ -369,11 +475,13 @@ function StatPill({ label, value, color }: { label: string; value: number; color
 
 function JobFormModal({
   job,
+  prefilled,
   onSave,
   onClose,
   title,
 }: {
   job?: JobPosting
+  prefilled?: ParsedJobFile
   onSave: (data: Record<string, unknown>) => void
   onClose: () => void
   title: string
@@ -382,23 +490,32 @@ function JobFormModal({
     ? Math.max(1, Math.ceil((new Date(job.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : 30
   const [form, setForm] = useState({
-    title: job?.title ?? '',
-    description: job?.description ?? '',
-    location: job?.location ?? '',
-    salary_min: job?.salary_min ?? 0,
-    salary_max: job?.salary_max ?? 0,
-    remote: job?.remote ?? false,
+    title: job?.title ?? prefilled?.title ?? '',
+    description: job?.description ?? prefilled?.description ?? '',
+    location: job?.location ?? prefilled?.location ?? '',
+    salary_min: job?.salary_min ?? prefilled?.salary_min ?? 0,
+    salary_max: job?.salary_max ?? prefilled?.salary_max ?? 0,
+    remote: job?.remote ?? prefilled?.remote ?? false,
+    min_experience_years: job?.min_experience_years ?? prefilled?.min_experience_years ?? '',
     expires_in_days: defaultDays,
   })
-  const [selectedTags, setSelectedTags] = useState<Tag[]>(
-    job?.tags?.filter((t) => !t.requirement || t.requirement === 'nice') ?? [],
-  )
-  const [requiredTags, setRequiredTags] = useState<Tag[]>(
-    job?.tags?.filter((t) => t.requirement === 'required') ?? [],
-  )
-  const [preferredTags, setPreferredTags] = useState<Tag[]>(
-    job?.tags?.filter((t) => t.requirement === 'preferred') ?? [],
-  )
+  console.log('JobFormModal mount, prefilled:', prefilled)
+  const [selectedTags, setSelectedTags] = useState<Tag[]>(() => {
+    if (job) return job.tags?.filter((t) => !t.requirement || t.requirement === 'nice') ?? []
+    if (prefilled) return prefilled.tag_ids.map((id, i) => ({ id, name: prefilled.nice_tags[i] ?? id, category: '' }))
+    return []
+  })
+  const [requiredTags, setRequiredTags] = useState<Tag[]>(() => {
+    if (job) return job.tags?.filter((t) => t.requirement === 'required') ?? []
+    if (prefilled) return prefilled.required_tag_ids.map((id, i) => ({ id, name: prefilled.required_tags[i] ?? id, category: '' }))
+    return []
+  })
+  const [preferredTags, setPreferredTags] = useState<Tag[]>(() => {
+    if (job) return job.tags?.filter((t) => t.requirement === 'preferred') ?? []
+    if (prefilled) return prefilled.preferred_tag_ids.map((id, i) => ({ id, name: prefilled.preferred_tags[i] ?? id, category: '' }))
+    return []
+  })
+  console.log('requiredTags initial:', requiredTags, 'preferredTags:', preferredTags, 'selectedTags:', selectedTags)
   const [saving, setSaving] = useState(false)
 
   function set(field: keyof typeof form) {
@@ -411,12 +528,15 @@ function JobFormModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    await onSave({
+    const payload = {
       ...form,
+      min_experience_years: form.min_experience_years === '' || form.min_experience_years === 0 ? null : Number(form.min_experience_years),
       tag_ids: selectedTags.map((t) => t.id),
       required_tag_ids: requiredTags.map((t) => t.id),
       preferred_tag_ids: preferredTags.map((t) => t.id),
-    })
+    }
+    console.log('JobFormModal submit payload:', payload)
+    await onSave(payload)
     setSaving(false)
   }
 
@@ -466,9 +586,15 @@ function JobFormModal({
             </div>
           </div>
 
-          <div>
-            <label className="label">Listing duration (days)</label>
-            <input type="number" min={1} max={365} className="input" value={form.expires_in_days} onChange={set('expires_in_days')} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Min experience (years)</label>
+              <input type="number" min={0} className="input" value={form.min_experience_years} onChange={set('min_experience_years')} placeholder="Optional" />
+            </div>
+            <div>
+              <label className="label">Listing duration (days)</label>
+              <input type="number" min={1} max={365} className="input" value={form.expires_in_days} onChange={set('expires_in_days')} />
+            </div>
           </div>
 
           <div>
@@ -495,6 +621,77 @@ function JobFormModal({
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+function ParsedJobCard({
+  parsed,
+  onCreate,
+  onEdit,
+  onDiscard,
+}: {
+  parsed: ParsedJobFile
+  onCreate: () => void
+  onEdit: () => void
+  onDiscard: () => void
+}) {
+  if (parsed.error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-red-700">{parsed.filename}</p>
+          <p className="text-xs text-red-500 mt-0.5">{parsed.error}</p>
+        </div>
+        <button onClick={onDiscard} className="text-xs text-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100">
+          Dismiss
+        </button>
+      </div>
+    )
+  }
+
+  const salary = parsed.salary_min || parsed.salary_max
+    ? `$${((parsed.salary_min ?? 0) / 1000).toFixed(0)}k – $${((parsed.salary_max ?? 0) / 1000).toFixed(0)}k`
+    : null
+
+  const allTags = [...parsed.required_tags, ...parsed.preferred_tags, ...parsed.nice_tags]
+
+  return (
+    <div className="bg-white border border-brand-100 rounded-2xl p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-gray-400 mb-1">{parsed.filename}</p>
+          <h3 className="font-semibold text-gray-900">{parsed.title ?? 'Untitled'}</h3>
+          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
+            {parsed.location && <span>{parsed.location}</span>}
+            {parsed.remote && <span className="text-blue-500">Remote</span>}
+            {salary && <span>{salary}</span>}
+          </div>
+          {parsed.description && (
+            <p className="text-sm text-gray-600 mt-2 line-clamp-2">{parsed.description}</p>
+          )}
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {allTags.slice(0, 8).map((t) => (
+                <span key={t} className="px-2 py-0.5 bg-brand-50 text-brand-600 text-xs rounded-full">{t}</span>
+              ))}
+              {allTags.length > 8 && <span className="text-xs text-gray-400 self-center">+{allTags.length - 8} more</span>}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+        <button onClick={onCreate} className="btn-primary text-xs py-1.5 px-3">
+          Create
+        </button>
+        <button onClick={onEdit} className="text-xs font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100">
+          Edit before creating
+        </button>
+        <div className="flex-1" />
+        <button onClick={onDiscard} className="text-xs text-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50">
+          Discard
+        </button>
       </div>
     </div>
   )

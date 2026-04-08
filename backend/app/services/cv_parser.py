@@ -7,8 +7,11 @@ def extract_text(content: bytes, content_type: str) -> str:
         return _extract_pdf(content)
     if content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         return _extract_docx(content)
-    # Fallback: treat as plain text
-    return content.decode("utf-8", errors="ignore")
+    # Fallback: treat as plain text with auto-detected encoding
+    import chardet
+    detected = chardet.detect(content)
+    encoding = detected.get("encoding") or "utf-8"
+    return content.decode(encoding, errors="ignore")
 
 
 def _extract_pdf(content: bytes) -> str:

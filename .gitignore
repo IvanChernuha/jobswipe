@@ -30,3 +30,4 @@ Thumbs.db
 
 # Docker
 *.log
+backend/credentials/
