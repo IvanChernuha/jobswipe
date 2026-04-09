@@ -5,6 +5,10 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_SERVICE_KEY: str
     SUPABASE_ANON_KEY: str
+    # Direct Postgres URL for SQLModel async queries (refactor WP #571).
+    # Format: postgresql+asyncpg://user:pass@host:5432/dbname
+    # Empty during early refactor phases — app still runs via Supabase client.
+    DATABASE_URL: str = ""
     REDIS_URL: str = "redis://redis:6379/0"
     CELERY_BROKER_URL: str = "redis://redis:6379/1"
     RESEND_API_KEY: str = ""

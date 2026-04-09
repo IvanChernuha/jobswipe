@@ -14,3 +14,8 @@ json-repair==0.30.0
 chardet==5.2.0
 google-auth==2.29.0
 requests>=2.31.0
+# SQLModel refactor (OpenProject #571) — async ORM + migrations
+sqlmodel==0.0.22
+alembic==1.13.2
+asyncpg==0.29.0
+greenlet==3.0.3
