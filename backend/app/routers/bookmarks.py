@@ -111,11 +111,27 @@ def _auto_assign_job(db, employer_id: str, worker_target_id: str) -> Optional[st
     for r in (jt_rows.data or []):
         tags_by_job.setdefault(r["job_posting_id"], set()).add(r["tag_id"])
 
+    # Fetch ALL implications in a single query (not per-job — avoids N+1).
+    all_job_tag_ids = set()
+    for jtags in tags_by_job.values():
+        all_job_tag_ids.update(jtags)
+    all_impl_rows = (
+        db.table("tag_implications")
+        .select("parent_tag_id, implied_tag_id")
+        .in_("parent_tag_id", list(all_job_tag_ids))
+        .execute()
+    ) if all_job_tag_ids else type("R", (), {"data": []})()
+    implications: dict[str, set[str]] = {}
+    for r in (all_impl_rows.data or []):
+        implications.setdefault(r["parent_tag_id"], set()).add(r["implied_tag_id"])
+
     # Score each job, pick best
     best_job = None
     best_pct = 0
     for jid, jtags in tags_by_job.items():
-        job_expanded = expand_tags_with_implications(db, jtags)
+        job_expanded = set(jtags)
+        for tid in jtags:
+            job_expanded.update(implications.get(tid, set()))
         score = compute_match_score(worker_expanded, job_expanded)
         if score["percentage"] > best_pct:
             best_pct = score["percentage"]

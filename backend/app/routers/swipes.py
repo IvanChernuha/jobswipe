@@ -178,15 +178,25 @@ async def undo_last_swipe(user: dict = Depends(get_current_user)):
     swipe_id = swipe["id"]
     target_id = swipe["target_id"]
 
-    # If it was a like or super_like, clean up any match that was created
+    # If it was a like or super_like, clean up the MOST RECENT match that was
+    # created by this swipe. Using limit(1) + order by created_at ensures we
+    # don't accidentally wipe unrelated matches if there are duplicates.
     if swipe["direction"] in ("like", "super_like"):
         role = user["role"]
         if role == "worker":
-            # Worker liked a job posting — match has worker_id=me, job_posting_id=target
-            db.table("matches").delete().eq("worker_id", user_id).eq("job_posting_id", target_id).execute()
+            match_row = (
+                db.table("matches").select("id")
+                .eq("worker_id", user_id).eq("job_posting_id", target_id)
+                .order("created_at", desc=True).limit(1).execute()
+            )
         else:
-            # Employer liked a worker — match has employer_id=me, worker_id=target
-            db.table("matches").delete().eq("employer_id", user_id).eq("worker_id", target_id).execute()
+            match_row = (
+                db.table("matches").select("id")
+                .eq("employer_id", user_id).eq("worker_id", target_id)
+                .order("created_at", desc=True).limit(1).execute()
+            )
+        if match_row.data:
+            db.table("matches").delete().eq("id", match_row.data[0]["id"]).execute()
 
     # Delete the swipe
     db.table("swipes").delete().eq("id", swipe_id).execute()

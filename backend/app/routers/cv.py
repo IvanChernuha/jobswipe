@@ -79,6 +79,8 @@ async def bulk_extract_job_tags(
     """
     if not payload.jobs:
         raise HTTPException(400, "No jobs provided")
+    if len(payload.jobs) > MAX_BULK_JOBS:
+        raise HTTPException(400, f"Maximum {MAX_BULK_JOBS} jobs per request")
 
     db = get_client()
 
@@ -142,7 +144,9 @@ ALLOWED_JOB_FILE_TYPES = {
     "text/plain",
 }
 MAX_JOB_FILE_BYTES = 10 * 1024 * 1024  # 10 MB
-MAX_JOB_FILES = 50
+MAX_JOB_FILES = 10  # was 50 — each fires an LLM call; cap to control cost
+MAX_BULK_JOBS = 200  # hard cap on bulk-jobs to prevent unbounded LLM spend
+_LLM_SEMAPHORE = asyncio.Semaphore(5)  # max 5 concurrent LLM calls per request
 
 
 @router.post("/parse-job-files")
@@ -166,31 +170,28 @@ async def parse_job_files(
     provider = get_llm_provider()
 
     async def parse_one(file: UploadFile) -> dict:
-        import logging as _log
-        _log.getLogger(__name__).info("parse_one: filename=%s content_type=%s", file.filename, file.content_type)
+        fname = file.filename or "unnamed"
         ct = (file.content_type or "").lower()
         # Be permissive: also accept octet-stream for txt/docx uploaded from Windows
-        is_txt = file.filename.endswith(".txt")
-        is_pdf = file.filename.endswith(".pdf")
-        is_docx = file.filename.endswith(".docx")
+        is_txt = fname.lower().endswith(".txt")
+        is_pdf = fname.lower().endswith(".pdf")
+        is_docx = fname.lower().endswith(".docx")
         effective_type = file.content_type
         if ct == "application/octet-stream":
             if is_txt: effective_type = "text/plain"
             elif is_pdf: effective_type = "application/pdf"
             elif is_docx: effective_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         if effective_type not in ALLOWED_JOB_FILE_TYPES:
-            return {"filename": file.filename, "error": f"Unsupported type: {file.content_type}"}
+            return {"filename": fname, "error": f"Unsupported type: {file.content_type}"}
 
         content = await file.read()
         if len(content) > MAX_JOB_FILE_BYTES:
-            return {"filename": file.filename, "error": "File too large (max 10 MB)"}
+            return {"filename": fname, "error": "File too large (max 10 MB)"}
 
         try:
             raw_text = extract_text(content, effective_type)
-            print(f"[PARSE] file={file.filename} ct={file.content_type} eff={effective_type} size={len(content)} text_len={len(raw_text)}", flush=True)
-            print(f"[PARSE] text[:300]={raw_text[:300]!r}", flush=True)
-            profile = await provider.extract_job_profile(raw_text, taxonomy_names)
-            print(f"[PARSE] result: title={profile.title} loc={profile.location} req={profile.required_tags} pref={profile.preferred_tags} nice={profile.nice_tags}", flush=True)
+            async with _LLM_SEMAPHORE:
+                profile = await provider.extract_job_profile(raw_text, taxonomy_names)
             return {
                 "filename": file.filename,
                 "title": profile.title,

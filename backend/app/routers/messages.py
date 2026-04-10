@@ -102,9 +102,11 @@ async def list_messages(
     rows = query.execute()
     messages = rows.data or []
 
-    # Update read cursor
+    # Update read cursor — use a real ISO timestamp, NOT the string "now()"
+    # (PostgREST does not evaluate SQL functions; it stores literal text).
+    from datetime import datetime, timezone
     db.table("message_read_cursors").upsert(
-        {"match_id": match_id, "user_id": uid, "last_read_at": "now()"},
+        {"match_id": match_id, "user_id": uid, "last_read_at": datetime.now(timezone.utc).isoformat()},
         on_conflict="match_id,user_id",
     ).execute()
 

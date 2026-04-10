@@ -106,32 +106,38 @@ class GeminiProvider(LLMProvider):
     async def _call(self, prompt: str) -> str:
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
-                f"{GEMINI_API_URL}?key={self.api_key}",
+                GEMINI_API_URL,
+                headers={"x-goog-api-key": self.api_key},
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {"temperature": 0.0, "maxOutputTokens": 8192},
                 },
             )
-            resp.raise_for_status()
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                # Sanitize: HTTPStatusError includes request.url which previously
+                # contained ?key=... in the query string. Now the key is in a
+                # header so it's not in the URL, but we still log safely.
+                logger.error("Gemini API error %s: %s", resp.status_code, resp.text[:500])
+                raise
             data = resp.json()
 
         candidates = data.get("candidates")
         if not candidates:
-            raise ValueError(f"Gemini returned no candidates: {data}")
+            logger.error("Gemini returned no candidates. promptFeedback=%s", data.get("promptFeedback"))
+            raise ValueError("Gemini returned no candidates (safety filter or empty response)")
         return candidates[0]["content"]["parts"][0]["text"].strip()
 
     async def extract_job_profile(self, text: str, taxonomy: list[str]) -> JobProfile:
         prompt = _JOB_PROFILE_PROMPT.format(taxonomy=", ".join(taxonomy), text=text[:8000])
         raw_response = await self._call(prompt)
         raw = _strip_fences(raw_response)
-        print(f"[GEMINI] raw_response_FULL={raw_response!r}", flush=True)
-        print(f"[GEMINI] stripped[:500]={raw[:500]!r}", flush=True)
         try:
             data = json_repair.loads(raw)
         except json.JSONDecodeError as e:
             logger.error("Gemini JSON parse error: %s\nRaw response: %.500s", e, raw)
             raise
-        print(f"[GEMINI] parsed data keys={list(data.keys())} req_tags={data.get('required_tags')} loc={data.get('location')}", flush=True)
         taxonomy_lower = {t.lower(): t for t in taxonomy}
 
         def match(tags: list) -> list[str]:

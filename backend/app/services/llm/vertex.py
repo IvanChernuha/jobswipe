@@ -63,5 +63,6 @@ class VertexGeminiProvider(GeminiProvider):
 
         candidates = data.get("candidates")
         if not candidates:
-            raise ValueError(f"Vertex AI returned no candidates: {data}")
+            logger.error("Vertex AI returned no candidates. promptFeedback=%s", data.get("promptFeedback"))
+            raise ValueError("Vertex AI returned no candidates (safety filter or empty response)")
         return candidates[0]["content"]["parts"][0]["text"].strip()

@@ -236,12 +236,12 @@ async def update_job(job_id: str, body: JobPostingUpdate, user: dict = Depends(r
     if expires_in_days is not None:
         updates["expires_at"] = (datetime.now(timezone.utc) + timedelta(days=expires_in_days)).isoformat()
 
-    # Validate salary range
+    # Validate salary range (guard against None from freshly-created rows)
     if "salary_min" in updates or "salary_max" in updates:
         current = db.table("job_postings").select("salary_min, salary_max").eq("id", job_id).single().execute().data
         s_min = updates.get("salary_min", current["salary_min"])
         s_max = updates.get("salary_max", current["salary_max"])
-        if s_max > 0 and s_min > s_max:
+        if s_min is not None and s_max is not None and s_max > 0 and s_min > s_max:
             raise HTTPException(422, "salary_min cannot exceed salary_max")
 
     if updates:

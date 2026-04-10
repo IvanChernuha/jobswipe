@@ -1,10 +1,18 @@
 """Celery tasks for async CV and job description tag extraction."""
 import asyncio
+import logging
+import httpx
 from app.tasks.notifications import celery_app
 from app.db.client import get_client
 from app.services.cv_parser import extract_text
 from app.services.llm.factory import get_llm_provider
 from app.services.llm.batcher import calculate_batches
+
+logger = logging.getLogger(__name__)
+
+# Only retry on transient errors. Permanent errors (bad input, auth, etc.)
+# are logged and dropped — retrying won't help and wastes LLM budget.
+_RETRYABLE = (httpx.ConnectError, httpx.TimeoutException, ConnectionError, OSError)
 
 
 def _run(coro):
@@ -60,9 +68,12 @@ def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: s
 
         db.table("worker_profiles").update(profile_update).eq("user_id", worker_id).execute()
 
-    except Exception as exc:
-        db.table("worker_profiles").update({"cv_extraction_status": "error"}).eq("user_id", worker_id).execute()
+    except _RETRYABLE as exc:
+        db.table("worker_profiles").update({"cv_extraction_status": "retrying"}).eq("user_id", worker_id).execute()
         raise self.retry(exc=exc)
+    except Exception as exc:
+        logger.error("extract_cv_tags permanent failure for worker %s: %s", worker_id, exc)
+        db.table("worker_profiles").update({"cv_extraction_status": "error"}).eq("user_id", worker_id).execute()
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
@@ -74,8 +85,10 @@ def extract_job_tags(self, job_id: str, description: str):
         provider = get_llm_provider()
         matched_names = _run(provider.extract_tags(description, list(taxonomy.keys())))
         _apply_job_tags(db, job_id, matched_names, taxonomy)
-    except Exception as exc:
+    except _RETRYABLE as exc:
         raise self.retry(exc=exc)
+    except Exception as exc:
+        logger.error("extract_job_tags permanent failure for job %s: %s", job_id, exc)
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
@@ -99,8 +112,10 @@ def extract_job_tags_bulk(self, jobs: list[dict]):
             for job_id, matched_names in results.items():
                 _apply_job_tags(db, job_id, matched_names, taxonomy)
 
-    except Exception as exc:
+    except _RETRYABLE as exc:
         raise self.retry(exc=exc)
+    except Exception as exc:
+        logger.error("extract_job_tags_bulk permanent failure: %s", exc)
 
 
 def _apply_job_tags(db, job_id: str, matched_names: list[str], taxonomy: dict):

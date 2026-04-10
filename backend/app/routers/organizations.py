@@ -292,8 +292,9 @@ async def join_org(token: str, user: dict = Depends(require_employer)):
 
     invite = invite_row.data[0]
 
-    # Verify email matches
-    if invite["email"] != user.get("email", "").lower():
+    # Verify email matches (case-insensitive — invites may have been created
+    # with mixed-case input before normalization was added).
+    if invite["email"].lower() != user.get("email", "").lower():
         raise HTTPException(403, "This invite was sent to a different email")
 
     # Check expiry

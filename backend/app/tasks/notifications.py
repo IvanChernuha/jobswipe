@@ -34,7 +34,16 @@ def send_match_email(self, worker_email: str, employer_email: str, job_title: st
                 timeout=10,
             )
             resp.raise_for_status()
-        except Exception as exc:
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code >= 500:
+                raise self.retry(exc=exc)
+            # 4xx = permanent error (bad email, invalid API key, etc.)
+            # Log and drop — retrying won't help.
+            import logging
+            logging.getLogger(__name__).warning(
+                "Resend %d for %s: %s", exc.response.status_code, recipient, exc.response.text[:200]
+            )
+        except (httpx.ConnectError, httpx.TimeoutException) as exc:
             raise self.retry(exc=exc)
 
 
