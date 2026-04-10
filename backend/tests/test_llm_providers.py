@@ -123,8 +123,12 @@ class TestGeminiProvider:
                 await provider.extract_tags("text", TAXONOMY)
 
     @pytest.mark.asyncio
-    async def test_invalid_json_raises(self):
-        """Malformed JSON in the response must raise json.JSONDecodeError."""
+    async def test_invalid_json_returns_empty_via_json_repair(self):
+        """json_repair gracefully handles malformed JSON — no exception raised.
+
+        The response text "not-json-at-all" gets repaired to a string value,
+        then taxonomy filtering removes everything → empty list result.
+        """
         from app.services.llm.gemini import GeminiProvider
 
         provider = GeminiProvider(api_key="test-key")
@@ -137,8 +141,8 @@ class TestGeminiProvider:
             mock_client.post = AsyncMock(return_value=resp)
             mock_cls.return_value = mock_client
 
-            with pytest.raises(Exception):  # json.JSONDecodeError or ValueError
-                await provider.extract_tags("text", TAXONOMY)
+            result = await provider.extract_tags("text", TAXONOMY)
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_empty_taxonomy_returns_empty_list(self):
@@ -180,8 +184,8 @@ class TestGeminiProvider:
             mock_client.post = AsyncMock(return_value=resp)
             mock_cls.return_value = mock_client
 
-            # Expect a KeyError — documents the crash so it can be fixed
-            with pytest.raises(KeyError):
+            # Provider now checks for missing candidates and raises ValueError
+            with pytest.raises(ValueError, match="no candidates"):
                 await provider.extract_tags("text", TAXONOMY)
 
 

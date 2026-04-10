@@ -1,21 +1,42 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+
+from app.config import settings
 from app.db.client import get_client
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
-    """Validate Supabase JWT and return user dict with id + role."""
+    """Verify the Supabase JWT signature and return the user dict.
+
+    Previously this used `jwt.get_unverified_claims()`, trusting whatever sub
+    the client provided — a complete auth bypass because all DB queries use
+    the service-role client (which ignores RLS). Now we verify the HS256
+    signature against SUPABASE_JWT_SECRET and validate the audience claim,
+    matching how supabase-auth issues tokens.
+    """
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired token",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    if not settings.SUPABASE_JWT_SECRET:
+        # Fail closed: misconfiguration must not silently accept forged tokens.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server auth misconfigured",
+        )
+
     try:
-        # Decode without verification to extract sub — Supabase validates on DB calls
-        payload = jwt.get_unverified_claims(token)
+        payload = jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated",
+        )
         user_id: str = payload.get("sub")
         if not user_id:
             raise credentials_error

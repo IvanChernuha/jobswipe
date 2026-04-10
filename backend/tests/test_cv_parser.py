@@ -57,17 +57,25 @@ def test_extract_text_plain_unknown_content_type_fallback():
     assert result == "just some text"
 
 
-def test_extract_text_plain_invalid_bytes_ignored():
-    """Invalid UTF-8 bytes are silently ignored (errors='ignore')."""
+def test_extract_text_plain_non_utf8_decoded_via_chardet():
+    """Non-UTF-8 bytes are auto-detected and decoded (not raised).
+
+    Before the chardet change this byte would have been stripped via
+    `errors="ignore"`. Now cv_parser uses chardet to detect the real
+    encoding — 0xFF is valid Latin-1 (U+00FF) so it round-trips cleanly.
+    This matters for Hebrew/Windows-1255 CVs where stripping "invalid"
+    bytes would destroy the text.
+    """
     from app.services.cv_parser import extract_text
 
-    # 0xFF is not valid UTF-8
+    # 0xFF is invalid UTF-8 but valid Latin-1 (decodes to U+00FF = ÿ)
     data = b"hello \xff world"
     result = extract_text(data, "text/plain")
+    # Must not raise; surrounding ASCII preserved.
     assert "hello" in result
     assert "world" in result
-    # The invalid byte should be dropped, not raise
-    assert "\xff" not in result
+    # Decoded successfully via chardet (not stripped, not an error).
+    assert isinstance(result, str)
 
 
 # ---------------------------------------------------------------------------

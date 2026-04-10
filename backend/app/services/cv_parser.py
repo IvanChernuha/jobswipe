@@ -5,7 +5,10 @@ import io
 def extract_text(content: bytes, content_type: str) -> str:
     if content_type == "application/pdf":
         return _extract_pdf(content)
-    if content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    if content_type in (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+    ):
         return _extract_docx(content)
     # Fallback: treat as plain text with auto-detected encoding
     import chardet

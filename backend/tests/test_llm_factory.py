@@ -57,24 +57,18 @@ class TestGetLlmProvider:
                 provider = get_llm_provider()
             assert isinstance(provider, GeminiProvider)
 
-    def test_empty_string_gemini_key_still_instantiates(self):
-        """
-        BUG: factory passes an empty string as api_key with no validation.
-        The provider is created but every HTTP call will get a 400/401.
-        This test documents the current (broken) behaviour so a validation
-        guard can be added.
-        """
+    def test_empty_string_gemini_key_raises(self):
+        """Factory validates empty API keys — rejects with ValueError."""
         settings = _make_settings(LLM_PROVIDER="gemini", GEMINI_API_KEY="")
         with patch("app.services.llm.factory.settings", settings):
             from app.services.llm.factory import get_llm_provider
-            # No ValueError is raised — documents missing validation
-            provider = get_llm_provider()
-        assert provider.api_key == ""
+            with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+                get_llm_provider()
 
-    def test_empty_string_deepseek_key_still_instantiates(self):
-        """Same empty-key bug for DeepSeek."""
+    def test_empty_string_deepseek_key_raises(self):
+        """Factory validates empty API keys — rejects with ValueError."""
         settings = _make_settings(LLM_PROVIDER="deepseek", DEEPSEEK_API_KEY="")
         with patch("app.services.llm.factory.settings", settings):
             from app.services.llm.factory import get_llm_provider
-            provider = get_llm_provider()
-        assert provider.api_key == ""
+            with pytest.raises(ValueError, match="DEEPSEEK_API_KEY"):
+                get_llm_provider()

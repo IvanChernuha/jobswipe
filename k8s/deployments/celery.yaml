@@ -18,7 +18,11 @@ spec:
       containers:
         - name: celery
           image: REGION-docker.pkg.dev/PROJECT_ID/jobswipe/backend:latest
-          command: ["celery", "-A", "app.tasks.notifications", "worker", "--loglevel=info", "--concurrency=4"]
+          # Must point at app.celery_app which imports BOTH notifications AND
+          # cv_processing modules. Using -A app.tasks.notifications silently
+          # drops every CV/job extraction task because that module doesn't
+          # import them (tasks stay queued forever in production).
+          command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
           envFrom:
             - configMapRef:
                 name: jobswipe-config

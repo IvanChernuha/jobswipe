@@ -19,3 +19,6 @@ sqlmodel==0.0.22
 alembic==1.13.2
 asyncpg==0.29.0
 greenlet==3.0.3
+# Test dependencies (kept in main requirements for simplicity at this scale)
+pytest==9.0.3
+pytest-asyncio==1.3.0

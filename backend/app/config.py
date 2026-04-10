@@ -5,6 +5,11 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_SERVICE_KEY: str
     SUPABASE_ANON_KEY: str
+    # JWT secret used to VERIFY Supabase auth tokens on every request.
+    # Must match the JWT_SECRET value in your self-hosted Supabase .env
+    # (or the project JWT secret on Supabase Cloud). REQUIRED — the app
+    # refuses to authenticate any request if this is empty.
+    SUPABASE_JWT_SECRET: str
     # Direct Postgres URL for SQLModel async queries (refactor WP #571).
     # Format: postgresql+asyncpg://user:pass@host:5432/dbname
     # Empty during early refactor phases — app still runs via Supabase client.
