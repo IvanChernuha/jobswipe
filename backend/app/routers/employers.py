@@ -1,232 +1,243 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.deps import require_employer, require_worker, require_employer_with_permission
+from app.db.session import get_session
 from app.models.employer import (
-    EmployerProfile, EmployerProfileUpdate, JobPostingCreate, JobPostingUpdate,
-    JobPosting, JobPostingWithStats, EmployerCard,
+    EmployerProfile as EmployerProfileResponse, EmployerProfileUpdate, JobPostingCreate, JobPostingUpdate,
+    JobPosting as JobPostingResponse, JobPostingWithStats, EmployerCard,
 )
-from app.db.client import get_client
-from app.services.scoring import expand_tags_with_implications, compute_match_score
+from app.models.tables.employer import EmployerProfile
+from app.models.tables.job import JobPosting, JobPostingTag
+from app.models.tables.tag import Tag
+from app.models.tables.swipe import Swipe
+from app.models.tables.match import Match
+from app.models.tables.worker import WorkerProfile, WorkerTag
+from app.models.tables.organization import OrgMember
+from app.services.scoring import (
+    expand_tags_with_implications_async, batch_expand_implications, compute_match_score,
+)
 
 router = APIRouter(prefix="/employers", tags=["employers"])
 
 
-def _normalize_profile(row: dict) -> dict:
-    """Map logo_url -> avatar_url for frontend consistency."""
-    row["avatar_url"] = row.pop("logo_url", None)
-    return row
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
-
-def _is_valid_uuid(s: str) -> bool:
-    try:
-        import uuid
-        uuid.UUID(s)
-        return True
-    except (ValueError, AttributeError):
-        return False
-
-
-def _validate_tag_ids(db, tag_ids: list[str]) -> list[str]:
-    """Deduplicate, validate UUID format, and check existence."""
-    unique = list(dict.fromkeys(tag_ids))
-    unique = [tid for tid in unique if _is_valid_uuid(tid)]
+async def _validate_tag_ids(session: AsyncSession, tag_ids: list[str]) -> list[uuid.UUID]:
+    unique = []
+    for tid in dict.fromkeys(tag_ids):
+        try:
+            unique.append(uuid.UUID(tid))
+        except ValueError:
+            continue
     if not unique:
         return []
-    valid = db.table("tags").select("id").in_("id", unique).execute()
-    valid_ids = {row["id"] for row in (valid.data or [])}
-    return [tid for tid in unique if tid in valid_ids]
+    result = await session.execute(select(Tag.id).where(Tag.id.in_(unique)))
+    existing = {row.id for row in result.all()}
+    return [t for t in unique if t in existing]
 
 
-def _fetch_job_tags(db, job_posting_id: str) -> list[dict]:
-    """Fetch tags linked to a job posting, including requirement type."""
-    result = (
-        db.table("job_posting_tags")
-        .select("tag_id, requirement, tags(id, name, category)")
-        .eq("job_posting_id", job_posting_id)
-        .execute()
+async def _fetch_job_tags(session: AsyncSession, job_posting_id: uuid.UUID) -> list[dict]:
+    result = await session.execute(
+        select(JobPostingTag.tag_id, JobPostingTag.requirement, Tag.id, Tag.name, Tag.category)
+        .join(Tag, Tag.id == JobPostingTag.tag_id)
+        .where(JobPostingTag.job_posting_id == job_posting_id)
     )
-    tags = []
-    for row in (result.data or []):
-        tag_data = row.get("tags")
-        if tag_data:
-            tag_data["requirement"] = row.get("requirement", "nice")
-            tags.append(tag_data)
-    return tags
+    return [{"id": str(r.id), "name": r.name, "category": r.category, "requirement": r.requirement} for r in result.all()]
 
 
-def _sync_job_tags(db, job_posting_id: str,
-                   nice_ids: list[str],
-                   required_ids: list[str],
-                   preferred_ids: list[str]):
-    """Replace all tags for a job posting with categorized requirement types."""
-    nice = _validate_tag_ids(db, nice_ids)
-    required = _validate_tag_ids(db, required_ids)
-    preferred = _validate_tag_ids(db, preferred_ids)
+async def _sync_job_tags(session: AsyncSession, job_posting_id: uuid.UUID,
+                         nice_ids: list[str], required_ids: list[str], preferred_ids: list[str]):
+    nice = await _validate_tag_ids(session, nice_ids)
+    required = await _validate_tag_ids(session, required_ids)
+    preferred = await _validate_tag_ids(session, preferred_ids)
 
-    # Remove duplicates across lists (required wins over preferred wins over nice)
     required_set = set(required)
     preferred = [t for t in preferred if t not in required_set]
     preferred_set = set(preferred)
     nice = [t for t in nice if t not in required_set and t not in preferred_set]
 
-    db.table("job_posting_tags").delete().eq("job_posting_id", job_posting_id).execute()
-
-    rows = []
+    await session.execute(delete(JobPostingTag).where(JobPostingTag.job_posting_id == job_posting_id))
     for tid in required:
-        rows.append({"job_posting_id": job_posting_id, "tag_id": tid, "requirement": "required"})
+        session.add(JobPostingTag(job_posting_id=job_posting_id, tag_id=tid, requirement="required"))
     for tid in preferred:
-        rows.append({"job_posting_id": job_posting_id, "tag_id": tid, "requirement": "preferred"})
+        session.add(JobPostingTag(job_posting_id=job_posting_id, tag_id=tid, requirement="preferred"))
     for tid in nice:
-        rows.append({"job_posting_id": job_posting_id, "tag_id": tid, "requirement": "nice"})
-
-    if rows:
-        db.table("job_posting_tags").insert(rows).execute()
+        session.add(JobPostingTag(job_posting_id=job_posting_id, tag_id=tid, requirement="nice"))
+    await session.commit()
 
 
-# ── Profile endpoints ────────────────────────────────────────────────────────
-
-@router.get("/me", response_model=EmployerProfile)
-async def get_my_profile(user: dict = Depends(require_employer)):
-    db = get_client()
-    result = db.table("employer_profiles").select("*").eq("user_id", user["id"]).single().execute()
-    if not result.data:
-        raise HTTPException(404, "Profile not found")
-    return _normalize_profile(result.data)
-
-
-@router.put("/me", response_model=EmployerProfile)
-async def update_my_profile(body: EmployerProfileUpdate, user: dict = Depends(require_employer)):
-    db = get_client()
-    updates = body.model_dump(exclude_none=True)
-    if not updates:
-        raise HTTPException(400, "No fields to update")
-    result = (
-        db.table("employer_profiles")
-        .upsert({"user_id": user["id"], **updates})
-        .execute()
-    )
-    return _normalize_profile(result.data[0])
-
-
-# ── Job endpoints ────────────────────────────────────────────────────────────
-
-@router.post("/jobs", response_model=JobPosting, status_code=201)
-async def create_job(body: JobPostingCreate, user: dict = Depends(require_employer_with_permission("create_job"))):
-    db = get_client()
-    job_data = body.model_dump()
-    # Remove tag fields from job_data (they go to junction table)
-    for key in ("tag_ids", "required_tag_ids", "preferred_tag_ids", "expires_in_days"):
-        job_data.pop(key, None)
-    job_data["employer_id"] = user["id"]
-    job_data["expires_at"] = (datetime.now(timezone.utc) + timedelta(days=body.expires_in_days)).isoformat()
-
-    result = db.table("job_postings").insert(job_data).execute()
-    job = result.data[0]
-
-    if body.tag_ids or body.required_tag_ids or body.preferred_tag_ids:
-        _sync_job_tags(db, job["id"], body.tag_ids, body.required_tag_ids, body.preferred_tag_ids)
-
-    job["tags"] = _fetch_job_tags(db, job["id"])
-    return job
-
-
-def _get_org_employer_ids(db, user: dict) -> list[str]:
-    """Get all employer IDs in the user's org, or just the user's own ID."""
+async def _get_org_employer_ids(session: AsyncSession, user: dict) -> list[str]:
     org_id = user.get("org_id")
     if org_id:
-        members = db.table("org_members").select("user_id").eq("org_id", org_id).execute()
-        return [m["user_id"] for m in (members.data or [])]
+        result = await session.execute(
+            select(OrgMember.user_id).where(OrgMember.org_id == uuid.UUID(org_id))
+        )
+        return [str(m.user_id) for m in result.all()]
     return [user["id"]]
 
 
-def _verify_job_access(db, job_id: str, user: dict) -> dict:
-    """Verify the job exists and belongs to the user or their org. Returns job row."""
-    existing = db.table("job_postings").select("id, employer_id").eq("id", job_id).execute()
-    if not existing.data:
+async def _verify_job_access(session: AsyncSession, job_id: str, user: dict) -> JobPosting:
+    job = await session.get(JobPosting, uuid.UUID(job_id))
+    if not job:
         raise HTTPException(404, "Job not found")
-    job = existing.data[0]
-    allowed_ids = _get_org_employer_ids(db, user)
-    if job["employer_id"] not in allowed_ids:
+    allowed_ids = await _get_org_employer_ids(session, user)
+    if str(job.employer_id) not in allowed_ids:
         raise HTTPException(403, "Not your job posting")
     return job
 
 
-@router.get("/jobs", response_model=list[JobPostingWithStats])
-async def list_my_jobs(user: dict = Depends(require_employer_with_permission("view"))):
-    db = get_client()
-    employer_ids = _get_org_employer_ids(db, user)
-    result = (
-        db.table("job_postings")
-        .select("*")
-        .in_("employer_id", employer_ids)
-        .order("created_at", desc=True)
-        .execute()
+def _job_to_dict(job: JobPosting, tags: list[dict]) -> dict:
+    return {
+        "id": str(job.id), "employer_id": str(job.employer_id), "title": job.title,
+        "description": job.description or "", "skills_required": job.skills_required or [],
+        "salary_min": job.salary_min or 0, "salary_max": job.salary_max or 0,
+        "location": job.location or "", "remote": job.remote or False,
+        "active": job.active if job.active is not None else True,
+        "created_at": str(job.created_at) if job.created_at else None,
+        "expires_at": str(job.expires_at) if job.expires_at else None,
+        "tags": tags,
+    }
+
+
+# ── Profile endpoints ────────────────────────────────────────────────────────
+
+@router.get("/me", response_model=EmployerProfileResponse)
+async def get_my_profile(user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    profile = await session.get(EmployerProfile, uuid.UUID(user["id"]))
+    if not profile:
+        raise HTTPException(404, "Profile not found")
+    return {
+        "user_id": str(profile.user_id), "company_name": profile.company_name,
+        "description": profile.description, "industry": profile.industry,
+        "location": profile.location, "avatar_url": profile.logo_url,
+    }
+
+
+@router.put("/me", response_model=EmployerProfileResponse)
+async def update_my_profile(
+    body: EmployerProfileUpdate, user: dict = Depends(require_employer),
+    session: AsyncSession = Depends(get_session),
+):
+    updates = body.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+
+    uid = uuid.UUID(user["id"])
+    profile = await session.get(EmployerProfile, uid)
+    if not profile:
+        raise HTTPException(404, "Profile not found")
+
+    for key, val in updates.items():
+        setattr(profile, key, val)
+    session.add(profile)
+    await session.commit()
+    await session.refresh(profile)
+
+    return {
+        "user_id": str(profile.user_id), "company_name": profile.company_name,
+        "description": profile.description, "industry": profile.industry,
+        "location": profile.location, "avatar_url": profile.logo_url,
+    }
+
+
+# ── Job endpoints ────────────────────────────────────────────────────────────
+
+@router.post("/jobs", response_model=JobPostingResponse, status_code=201)
+async def create_job(
+    body: JobPostingCreate, user: dict = Depends(require_employer_with_permission("create_job")),
+    session: AsyncSession = Depends(get_session),
+):
+    job = JobPosting(
+        id=uuid.uuid4(),
+        employer_id=uuid.UUID(user["id"]),
+        title=body.title,
+        description=body.description,
+        skills_required=body.skills_required,
+        salary_min=body.salary_min,
+        salary_max=body.salary_max,
+        location=body.location,
+        remote=body.remote,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=body.expires_in_days),
     )
-    jobs = result.data or []
+    session.add(job)
+    await session.commit()
+
+    if body.tag_ids or body.required_tag_ids or body.preferred_tag_ids:
+        await _sync_job_tags(session, job.id, body.tag_ids, body.required_tag_ids, body.preferred_tag_ids)
+
+    tags = await _fetch_job_tags(session, job.id)
+    return _job_to_dict(job, tags)
+
+
+@router.get("/jobs", response_model=list[JobPostingWithStats])
+async def list_my_jobs(
+    user: dict = Depends(require_employer_with_permission("view")),
+    session: AsyncSession = Depends(get_session),
+):
+    employer_ids = await _get_org_employer_ids(session, user)
+    emp_uuids = [uuid.UUID(eid) for eid in employer_ids]
+
+    result = await session.execute(
+        select(JobPosting).where(JobPosting.employer_id.in_(emp_uuids)).order_by(JobPosting.created_at.desc())
+    )
+    jobs = result.scalars().all()
     if not jobs:
         return []
 
-    job_ids = [j["id"] for j in jobs]
+    job_ids = [j.id for j in jobs]
 
-    # Batch-fetch tags
-    tag_rows = (
-        db.table("job_posting_tags")
-        .select("job_posting_id, requirement, tags(id, name, category)")
-        .in_("job_posting_id", job_ids)
-        .execute()
+    # Batch tags
+    tr = await session.execute(
+        select(JobPostingTag.job_posting_id, JobPostingTag.requirement, Tag.id, Tag.name, Tag.category)
+        .join(Tag, Tag.id == JobPostingTag.tag_id)
+        .where(JobPostingTag.job_posting_id.in_(job_ids))
     )
-    tags_by_job: dict[str, list[dict]] = {}
-    for row in (tag_rows.data or []):
-        tag_data = row.get("tags")
-        if tag_data:
-            tag_data["requirement"] = row.get("requirement", "nice")
-            tags_by_job.setdefault(row["job_posting_id"], []).append(tag_data)
+    tags_by_job: dict[uuid.UUID, list[dict]] = {}
+    for r in tr.all():
+        tags_by_job.setdefault(r.job_posting_id, []).append(
+            {"id": str(r.id), "name": r.name, "category": r.category, "requirement": r.requirement}
+        )
 
-    # Batch-fetch swipe stats
-    swipe_rows = (
-        db.table("swipes")
-        .select("target_id, direction")
-        .in_("target_id", job_ids)
-        .execute()
+    # Batch swipe stats
+    sr = await session.execute(select(Swipe.target_id, Swipe.direction).where(Swipe.target_id.in_(job_ids)))
+    swipe_counts: dict[uuid.UUID, int] = {}
+    like_counts: dict[uuid.UUID, int] = {}
+    for s in sr.all():
+        swipe_counts[s.target_id] = swipe_counts.get(s.target_id, 0) + 1
+        if s.direction in ("like", "super_like"):
+            like_counts[s.target_id] = like_counts.get(s.target_id, 0) + 1
+
+    # Batch match counts
+    mr = await session.execute(
+        select(Match.job_posting_id).where(Match.job_posting_id.in_(job_ids), Match.status == "active")
     )
-    swipe_counts: dict[str, int] = {}
-    like_counts: dict[str, int] = {}
-    for s in (swipe_rows.data or []):
-        tid = s["target_id"]
-        swipe_counts[tid] = swipe_counts.get(tid, 0) + 1
-        if s["direction"] in ("like", "super_like"):
-            like_counts[tid] = like_counts.get(tid, 0) + 1
+    match_counts: dict[uuid.UUID, int] = {}
+    for m in mr.all():
+        match_counts[m.job_posting_id] = match_counts.get(m.job_posting_id, 0) + 1
 
-    # Batch-fetch match counts
-    match_rows = (
-        db.table("matches")
-        .select("job_posting_id")
-        .in_("job_posting_id", job_ids)
-        .eq("status", "active")
-        .execute()
-    )
-    match_counts: dict[str, int] = {}
-    for m in (match_rows.data or []):
-        jid = m["job_posting_id"]
-        match_counts[jid] = match_counts.get(jid, 0) + 1
-
-    for job in jobs:
-        jid = job["id"]
-        job["tags"] = tags_by_job.get(jid, [])
-        job["swipe_count"] = swipe_counts.get(jid, 0)
-        job["like_count"] = like_counts.get(jid, 0)
-        job["match_count"] = match_counts.get(jid, 0)
-
-    return jobs
+    out = []
+    for j in jobs:
+        d = _job_to_dict(j, tags_by_job.get(j.id, []))
+        d["swipe_count"] = swipe_counts.get(j.id, 0)
+        d["like_count"] = like_counts.get(j.id, 0)
+        d["match_count"] = match_counts.get(j.id, 0)
+        out.append(d)
+    return out
 
 
-@router.put("/jobs/{job_id}", response_model=JobPosting)
-async def update_job(job_id: str, body: JobPostingUpdate, user: dict = Depends(require_employer_with_permission("edit_job"))):
-    db = get_client()
-    _verify_job_access(db, job_id, user)
+@router.put("/jobs/{job_id}", response_model=JobPostingResponse)
+async def update_job(
+    job_id: str, body: JobPostingUpdate,
+    user: dict = Depends(require_employer_with_permission("edit_job")),
+    session: AsyncSession = Depends(get_session),
+):
+    job = await _verify_job_access(session, job_id, user)
 
-    # Build updates (exclude tag fields)
     updates = body.model_dump(exclude_none=True)
     tag_ids = updates.pop("tag_ids", None)
     required_tag_ids = updates.pop("required_tag_ids", None)
@@ -234,48 +245,49 @@ async def update_job(job_id: str, body: JobPostingUpdate, user: dict = Depends(r
     expires_in_days = updates.pop("expires_in_days", None)
 
     if expires_in_days is not None:
-        updates["expires_at"] = (datetime.now(timezone.utc) + timedelta(days=expires_in_days)).isoformat()
+        updates["expires_at"] = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
 
-    # Validate salary range (guard against None from freshly-created rows)
     if "salary_min" in updates or "salary_max" in updates:
-        current = db.table("job_postings").select("salary_min, salary_max").eq("id", job_id).single().execute().data
-        s_min = updates.get("salary_min", current["salary_min"])
-        s_max = updates.get("salary_max", current["salary_max"])
+        s_min = updates.get("salary_min", job.salary_min)
+        s_max = updates.get("salary_max", job.salary_max)
         if s_min is not None and s_max is not None and s_max > 0 and s_min > s_max:
             raise HTTPException(422, "salary_min cannot exceed salary_max")
 
-    if updates:
-        db.table("job_postings").update(updates).eq("id", job_id).execute()
+    for key, val in updates.items():
+        setattr(job, key, val)
+    session.add(job)
+    await session.commit()
 
-    # Update tags if any were provided
     if tag_ids is not None or required_tag_ids is not None or preferred_tag_ids is not None:
-        _sync_job_tags(db, job_id, tag_ids or [], required_tag_ids or [], preferred_tag_ids or [])
+        await _sync_job_tags(session, job.id, tag_ids or [], required_tag_ids or [], preferred_tag_ids or [])
 
-    job = db.table("job_postings").select("*").eq("id", job_id).single().execute().data
-    job["tags"] = _fetch_job_tags(db, job_id)
-    return job
+    await session.refresh(job)
+    tags = await _fetch_job_tags(session, job.id)
+    return _job_to_dict(job, tags)
 
 
-@router.patch("/jobs/{job_id}/toggle", response_model=JobPosting)
-async def toggle_job_active(job_id: str, user: dict = Depends(require_employer_with_permission("toggle_job"))):
-    db = get_client()
-    _verify_job_access(db, job_id, user)
-
-    existing = db.table("job_postings").select("active").eq("id", job_id).single().execute()
-    new_active = not existing.data["active"]
-    db.table("job_postings").update({"active": new_active}).eq("id", job_id).execute()
-
-    job = db.table("job_postings").select("*").eq("id", job_id).single().execute().data
-    job["tags"] = _fetch_job_tags(db, job_id)
-    return job
+@router.patch("/jobs/{job_id}/toggle", response_model=JobPostingResponse)
+async def toggle_job_active(
+    job_id: str, user: dict = Depends(require_employer_with_permission("toggle_job")),
+    session: AsyncSession = Depends(get_session),
+):
+    job = await _verify_job_access(session, job_id, user)
+    job.active = not job.active
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    tags = await _fetch_job_tags(session, job.id)
+    return _job_to_dict(job, tags)
 
 
 @router.delete("/jobs/{job_id}", status_code=204)
-async def delete_job(job_id: str, user: dict = Depends(require_employer_with_permission("delete_job"))):
-    db = get_client()
-    _verify_job_access(db, job_id, user)
-
-    db.table("job_postings").delete().eq("id", job_id).execute()
+async def delete_job(
+    job_id: str, user: dict = Depends(require_employer_with_permission("delete_job")),
+    session: AsyncSession = Depends(get_session),
+):
+    job = await _verify_job_access(session, job_id, user)
+    await session.delete(job)
+    await session.commit()
 
 
 # ── Worker feed (jobs shown to workers) ──────────────────────────────────────
@@ -284,112 +296,79 @@ async def delete_job(job_id: str, user: dict = Depends(require_employer_with_per
 async def worker_feed(
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=50),
-    location: str = Query(None, description="Filter by job location (substring match)"),
-    salary_min: int = Query(None, ge=0, description="Minimum salary floor"),
-    remote: bool = Query(None, description="Filter remote-only jobs"),
+    location: str = Query(None),
+    salary_min: int = Query(None, ge=0),
+    remote: bool = Query(None),
     user: dict = Depends(require_worker),
+    session: AsyncSession = Depends(get_session),
 ):
-    """
-    Return job postings the worker has not yet swiped on.
-    Hard-filters by required/preferred tags, then scores and sorts by relevance.
-    """
-    db = get_client()
+    uid = uuid.UUID(user["id"])
 
-    # 1. Already-swiped targets
-    swiped = (
-        db.table("swipes")
-        .select("target_id")
-        .eq("swiper_id", user["id"])
-        .execute()
-    )
-    swiped_ids = list({s["target_id"] for s in (swiped.data or [])})
+    # 1. Swiped targets
+    result = await session.execute(select(Swipe.target_id).where(Swipe.swiper_id == uid))
+    swiped_ids = [r.target_id for r in result.all()]
 
-    # 2. Fetch all unswiped active, non-expired jobs
-    now_iso = datetime.now(timezone.utc).isoformat()
-    query = (
-        db.table("job_postings")
-        .select("id, title, description, skills_required, salary_min, salary_max, location, remote, employer_id")
-        .eq("active", True)
-        .gte("expires_at", now_iso)
-    )
+    # 2. Active non-expired jobs
+    now = datetime.now(timezone.utc)
+    query = select(JobPosting).where(JobPosting.active == True, JobPosting.expires_at >= now)
     if swiped_ids:
-        query = query.not_.in_("id", swiped_ids)
+        query = query.where(JobPosting.id.not_in(swiped_ids))
     if remote is not None:
-        query = query.eq("remote", remote)
+        query = query.where(JobPosting.remote == remote)
     if salary_min is not None:
-        query = query.gte("salary_max", salary_min)
-    jobs = query.execute().data or []
+        query = query.where(JobPosting.salary_max >= salary_min)
 
-    # Client-side location filter (substring, case-insensitive)
+    result = await session.execute(query)
+    jobs = result.scalars().all()
+
     if location:
         loc_lower = location.lower()
-        jobs = [j for j in jobs if loc_lower in (j.get("location") or "").lower()]
+        jobs = [j for j in jobs if loc_lower in (j.location or "").lower()]
 
     if not jobs:
         return []
 
-    # 3. Worker's tags expanded
-    worker_tag_rows = (
-        db.table("worker_tags")
-        .select("tag_id")
-        .eq("worker_id", user["id"])
-        .execute()
-    )
-    worker_tag_ids = {r["tag_id"] for r in (worker_tag_rows.data or [])}
-    worker_expanded = expand_tags_with_implications(db, worker_tag_ids)
+    # 3. Worker tags expanded
+    wt_result = await session.execute(select(WorkerTag.tag_id).where(WorkerTag.worker_id == uid))
+    worker_tag_ids = {str(r.tag_id) for r in wt_result.all()}
+    worker_expanded = await expand_tags_with_implications_async(session, worker_tag_ids)
 
-    # 4. Batch-fetch employer profiles
-    employer_ids = list({j["employer_id"] for j in jobs})
-    ep_raw = (
-        db.table("employer_profiles")
-        .select("user_id, company_name, industry, logo_url")
-        .in_("user_id", employer_ids)
-        .execute()
-    )
-    ep_by_id = {row["user_id"]: row for row in (ep_raw.data or [])}
+    # 4. Employer profiles
+    employer_ids = list({j.employer_id for j in jobs})
+    ep_result = await session.execute(select(EmployerProfile).where(EmployerProfile.user_id.in_(employer_ids)))
+    ep_by_id = {ep.user_id: ep for ep in ep_result.scalars().all()}
 
-    # 5. Batch-fetch ALL job tags with requirement type
-    job_ids = [j["id"] for j in jobs]
-    tag_rows = (
-        db.table("job_posting_tags")
-        .select("job_posting_id, tag_id, requirement, tags(id, name, category)")
-        .in_("job_posting_id", job_ids)
-        .execute()
+    # 5. Job tags
+    job_ids = [j.id for j in jobs]
+    jt_result = await session.execute(
+        select(JobPostingTag.job_posting_id, JobPostingTag.tag_id, JobPostingTag.requirement,
+               Tag.id, Tag.name, Tag.category)
+        .join(Tag, Tag.id == JobPostingTag.tag_id)
+        .where(JobPostingTag.job_posting_id.in_(job_ids))
     )
 
-    # Build per-job structures
-    tags_by_job: dict[str, list[dict]] = {}        # display tags
-    tag_ids_by_job: dict[str, set[str]] = {}       # all tag IDs (for scoring)
-    required_by_job: dict[str, set[str]] = {}      # required tag IDs
-    preferred_by_job: dict[str, set[str]] = {}     # preferred tag IDs
+    tags_by_job: dict[uuid.UUID, list[dict]] = {}
+    tag_ids_by_job: dict[uuid.UUID, set[str]] = {}
+    required_by_job: dict[uuid.UUID, set[str]] = {}
+    preferred_by_job: dict[uuid.UUID, set[str]] = {}
 
-    for row in (tag_rows.data or []):
-        jid = row["job_posting_id"]
-        req = row.get("requirement", "nice")
-        tag_data = row.get("tags")
-        if tag_data:
-            tag_data["requirement"] = req
-            tags_by_job.setdefault(jid, []).append(tag_data)
-        tag_ids_by_job.setdefault(jid, set()).add(row["tag_id"])
-        if req == "required":
-            required_by_job.setdefault(jid, set()).add(row["tag_id"])
-        elif req == "preferred":
-            preferred_by_job.setdefault(jid, set()).add(row["tag_id"])
+    for r in jt_result.all():
+        jid = r.job_posting_id
+        tid = str(r.tag_id)
+        tags_by_job.setdefault(jid, []).append(
+            {"id": str(r.id), "name": r.name, "category": r.category, "requirement": r.requirement}
+        )
+        tag_ids_by_job.setdefault(jid, set()).add(tid)
+        if r.requirement == "required":
+            required_by_job.setdefault(jid, set()).add(tid)
+        elif r.requirement == "preferred":
+            preferred_by_job.setdefault(jid, set()).add(tid)
 
-    # 6. Batch-expand all job tags with implications
+    # 6. Batch implications
     all_job_tag_ids = set()
     for ids in tag_ids_by_job.values():
         all_job_tag_ids |= ids
-    impl_map: dict[str, set[str]] = {}
-    if all_job_tag_ids:
-        impl_rows = (
-            db.table("tag_implications")
-            .select("parent_tag_id, implied_tag_id")
-            .in_("parent_tag_id", list(all_job_tag_ids))
-            .execute()
-        )
-        for r in (impl_rows.data or []):
-            impl_map.setdefault(r["parent_tag_id"], set()).add(r["implied_tag_id"])
+    impl_map = await batch_expand_implications(session, all_job_tag_ids)
 
     def expand_ids(ids: set[str]) -> set[str]:
         expanded = set(ids)
@@ -398,51 +377,34 @@ async def worker_feed(
         return expanded
 
     # 7. Filter + score
-    scored_items = []
+    scored = []
     for job in jobs:
-        ep = ep_by_id.get(job["employer_id"], {})
-        if not ep.get("company_name"):
+        ep = ep_by_id.get(job.employer_id)
+        if not ep or not ep.company_name:
             continue
 
-        jid = job["id"]
+        jid = job.id
         req_ids = required_by_job.get(jid, set())
         pref_ids = preferred_by_job.get(jid, set())
 
-        # Hard filter: worker must have ALL required tags (expanded)
-        if req_ids:
-            req_expanded = expand_ids(req_ids)
-            if not req_expanded.issubset(worker_expanded):
-                continue
+        if req_ids and not expand_ids(req_ids).issubset(worker_expanded):
+            continue
+        if pref_ids and not (worker_expanded & expand_ids(pref_ids)):
+            continue
 
-        # Hard filter: worker must have at least 1 preferred tag (expanded)
-        if pref_ids:
-            pref_expanded = expand_ids(pref_ids)
-            if not (worker_expanded & pref_expanded):
-                continue
-
-        # Score against all job tags
         job_expanded = expand_ids(tag_ids_by_job.get(jid, set()))
         score = compute_match_score(worker_expanded, job_expanded)
 
-        scored_items.append({
-            "id": jid,
-            "job_title": job["title"],
-            "description": job["description"],
-            "skills_required": job["skills_required"] or [],
-            "salary_min": job["salary_min"],
-            "salary_max": job["salary_max"],
-            "location": job["location"],
-            "remote": job["remote"],
-            "company_name": ep.get("company_name", ""),
-            "industry": ep.get("industry", ""),
-            "avatar_url": ep.get("logo_url"),
-            "tags": tags_by_job.get(jid, []),
+        scored.append({
+            "id": str(jid), "job_title": job.title, "description": job.description or "",
+            "skills_required": job.skills_required or [],
+            "salary_min": job.salary_min or 0, "salary_max": job.salary_max or 0,
+            "location": job.location or "", "remote": job.remote or False,
+            "company_name": ep.company_name, "industry": ep.industry or "",
+            "avatar_url": ep.logo_url, "tags": tags_by_job.get(jid, []),
             "match_score": score,
         })
 
-    # 8. Sort by relevance
-    scored_items.sort(key=lambda x: (x["match_score"]["percentage"], x["match_score"]["matched"]), reverse=True)
-
-    # 9. Paginate
+    scored.sort(key=lambda x: (x["match_score"]["percentage"], x["match_score"]["matched"]), reverse=True)
     offset = (page - 1) * size
-    return scored_items[offset:offset + size]
+    return scored[offset:offset + size]

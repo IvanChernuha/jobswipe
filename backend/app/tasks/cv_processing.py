@@ -1,17 +1,22 @@
 """Celery tasks for async CV and job description tag extraction."""
 import asyncio
 import logging
+import uuid
+
 import httpx
+from sqlalchemy import select, delete
+
 from app.tasks.notifications import celery_app
-from app.db.client import get_client
+from app.db.session import get_sync_session
+from app.models.tables.tag import Tag
+from app.models.tables.worker import WorkerProfile, WorkerTag
+from app.models.tables.job import JobPostingTag
 from app.services.cv_parser import extract_text
 from app.services.llm.factory import get_llm_provider
 from app.services.llm.batcher import calculate_batches
 
 logger = logging.getLogger(__name__)
 
-# Only retry on transient errors. Permanent errors (bad input, auth, etc.)
-# are logged and dropped — retrying won't help and wastes LLM budget.
 _RETRYABLE = (httpx.ConnectError, httpx.TimeoutException, ConnectionError, OSError)
 
 
@@ -20,23 +25,25 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-def _fetch_taxonomy() -> dict:
-    """Return {name: id} for all tags in the taxonomy."""
-    db = get_client()
-    result = db.table("tags").select("id, name").execute()
-    return {row["name"]: row["id"] for row in (result.data or [])}
+def _fetch_taxonomy() -> dict[str, str]:
+    """Return {name: id_str} for all tags."""
+    with get_sync_session() as session:
+        result = session.execute(select(Tag.id, Tag.name))
+        return {row.name: str(row.id) for row in result.all()}
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: str):
-    """
-    Parse a worker's CV and auto-apply extracted tags to their profile.
-    Called after resume upload.
-    """
+    """Parse a worker's CV and auto-apply extracted tags."""
     import base64
 
-    db = get_client()
-    db.table("worker_profiles").update({"cv_extraction_status": "processing"}).eq("user_id", worker_id).execute()
+    wid = uuid.UUID(worker_id)
+
+    with get_sync_session() as session:
+        profile = session.get(WorkerProfile, wid)
+        if profile:
+            profile.cv_extraction_status = "processing"
+            session.commit()
 
     try:
         content = base64.b64decode(file_content_b64)
@@ -44,47 +51,53 @@ def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: s
 
         taxonomy = _fetch_taxonomy()
         provider = get_llm_provider()
-        profile = _run(provider.extract_cv_profile(raw_text, list(taxonomy.keys())))
+        cv_profile = _run(provider.extract_cv_profile(raw_text, list(taxonomy.keys())))
 
-        tag_ids = [taxonomy[name] for name in profile.tags if name in taxonomy]
+        tag_ids = [taxonomy[name] for name in cv_profile.tags if name in taxonomy]
 
-        db.table("worker_tags").delete().eq("worker_id", worker_id).execute()
-        if tag_ids:
-            db.table("worker_tags").insert([{"worker_id": worker_id, "tag_id": tid} for tid in tag_ids]).execute()
+        with get_sync_session() as session:
+            session.execute(delete(WorkerTag).where(WorkerTag.worker_id == wid))
+            for tid in tag_ids:
+                session.add(WorkerTag(worker_id=wid, tag_id=uuid.UUID(tid)))
 
-        # Build profile update — only overwrite fields that were extracted
-        profile_update: dict = {
-            "cv_extraction_status": "done",
-            "cv_extracted_tag_count": len(tag_ids),
-        }
-        if profile.name:
-            profile_update["name"] = profile.name
-        if profile.location:
-            profile_update["location"] = profile.location
-        if profile.experience_years is not None:
-            profile_update["experience_years"] = profile.experience_years
-        if profile.bio:
-            profile_update["bio"] = profile.bio
-
-        db.table("worker_profiles").update(profile_update).eq("user_id", worker_id).execute()
+            profile = session.get(WorkerProfile, wid)
+            if profile:
+                profile.cv_extraction_status = "done"
+                profile.cv_extracted_tag_count = len(tag_ids)
+                if cv_profile.name:
+                    profile.name = cv_profile.name
+                if cv_profile.location:
+                    profile.location = cv_profile.location
+                if cv_profile.experience_years is not None:
+                    profile.experience_years = cv_profile.experience_years
+                if cv_profile.bio:
+                    profile.bio = cv_profile.bio
+            session.commit()
 
     except _RETRYABLE as exc:
-        db.table("worker_profiles").update({"cv_extraction_status": "retrying"}).eq("user_id", worker_id).execute()
+        with get_sync_session() as session:
+            profile = session.get(WorkerProfile, wid)
+            if profile:
+                profile.cv_extraction_status = "retrying"
+                session.commit()
         raise self.retry(exc=exc)
     except Exception as exc:
         logger.error("extract_cv_tags permanent failure for worker %s: %s", worker_id, exc)
-        db.table("worker_profiles").update({"cv_extraction_status": "error"}).eq("user_id", worker_id).execute()
+        with get_sync_session() as session:
+            profile = session.get(WorkerProfile, wid)
+            if profile:
+                profile.cv_extraction_status = "error"
+                session.commit()
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def extract_job_tags(self, job_id: str, description: str):
     """Extract tags for a single job posting."""
-    db = get_client()
     try:
         taxonomy = _fetch_taxonomy()
         provider = get_llm_provider()
         matched_names = _run(provider.extract_tags(description, list(taxonomy.keys())))
-        _apply_job_tags(db, job_id, matched_names, taxonomy)
+        _apply_job_tags(job_id, matched_names, taxonomy)
     except _RETRYABLE as exc:
         raise self.retry(exc=exc)
     except Exception as exc:
@@ -93,15 +106,7 @@ def extract_job_tags(self, job_id: str, description: str):
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def extract_job_tags_bulk(self, jobs: list[dict]):
-    """
-    Extract tags for multiple job postings using smart batching.
-
-    - Small payload (fits in one call) → single API call.
-    - Large payload → split into optimal batches, one Celery task per batch.
-
-    Each job dict: {job_id: str, description: str}
-    """
-    db = get_client()
+    """Extract tags for multiple job postings using smart batching."""
     try:
         taxonomy = _fetch_taxonomy()
         provider = get_llm_provider()
@@ -110,7 +115,7 @@ def extract_job_tags_bulk(self, jobs: list[dict]):
         for batch in batches:
             results = _run(provider.extract_tags_batch(batch, list(taxonomy.keys())))
             for job_id, matched_names in results.items():
-                _apply_job_tags(db, job_id, matched_names, taxonomy)
+                _apply_job_tags(job_id, matched_names, taxonomy)
 
     except _RETRYABLE as exc:
         raise self.retry(exc=exc)
@@ -118,12 +123,13 @@ def extract_job_tags_bulk(self, jobs: list[dict]):
         logger.error("extract_job_tags_bulk permanent failure: %s", exc)
 
 
-def _apply_job_tags(db, job_id: str, matched_names: list[str], taxonomy: dict):
+def _apply_job_tags(job_id: str, matched_names: list[str], taxonomy: dict[str, str]):
     """Replace job posting tags with freshly extracted ones."""
     tag_ids = [taxonomy[name] for name in matched_names if name in taxonomy]
-    db.table("job_posting_tags").delete().eq("job_posting_id", job_id).execute()
-    if tag_ids:
-        db.table("job_posting_tags").insert([
-            {"job_posting_id": job_id, "tag_id": tid, "requirement": "preferred"}
-            for tid in tag_ids
-        ]).execute()
+    jid = uuid.UUID(job_id)
+
+    with get_sync_session() as session:
+        session.execute(delete(JobPostingTag).where(JobPostingTag.job_posting_id == jid))
+        for tid in tag_ids:
+            session.add(JobPostingTag(job_posting_id=jid, tag_id=uuid.UUID(tid), requirement="preferred"))
+        session.commit()

@@ -1,12 +1,24 @@
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.deps import get_current_user
-from app.db.client import get_client
-from app.models.tag import Tag
-from app.services.scoring import expand_tags_with_implications, compute_match_score
+from app.db.session import get_session
+from app.models.tag import Tag as TagResponse
+from app.models.tables.bookmark import Bookmark
+from app.models.tables.job import JobPosting, JobPostingTag
+from app.models.tables.tag import Tag
+from app.models.tables.worker import WorkerProfile, WorkerTag
+from app.models.tables.employer import EmployerProfile
+from app.models.tables.organization import OrgMember
+from app.services.scoring import (
+    expand_tags_with_implications_async, batch_expand_implications, compute_match_score,
+)
 
 router = APIRouter(prefix="/bookmarks", tags=["bookmarks"])
 
@@ -17,7 +29,7 @@ class BookmarkRequest(BaseModel):
 
 
 class BookmarkMoveRequest(BaseModel):
-    job_posting_id: Optional[str] = None  # None = unsorted
+    job_posting_id: Optional[str] = None
 
 
 class BookmarkNoteRequest(BaseModel):
@@ -25,7 +37,6 @@ class BookmarkNoteRequest(BaseModel):
 
 
 class BookmarkTarget(BaseModel):
-    """Enriched bookmark with resolved target details."""
     id: str
     user_id: str
     target_id: str
@@ -33,22 +44,19 @@ class BookmarkTarget(BaseModel):
     expires_at: Optional[str] = None
     job_posting_id: Optional[str] = None
     note: str = ""
-    # Resolved fields (worker targets)
     name: Optional[str] = None
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
     location: Optional[str] = None
     experience_years: Optional[int] = None
     skills: Optional[list[str]] = None
-    # Resolved fields (job targets)
     job_title: Optional[str] = None
     company_name: Optional[str] = None
     description: Optional[str] = None
     salary_min: Optional[int] = None
     salary_max: Optional[int] = None
     remote: Optional[bool] = None
-    tags: list[Tag] = []
-
+    tags: list[TagResponse] = []
     model_config = {"extra": "ignore"}
 
 
@@ -60,79 +68,60 @@ class BookmarkBasic(BaseModel):
     note: str = ""
     created_at: Optional[str] = None
     expires_at: Optional[str] = None
-
     model_config = {"extra": "ignore"}
 
 
 class BookmarkGroup(BaseModel):
-    """A group of bookmarks under one job posting."""
     job_posting_id: Optional[str] = None
-    job_title: str  # "Unsorted" for null
+    job_title: str
     bookmarks: list[BookmarkTarget] = []
-
     model_config = {"extra": "ignore"}
 
 
-def _auto_assign_job(db, employer_id: str, worker_target_id: str) -> Optional[str]:
-    """Find the best-fit job posting for a worker based on tag overlap."""
-    # Get worker tags
-    wt_rows = (
-        db.table("worker_tags")
-        .select("tag_id")
-        .eq("worker_id", worker_target_id)
-        .execute()
-    )
-    worker_tag_ids = {r["tag_id"] for r in (wt_rows.data or [])}
+def _bm_to_basic(bm: Bookmark) -> dict:
+    return {
+        "id": str(bm.id), "user_id": str(bm.user_id), "target_id": str(bm.target_id),
+        "job_posting_id": str(bm.job_posting_id) if bm.job_posting_id else None,
+        "note": bm.note or "", "created_at": str(bm.created_at) if bm.created_at else None,
+        "expires_at": str(bm.expires_at) if bm.expires_at else None,
+    }
+
+
+async def _auto_assign_job(session: AsyncSession, employer_id: str, worker_target_id: str) -> Optional[uuid.UUID]:
+    uid = uuid.UUID(worker_target_id)
+    eid = uuid.UUID(employer_id)
+
+    wt_result = await session.execute(select(WorkerTag.tag_id).where(WorkerTag.worker_id == uid))
+    worker_tag_ids = {str(r.tag_id) for r in wt_result.all()}
     if not worker_tag_ids:
         return None
 
-    worker_expanded = expand_tags_with_implications(db, worker_tag_ids)
+    worker_expanded = await expand_tags_with_implications_async(session, worker_tag_ids)
 
-    # Get employer's active jobs
-    jobs = (
-        db.table("job_postings")
-        .select("id")
-        .eq("employer_id", employer_id)
-        .eq("active", True)
-        .execute()
-    )
-    job_ids = [j["id"] for j in (jobs.data or [])]
+    jr = await session.execute(select(JobPosting.id).where(JobPosting.employer_id == eid, JobPosting.active == True))
+    job_ids = [r.id for r in jr.all()]
     if not job_ids:
         return None
 
-    # Get tags for all jobs
-    jt_rows = (
-        db.table("job_posting_tags")
-        .select("job_posting_id, tag_id")
-        .in_("job_posting_id", job_ids)
-        .execute()
+    jtr = await session.execute(
+        select(JobPostingTag.job_posting_id, JobPostingTag.tag_id).where(JobPostingTag.job_posting_id.in_(job_ids))
     )
-    tags_by_job: dict[str, set[str]] = {}
-    for r in (jt_rows.data or []):
-        tags_by_job.setdefault(r["job_posting_id"], set()).add(r["tag_id"])
+    tags_by_job: dict[uuid.UUID, set[str]] = {}
+    all_tag_ids: set[str] = set()
+    for r in jtr.all():
+        tid = str(r.tag_id)
+        tags_by_job.setdefault(r.job_posting_id, set()).add(tid)
+        all_tag_ids.add(tid)
 
-    # Fetch ALL implications in a single query (not per-job — avoids N+1).
-    all_job_tag_ids = set()
-    for jtags in tags_by_job.values():
-        all_job_tag_ids.update(jtags)
-    all_impl_rows = (
-        db.table("tag_implications")
-        .select("parent_tag_id, implied_tag_id")
-        .in_("parent_tag_id", list(all_job_tag_ids))
-        .execute()
-    ) if all_job_tag_ids else type("R", (), {"data": []})()
-    implications: dict[str, set[str]] = {}
-    for r in (all_impl_rows.data or []):
-        implications.setdefault(r["parent_tag_id"], set()).add(r["implied_tag_id"])
+    impl_map = await batch_expand_implications(session, all_tag_ids)
 
-    # Score each job, pick best
     best_job = None
     best_pct = 0
     for jid, jtags in tags_by_job.items():
-        job_expanded = set(jtags)
+        expanded = set(jtags)
         for tid in jtags:
-            job_expanded.update(implications.get(tid, set()))
-        score = compute_match_score(worker_expanded, job_expanded)
+            expanded |= impl_map.get(tid, set())
+        score = compute_match_score(worker_expanded, expanded)
         if score["percentage"] > best_pct:
             best_pct = score["percentage"]
             best_job = jid
@@ -140,253 +129,199 @@ def _auto_assign_job(db, employer_id: str, worker_target_id: str) -> Optional[st
     return best_job if best_pct > 0 else None
 
 
-def _get_employer_job_ids(db, user: dict) -> list[str]:
-    """Get job IDs for employer (org-aware)."""
-    from app.routers.employers import _get_org_employer_ids
-    employer_ids = _get_org_employer_ids(db, user)
-    jobs = (
-        db.table("job_postings")
-        .select("id")
-        .in_("employer_id", employer_ids)
-        .execute()
-    )
-    return [j["id"] for j in (jobs.data or [])]
-
-
 @router.get("", response_model=list[BookmarkGroup])
-async def list_bookmarks_grouped(user: dict = Depends(get_current_user)):
-    db = get_client()
-    uid = user["id"]
+async def list_bookmarks_grouped(
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    uid = uuid.UUID(user["id"])
     role = user["role"]
+    now = datetime.now(timezone.utc)
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    result = (
-        db.table("bookmarks")
-        .select("*")
-        .eq("user_id", uid)
-        .gte("expires_at", now_iso)
-        .order("created_at", desc=True)
-        .execute()
+    result = await session.execute(
+        select(Bookmark)
+        .where(Bookmark.user_id == uid, Bookmark.expires_at >= now)
+        .order_by(Bookmark.created_at.desc())
     )
-    bookmarks = result.data or []
+    bookmarks = result.scalars().all()
     if not bookmarks:
         return []
 
-    target_ids = [b["target_id"] for b in bookmarks]
+    target_ids = [bm.target_id for bm in bookmarks]
 
-    # ── Resolve targets ──
     if role == "worker":
         # Worker bookmarks = job postings
-        jobs_raw = (
-            db.table("job_postings")
-            .select("id, title, description, salary_min, salary_max, location, remote, employer_id")
-            .in_("id", target_ids)
-            .execute()
-        )
-        jobs_by_id = {j["id"]: j for j in (jobs_raw.data or [])}
+        jr = await session.execute(select(JobPosting).where(JobPosting.id.in_(target_ids)))
+        jobs_by_id = {j.id: j for j in jr.scalars().all()}
 
-        employer_ids = list({j["employer_id"] for j in (jobs_raw.data or [])})
+        emp_ids = list({j.employer_id for j in jobs_by_id.values()})
         ep_by_id = {}
-        if employer_ids:
-            ep_raw = (
-                db.table("employer_profiles")
-                .select("user_id, company_name, logo_url")
-                .in_("user_id", employer_ids)
-                .execute()
-            )
-            ep_by_id = {r["user_id"]: r for r in (ep_raw.data or [])}
+        if emp_ids:
+            epr = await session.execute(select(EmployerProfile).where(EmployerProfile.user_id.in_(emp_ids)))
+            ep_by_id = {ep.user_id: ep for ep in epr.scalars().all()}
 
-        tags_by_job: dict[str, list[dict]] = {}
-        if target_ids:
-            tag_rows = (
-                db.table("job_posting_tags")
-                .select("job_posting_id, requirement, tags(id, name, category)")
-                .in_("job_posting_id", target_ids)
-                .execute()
+        jtr = await session.execute(
+            select(JobPostingTag.job_posting_id, JobPostingTag.requirement, Tag.id, Tag.name, Tag.category)
+            .join(Tag, Tag.id == JobPostingTag.tag_id)
+            .where(JobPostingTag.job_posting_id.in_(target_ids))
+        )
+        tags_by_job: dict[uuid.UUID, list[dict]] = {}
+        for r in jtr.all():
+            tags_by_job.setdefault(r.job_posting_id, []).append(
+                {"id": str(r.id), "name": r.name, "category": r.category, "requirement": r.requirement}
             )
-            for row in (tag_rows.data or []):
-                td = row.get("tags")
-                if td:
-                    td["requirement"] = row.get("requirement", "nice")
-                    tags_by_job.setdefault(row["job_posting_id"], []).append(td)
 
         enriched = []
         for bm in bookmarks:
-            job = jobs_by_id.get(bm["target_id"])
-            ep = ep_by_id.get(job["employer_id"], {}) if job else {}
+            job = jobs_by_id.get(bm.target_id)
+            ep = ep_by_id.get(job.employer_id) if job else None
             enriched.append({
-                **bm,
-                "job_title": job["title"] if job else None,
-                "description": job["description"] if job else None,
-                "company_name": ep.get("company_name"),
-                "avatar_url": ep.get("logo_url"),
-                "salary_min": job["salary_min"] if job else None,
-                "salary_max": job["salary_max"] if job else None,
-                "location": job["location"] if job else None,
-                "remote": job["remote"] if job else None,
-                "tags": tags_by_job.get(bm["target_id"], []),
+                **_bm_to_basic(bm),
+                "job_title": job.title if job else None,
+                "description": job.description if job else None,
+                "company_name": ep.company_name if ep else None,
+                "avatar_url": ep.logo_url if ep else None,
+                "salary_min": job.salary_min if job else None,
+                "salary_max": job.salary_max if job else None,
+                "location": job.location if job else None,
+                "remote": job.remote if job else None,
+                "tags": tags_by_job.get(bm.target_id, []),
             })
-
-        # Workers don't group — just return one "All" group
         return [BookmarkGroup(job_posting_id=None, job_title="All Saved", bookmarks=enriched)]
 
     else:
-        # Employer bookmarks = workers, grouped by job_posting_id
-        wp_raw = (
-            db.table("worker_profiles")
-            .select("user_id, name, avatar_url, bio, location, experience_years, skills")
-            .in_("user_id", target_ids)
-            .execute()
+        # Employer bookmarks = workers, grouped by job
+        wpr = await session.execute(select(WorkerProfile).where(WorkerProfile.user_id.in_(target_ids)))
+        wp_by_id = {wp.user_id: wp for wp in wpr.scalars().all()}
+
+        wtr = await session.execute(
+            select(WorkerTag.worker_id, Tag.id, Tag.name, Tag.category)
+            .join(Tag, Tag.id == WorkerTag.tag_id)
+            .where(WorkerTag.worker_id.in_(target_ids))
         )
-        wp_by_id = {w["user_id"]: w for w in (wp_raw.data or [])}
-
-        tags_by_worker: dict[str, list[dict]] = {}
-        if target_ids:
-            tag_rows = (
-                db.table("worker_tags")
-                .select("worker_id, tags(id, name, category)")
-                .in_("worker_id", target_ids)
-                .execute()
+        tags_by_worker: dict[uuid.UUID, list[dict]] = {}
+        for r in wtr.all():
+            tags_by_worker.setdefault(r.worker_id, []).append(
+                {"id": str(r.id), "name": r.name, "category": r.category}
             )
-            for row in (tag_rows.data or []):
-                td = row.get("tags")
-                if td:
-                    tags_by_worker.setdefault(row["worker_id"], []).append(td)
 
-        # Get job titles for grouping
-        job_posting_ids = list({bm["job_posting_id"] for bm in bookmarks if bm.get("job_posting_id")})
-        job_titles: dict[str, str] = {}
-        if job_posting_ids:
-            jt_raw = (
-                db.table("job_postings")
-                .select("id, title")
-                .in_("id", job_posting_ids)
-                .execute()
-            )
-            job_titles = {j["id"]: j["title"] for j in (jt_raw.data or [])}
+        jp_ids = list({bm.job_posting_id for bm in bookmarks if bm.job_posting_id})
+        job_titles = {}
+        if jp_ids:
+            jtr2 = await session.execute(select(JobPosting.id, JobPosting.title).where(JobPosting.id.in_(jp_ids)))
+            job_titles = {r.id: r.title for r in jtr2.all()}
 
-        # Build enriched bookmarks
-        groups_map: dict[Optional[str], list[dict]] = {}
+        groups_map: dict[Optional[uuid.UUID], list[dict]] = {}
         for bm in bookmarks:
-            wp = wp_by_id.get(bm["target_id"], {})
+            wp = wp_by_id.get(bm.target_id)
             enriched_bm = {
-                **bm,
-                "name": wp.get("name"),
-                "avatar_url": wp.get("avatar_url"),
-                "bio": wp.get("bio"),
-                "location": wp.get("location"),
-                "experience_years": wp.get("experience_years"),
-                "skills": wp.get("skills"),
-                "tags": tags_by_worker.get(bm["target_id"], []),
+                **_bm_to_basic(bm),
+                "name": wp.name if wp else None,
+                "avatar_url": wp.avatar_url if wp else None,
+                "bio": wp.bio if wp else None,
+                "location": wp.location if wp else None,
+                "experience_years": wp.experience_years if wp else None,
+                "skills": wp.skills if wp else None,
+                "tags": tags_by_worker.get(bm.target_id, []),
             }
-            jpid = bm.get("job_posting_id")
-            groups_map.setdefault(jpid, []).append(enriched_bm)
+            groups_map.setdefault(bm.job_posting_id, []).append(enriched_bm)
 
-        # Build response groups, sorted: named groups first, unsorted last
-        result_groups = []
+        out = []
         for jpid, bms in groups_map.items():
             if jpid is not None:
-                title = job_titles.get(jpid, "Unknown Job")
-                result_groups.append(BookmarkGroup(job_posting_id=jpid, job_title=title, bookmarks=bms))
-
-        # Unsorted at the end
+                out.append(BookmarkGroup(
+                    job_posting_id=str(jpid),
+                    job_title=job_titles.get(jpid, "Unknown Job"),
+                    bookmarks=bms,
+                ))
         if None in groups_map:
-            result_groups.append(BookmarkGroup(job_posting_id=None, job_title="Unsorted", bookmarks=groups_map[None]))
-
-        return result_groups
+            out.append(BookmarkGroup(job_posting_id=None, job_title="Unsorted", bookmarks=groups_map[None]))
+        return out
 
 
 @router.post("", response_model=BookmarkBasic, status_code=201)
-async def add_bookmark(body: BookmarkRequest, user: dict = Depends(get_current_user)):
-    db = get_client()
+async def add_bookmark(
+    body: BookmarkRequest, user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    uid = uuid.UUID(user["id"])
+    target = uuid.UUID(body.target_id)
 
-    existing = (
-        db.table("bookmarks")
-        .select("id")
-        .eq("user_id", user["id"])
-        .eq("target_id", body.target_id)
-        .execute()
+    existing = await session.execute(
+        select(Bookmark.id).where(Bookmark.user_id == uid, Bookmark.target_id == target)
     )
-    if existing.data:
+    if existing.first():
         raise HTTPException(409, "Already bookmarked")
 
-    # Auto-assign to best-fit job (employers only)
     job_posting_id = None
     if user["role"] == "employer":
-        job_posting_id = _auto_assign_job(db, user["id"], body.target_id)
+        job_posting_id = await _auto_assign_job(session, user["id"], body.target_id)
 
-    result = db.table("bookmarks").insert({
-        "user_id": user["id"],
-        "target_id": body.target_id,
-        "job_posting_id": job_posting_id,
-        "note": body.note,
-    }).execute()
-    return result.data[0]
+    bm = Bookmark(
+        id=uuid.uuid4(), user_id=uid, target_id=target,
+        job_posting_id=job_posting_id, note=body.note,
+        created_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + __import__('datetime').timedelta(days=30),
+    )
+    session.add(bm)
+    await session.commit()
+    return _bm_to_basic(bm)
 
 
 @router.patch("/{target_id}/move", response_model=BookmarkBasic)
-async def move_bookmark(target_id: str, body: BookmarkMoveRequest, user: dict = Depends(get_current_user)):
-    """Move a bookmark to a different job posting group."""
-    db = get_client()
-
-    # Verify bookmark exists
-    bm = (
-        db.table("bookmarks")
-        .select("id")
-        .eq("user_id", user["id"])
-        .eq("target_id", target_id)
-        .execute()
+async def move_bookmark(
+    target_id: str, body: BookmarkMoveRequest, user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    uid = uuid.UUID(user["id"])
+    result = await session.execute(
+        select(Bookmark).where(Bookmark.user_id == uid, Bookmark.target_id == uuid.UUID(target_id))
     )
-    if not bm.data:
+    bm = result.scalars().first()
+    if not bm:
         raise HTTPException(404, "Bookmark not found")
 
-    # Verify job posting belongs to this employer (if provided)
     if body.job_posting_id:
-        job = (
-            db.table("job_postings")
-            .select("id, employer_id")
-            .eq("id", body.job_posting_id)
-            .execute()
-        )
-        if not job.data:
+        job = await session.get(JobPosting, uuid.UUID(body.job_posting_id))
+        if not job:
             raise HTTPException(404, "Job posting not found")
-        # Check ownership (simplified — not org-aware for now)
 
-    result = (
-        db.table("bookmarks")
-        .update({"job_posting_id": body.job_posting_id})
-        .eq("user_id", user["id"])
-        .eq("target_id", target_id)
-        .execute()
-    )
-    return result.data[0]
+    bm.job_posting_id = uuid.UUID(body.job_posting_id) if body.job_posting_id else None
+    session.add(bm)
+    await session.commit()
+    return _bm_to_basic(bm)
 
 
 @router.patch("/{target_id}/note", response_model=BookmarkBasic)
-async def update_note(target_id: str, body: BookmarkNoteRequest, user: dict = Depends(get_current_user)):
-    db = get_client()
-
-    result = (
-        db.table("bookmarks")
-        .update({"note": body.note})
-        .eq("user_id", user["id"])
-        .eq("target_id", target_id)
-        .execute()
+async def update_note(
+    target_id: str, body: BookmarkNoteRequest, user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    uid = uuid.UUID(user["id"])
+    result = await session.execute(
+        select(Bookmark).where(Bookmark.user_id == uid, Bookmark.target_id == uuid.UUID(target_id))
     )
-    if not result.data:
+    bm = result.scalars().first()
+    if not bm:
         raise HTTPException(404, "Bookmark not found")
-    return result.data[0]
+
+    bm.note = body.note
+    session.add(bm)
+    await session.commit()
+    return _bm_to_basic(bm)
 
 
 @router.delete("/{target_id}", status_code=204)
-async def remove_bookmark(target_id: str, user: dict = Depends(get_current_user)):
-    db = get_client()
-    result = (
-        db.table("bookmarks")
-        .delete()
-        .eq("user_id", user["id"])
-        .eq("target_id", target_id)
-        .execute()
+async def remove_bookmark(
+    target_id: str, user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    uid = uuid.UUID(user["id"])
+    result = await session.execute(
+        select(Bookmark).where(Bookmark.user_id == uid, Bookmark.target_id == uuid.UUID(target_id))
     )
-    if not result.data:
+    bm = result.scalars().first()
+    if not bm:
         raise HTTPException(404, "Bookmark not found")
+    await session.delete(bm)
+    await session.commit()

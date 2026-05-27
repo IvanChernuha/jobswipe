@@ -46,6 +46,7 @@ services:
         condition: service_healthy
     networks:
       - jobswipe
+      - supabase_default
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -69,6 +70,7 @@ services:
         condition: service_healthy
     networks:
       - jobswipe
+      - supabase_default
 
   # ── React Frontend ──────────────────────────────────────────
   frontend:
@@ -99,6 +101,8 @@ services:
 networks:
   jobswipe:
     driver: bridge
+  supabase_default:
+    external: true
 
 volumes:
   caddy_data:

@@ -1,8 +1,14 @@
+import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Literal, Optional
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.deps import get_current_user
-from app.db.client import get_client
+from app.db.session import get_session
+from app.models.tables.report import Report
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -28,45 +34,69 @@ class ReportResponse(BaseModel):
 
 
 @router.post("", response_model=ReportResponse, status_code=201)
-async def submit_report(body: ReportRequest, user: dict = Depends(get_current_user)):
-    db = get_client()
-
+async def submit_report(
+    body: ReportRequest,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     # Prevent duplicate reports
-    existing = (
-        db.table("reports")
-        .select("id")
-        .eq("reporter_id", user["id"])
-        .eq("target_id", body.target_id)
-        .eq("target_type", body.target_type)
-        .execute()
+    existing = await session.execute(
+        select(Report.id)
+        .where(Report.reporter_id == uuid.UUID(user["id"]))
+        .where(Report.target_id == uuid.UUID(body.target_id))
+        .where(Report.target_type == body.target_type)
     )
-    if existing.data:
+    if existing.first():
         raise HTTPException(409, "You have already reported this")
 
-    # Can't report yourself
     if body.target_id == user["id"]:
         raise HTTPException(400, "Cannot report yourself")
 
-    result = db.table("reports").insert({
-        "reporter_id": user["id"],
-        "target_id": body.target_id,
-        "target_type": body.target_type,
-        "reason": body.reason,
-        "details": body.details,
-    }).execute()
+    report = Report(
+        reporter_id=uuid.UUID(user["id"]),
+        target_id=uuid.UUID(body.target_id),
+        target_type=body.target_type,
+        reason=body.reason,
+        details=body.details,
+        created_at=datetime.now(timezone.utc),
+    )
+    session.add(report)
+    await session.commit()
 
-    return result.data[0]
+    return {
+        "id": str(report.id),
+        "reporter_id": str(report.reporter_id),
+        "target_id": str(report.target_id),
+        "target_type": report.target_type,
+        "reason": report.reason,
+        "details": report.details or "",
+        "status": report.status,
+        "created_at": str(report.created_at) if report.created_at else None,
+    }
 
 
 @router.get("", response_model=list[ReportResponse])
-async def my_reports(user: dict = Depends(get_current_user)):
+async def my_reports(
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     """List reports filed by the current user."""
-    db = get_client()
-    result = (
-        db.table("reports")
-        .select("*")
-        .eq("reporter_id", user["id"])
-        .order("created_at", desc=True)
-        .execute()
+    result = await session.execute(
+        select(Report)
+        .where(Report.reporter_id == uuid.UUID(user["id"]))
+        .order_by(Report.created_at.desc())
     )
-    return result.data or []
+    rows = result.scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "reporter_id": str(r.reporter_id),
+            "target_id": str(r.target_id),
+            "target_type": r.target_type,
+            "reason": r.reason,
+            "details": r.details or "",
+            "status": r.status,
+            "created_at": str(r.created_at) if r.created_at else None,
+        }
+        for r in rows
+    ]

@@ -17,14 +17,9 @@ from sqlmodel import SQLModel
 
 from app.config import settings
 
-# Import every SQLModel module here so SQLModel.metadata is populated before
-# autogenerate runs. Models will be added in Phase 2 of the refactor.
-# Example (uncomment as models are converted):
-#
-#   from app.models import organization  # noqa: F401
-#   from app.models import worker        # noqa: F401
-#   from app.models import employer      # noqa: F401
-#   ...
+# Import all SQLModel table classes so SQLModel.metadata is populated
+# before autogenerate runs.
+from app.models.tables import *  # noqa: F401, F403
 
 config = context.config
 

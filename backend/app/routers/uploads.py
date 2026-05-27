@@ -1,29 +1,37 @@
 import base64
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.deps import get_current_user
-from app.db.client import get_client
+from app.db.client import get_client  # Supabase Storage only
+from app.db.session import get_session
+from app.models.tables.worker import WorkerProfile
+from app.models.tables.employer import EmployerProfile
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_RESUME_TYPES = {
     "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
-    "text/plain",  # .txt
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
 }
 RESUME_EXTENSIONS = {
     "application/pdf": "pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
     "text/plain": "txt",
 }
-MAX_IMAGE_BYTES = 5 * 1024 * 1024   # 5 MB
-MAX_RESUME_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_RESUME_BYTES = 10 * 1024 * 1024
 
 
 @router.post("/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(400, "Only JPEG, PNG, or WebP images allowed")
@@ -35,18 +43,28 @@ async def upload_avatar(
     ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else "jpg"
     path = f"avatars/{user['id']}/avatar.{ext}"
 
-    db = get_client()
+    # Supabase Storage for file upload
+    sb = get_client()
     try:
-        db.storage.from_("avatars").upload(path, content, {"content-type": file.content_type, "upsert": "true"})
+        sb.storage.from_("avatars").upload(path, content, {"content-type": file.content_type, "upsert": "true"})
     except Exception:
         raise HTTPException(500, "Failed to upload image")
-    public_url = db.storage.from_("avatars").get_public_url(path)
+    public_url = sb.storage.from_("avatars").get_public_url(path)
 
-    # Update profile avatar/logo field
+    # SQLModel for DB update
+    uid = uuid.UUID(user["id"])
     if user["role"] == "worker":
-        db.table("worker_profiles").update({"avatar_url": public_url}).eq("user_id", user["id"]).execute()
+        profile = await session.get(WorkerProfile, uid)
+        if profile:
+            profile.avatar_url = public_url
+            session.add(profile)
+            await session.commit()
     else:
-        db.table("employer_profiles").update({"logo_url": public_url}).eq("user_id", user["id"]).execute()
+        profile = await session.get(EmployerProfile, uid)
+        if profile:
+            profile.logo_url = public_url
+            session.add(profile)
+            await session.commit()
 
     return {"url": public_url}
 
@@ -55,6 +73,7 @@ async def upload_avatar(
 async def upload_resume(
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
     if user["role"] != "worker":
         raise HTTPException(403, "Only workers can upload resumes")
@@ -67,17 +86,24 @@ async def upload_resume(
 
     ext = RESUME_EXTENSIONS[file.content_type]
     path = f"resumes/{user['id']}/resume.{ext}"
-    db = get_client()
+
+    # Supabase Storage
+    sb = get_client()
     try:
-        db.storage.from_("resumes").upload(path, content, {"content-type": file.content_type, "upsert": "true"})
+        sb.storage.from_("resumes").upload(path, content, {"content-type": file.content_type, "upsert": "true"})
     except Exception:
         raise HTTPException(500, "Failed to upload resume")
 
-    # Generate signed URL (1 week) for private bucket
-    signed = db.storage.from_("resumes").create_signed_url(path, 604800)
+    signed = sb.storage.from_("resumes").create_signed_url(path, 604800)
     url = signed.get("signedURL", "")
 
-    db.table("worker_profiles").update({"resume_url": url}).eq("user_id", user["id"]).execute()
+    # SQLModel for DB update
+    uid = uuid.UUID(user["id"])
+    profile = await session.get(WorkerProfile, uid)
+    if profile:
+        profile.resume_url = url
+        session.add(profile)
+        await session.commit()
 
     # Trigger async CV tag extraction
     from app.tasks.cv_processing import extract_cv_tags

@@ -1,65 +1,48 @@
+import uuid
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from postgrest.exceptions import APIError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.deps import get_current_user
+from app.db.session import get_session
 from app.models.message import MessageCreate, MessageResponse, UnreadCount
-from app.db.client import get_client
+from app.models.tables.match import Match
+from app.models.tables.message import Message, MessageReadCursor
+from app.models.tables.organization import OrgMember
+from app.models.organization import has_permission
+from app.services.org_access import get_org_employer_ids
 
 router = APIRouter(prefix="/matches/{match_id}/messages", tags=["messages"])
 
 
-def _get_org_match_employer_ids(db, uid: str) -> list[str]:
-    """Get all employer IDs whose matches this user can access.
-    Requires active org_members membership. Former members get nothing."""
-    membership = db.table("org_members").select("org_id").eq("user_id", uid).limit(1).execute()
-    if membership.data:
-        org_id = membership.data[0]["org_id"]
-        profiles = db.table("employer_profiles").select("user_id").eq("org_id", org_id).execute()
-        ids = {p["user_id"] for p in (profiles.data or [])}
-        ids.add(uid)
-        return list(ids)
-
-    # Former member check
-    profile = db.table("employer_profiles").select("org_id").eq("user_id", uid).limit(1).execute()
-    if profile.data and profile.data[0].get("org_id"):
-        return []  # Former member — no access
-
-    return [uid]  # Solo employer
-
-
-def _verify_match_participant(db, match_id: str, uid: str, user_role: str) -> dict:
-    """Verify user is a participant in the match (or org member). Returns match row."""
-    try:
-        match_raw = (
-            db.table("matches")
-            .select("id, worker_id, employer_id, status")
-            .eq("id", match_id)
-            .single()
-            .execute()
-        )
-    except APIError:
+async def _verify_match_participant(
+    session: AsyncSession, match_id: str, uid: str, user_role: str
+) -> Match:
+    """Verify user is a participant in the match (or org member). Returns match."""
+    match = await session.get(Match, uuid.UUID(match_id))
+    if not match:
         raise HTTPException(404, "Match not found")
 
-    if not match_raw.data:
-        raise HTTPException(404, "Match not found")
-
-    match = match_raw.data
+    uid_uuid = uuid.UUID(uid)
 
     if user_role == "worker":
-        # Workers: direct participant only
-        if uid != match["worker_id"]:
+        if match.worker_id != uid_uuid:
             raise HTTPException(403, "Not a participant in this match")
     else:
-        # Employers: must be in the same org as the match's employer (or be the employer themselves if no org)
-        org_ids = _get_org_match_employer_ids(db, uid)
-        if match["employer_id"] not in org_ids:
+        org_ids = await get_org_employer_ids(session, uid)
+        if str(match.employer_id) not in org_ids:
             raise HTTPException(403, "Not a participant in this match")
         # Check chat permission for org members
-        from app.models.organization import has_permission
-        mem = db.table("org_members").select("role").eq("user_id", uid).limit(1).execute()
-        if mem.data and not has_permission(mem.data[0]["role"], "chat"):
+        result = await session.execute(
+            select(OrgMember.role).where(OrgMember.user_id == uid_uuid).limit(1)
+        )
+        row = result.first()
+        if row and not has_permission(row.role, "chat"):
             raise HTTPException(403, "Your role does not allow chatting")
 
-    if match["status"] != "active":
+    if match.status != "active":
         raise HTTPException(400, "Match is no longer active")
 
     return match
@@ -71,51 +54,54 @@ async def list_messages(
     before: str | None = Query(None, description="Cursor: messages before this ID"),
     limit: int = Query(50, ge=1, le=100),
     user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    db = get_client()
     uid = user["id"]
-    _verify_match_participant(db, match_id, uid, user.get("role", ""))
+    uid_uuid = uuid.UUID(uid)
+    await _verify_match_participant(session, match_id, uid, user.get("role", ""))
 
+    mid_uuid = uuid.UUID(match_id)
     query = (
-        db.table("messages")
-        .select("id, match_id, sender_id, body, created_at")
-        .eq("match_id", match_id)
-        .order("created_at", desc=True)
+        select(Message)
+        .where(Message.match_id == mid_uuid)
+        .order_by(Message.created_at.desc())
         .limit(limit)
     )
 
     if before:
-        # Fetch the timestamp of the cursor message for keyset pagination
-        try:
-            cursor_msg = (
-                db.table("messages")
-                .select("created_at")
-                .eq("id", before)
-                .single()
-                .execute()
-            )
-            if cursor_msg.data:
-                query = query.lt("created_at", cursor_msg.data["created_at"])
-        except APIError:
-            pass  # Invalid cursor, just return from the top
+        cursor_msg = await session.get(Message, uuid.UUID(before))
+        if cursor_msg:
+            query = query.where(Message.created_at < cursor_msg.created_at)
 
-    rows = query.execute()
-    messages = rows.data or []
+    result = await session.execute(query)
+    messages = result.scalars().all()
 
-    # Update read cursor — use a real ISO timestamp, NOT the string "now()"
-    # (PostgREST does not evaluate SQL functions; it stores literal text).
-    from datetime import datetime, timezone
-    db.table("message_read_cursors").upsert(
-        {"match_id": match_id, "user_id": uid, "last_read_at": datetime.now(timezone.utc).isoformat()},
-        on_conflict="match_id,user_id",
-    ).execute()
+    # Update read cursor
+    existing_cursor = await session.execute(
+        select(MessageReadCursor)
+        .where(MessageReadCursor.match_id == mid_uuid, MessageReadCursor.user_id == uid_uuid)
+    )
+    cursor = existing_cursor.scalars().first()
+    now = datetime.now(timezone.utc)
+    if cursor:
+        cursor.last_read_at = now
+        session.add(cursor)
+    else:
+        session.add(MessageReadCursor(match_id=mid_uuid, user_id=uid_uuid, last_read_at=now))
+    await session.commit()
 
-    # Mark is_mine and reverse to chronological order
-    result = []
+    # Reverse to chronological and mark is_mine
+    out = []
     for msg in reversed(messages):
-        result.append({**msg, "is_mine": msg["sender_id"] == uid})
-
-    return result
+        out.append({
+            "id": str(msg.id),
+            "match_id": str(msg.match_id),
+            "sender_id": str(msg.sender_id),
+            "body": msg.body,
+            "created_at": str(msg.created_at) if msg.created_at else None,
+            "is_mine": msg.sender_id == uid_uuid,
+        })
+    return out
 
 
 @router.post("", response_model=MessageResponse, status_code=201)
@@ -123,19 +109,27 @@ async def send_message(
     match_id: str,
     payload: MessageCreate,
     user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    db = get_client()
     uid = user["id"]
-    _verify_match_participant(db, match_id, uid, user.get("role", ""))
+    uid_uuid = uuid.UUID(uid)
+    await _verify_match_participant(session, match_id, uid, user.get("role", ""))
 
-    row = (
-        db.table("messages")
-        .insert({"match_id": match_id, "sender_id": uid, "body": payload.body})
-        .execute()
+    msg = Message(
+        id=uuid.uuid4(),
+        match_id=uuid.UUID(match_id),
+        sender_id=uid_uuid,
+        body=payload.body,
+        created_at=datetime.now(timezone.utc),
     )
+    session.add(msg)
+    await session.commit()
 
-    if not row.data:
-        raise HTTPException(500, "Failed to send message")
-
-    msg = row.data[0]
-    return {**msg, "is_mine": True}
+    return {
+        "id": str(msg.id),
+        "match_id": str(msg.match_id),
+        "sender_id": str(msg.sender_id),
+        "body": msg.body,
+        "created_at": str(msg.created_at),
+        "is_mine": True,
+    }

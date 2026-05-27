@@ -1,333 +1,275 @@
+import uuid
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
-from postgrest.exceptions import APIError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.deps import require_employer
+from app.db.session import get_session
 from app.models.organization import (
     OrgCreate, OrgResponse, OrgMemberResponse,
     InviteCreate, InviteResponse, RoleUpdate,
     has_permission,
 )
-from app.db.client import get_client
+from app.models.tables.organization import Organization, OrgMember, OrgInvite
+from app.models.tables.employer import EmployerProfile
+from app.models.tables.user import User
 
 router = APIRouter(prefix="/org", tags=["organizations"])
 
 
-def _get_user_membership(db, uid: str) -> dict | None:
-    """Get the user's org membership (if any)."""
-    try:
-        row = (
-            db.table("org_members")
-            .select("id, org_id, user_id, role, created_at")
-            .eq("user_id", uid)
-            .limit(1)
-            .execute()
-        )
-        return row.data[0] if row.data else None
-    except Exception:
-        return None
+async def _get_user_membership(session: AsyncSession, uid: str) -> OrgMember | None:
+    result = await session.execute(
+        select(OrgMember).where(OrgMember.user_id == uuid.UUID(uid)).limit(1)
+    )
+    return result.scalars().first()
 
 
-def _require_org_permission(db, uid: str, action: str) -> dict:
-    """Verify user belongs to an org and has the required permission. Returns membership."""
-    membership = _get_user_membership(db, uid)
+async def _require_org_permission(session: AsyncSession, uid: str, action: str) -> OrgMember:
+    membership = await _get_user_membership(session, uid)
     if not membership:
         raise HTTPException(403, "You are not part of an organization")
-    if not has_permission(membership["role"], action):
-        raise HTTPException(403, f"Your role ({membership['role']}) cannot perform: {action}")
+    if not has_permission(membership.role, action):
+        raise HTTPException(403, f"Your role ({membership.role}) cannot perform: {action}")
     return membership
 
 
 # ── Organization CRUD ────────────────────────────────────────────────────────
 
 @router.post("", response_model=OrgResponse, status_code=201)
-async def create_org(body: OrgCreate, user: dict = Depends(require_employer)):
-    db = get_client()
-    uid = user["id"]
+async def create_org(body: OrgCreate, user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    uid = uuid.UUID(user["id"])
 
-    # Check if user already belongs to an org
-    existing = _get_user_membership(db, uid)
+    existing = await _get_user_membership(session, user["id"])
     if existing:
         raise HTTPException(400, "You already belong to an organization")
 
-    # Create org
-    org_row = db.table("organizations").insert({
-        "name": body.name,
-        "owner_id": uid,
-    }).execute()
-    if not org_row.data:
-        raise HTTPException(500, "Failed to create organization")
-    org = org_row.data[0]
+    org = Organization(id=uuid.uuid4(), name=body.name, owner_id=uid, created_at=datetime.now(timezone.utc))
+    session.add(org)
+    await session.flush()
 
-    # Add creator as owner member
-    db.table("org_members").insert({
-        "org_id": org["id"],
-        "user_id": uid,
-        "role": "owner",
-    }).execute()
+    session.add(OrgMember(id=uuid.uuid4(), org_id=org.id, user_id=uid, role="owner", created_at=datetime.now(timezone.utc)))
 
-    # Link employer profile to org
-    db.table("employer_profiles").update({
-        "org_id": org["id"],
-    }).eq("user_id", uid).execute()
+    profile = await session.get(EmployerProfile, uid)
+    if profile:
+        profile.org_id = org.id
+        session.add(profile)
 
-    return org
+    await session.commit()
+    return {"id": str(org.id), "name": org.name, "owner_id": str(org.owner_id), "created_at": str(org.created_at)}
 
 
 @router.get("", response_model=OrgResponse)
-async def get_my_org(user: dict = Depends(require_employer)):
-    db = get_client()
-    membership = _get_user_membership(db, user["id"])
+async def get_my_org(user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    membership = await _get_user_membership(session, user["id"])
     if not membership:
         raise HTTPException(404, "You are not part of an organization")
 
-    try:
-        org = db.table("organizations").select("*").eq("id", membership["org_id"]).single().execute()
-    except APIError:
+    org = await session.get(Organization, membership.org_id)
+    if not org:
         raise HTTPException(404, "Organization not found")
-    return org.data
+    return {"id": str(org.id), "name": org.name, "owner_id": str(org.owner_id), "created_at": str(org.created_at)}
 
 
 @router.put("", response_model=OrgResponse)
-async def update_org(body: OrgCreate, user: dict = Depends(require_employer)):
-    db = get_client()
-    membership = _require_org_permission(db, user["id"], "manage_org")
+async def update_org(body: OrgCreate, user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    membership = await _require_org_permission(session, user["id"], "manage_org")
 
-    db.table("organizations").update({"name": body.name}).eq("id", membership["org_id"]).execute()
-    org = db.table("organizations").select("*").eq("id", membership["org_id"]).single().execute()
-    return org.data
+    org = await session.get(Organization, membership.org_id)
+    org.name = body.name
+    session.add(org)
+    await session.commit()
+    await session.refresh(org)
+    return {"id": str(org.id), "name": org.name, "owner_id": str(org.owner_id), "created_at": str(org.created_at)}
 
 
 # ── Members ──────────────────────────────────────────────────────────────────
 
 @router.get("/members", response_model=list[OrgMemberResponse])
-async def list_members(user: dict = Depends(require_employer)):
-    db = get_client()
-    membership = _require_org_permission(db, user["id"], "view")
+async def list_members(user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    membership = await _require_org_permission(session, user["id"], "view")
 
-    members = (
-        db.table("org_members")
-        .select("id, user_id, role, created_at")
-        .eq("org_id", membership["org_id"])
-        .order("created_at")
-        .execute()
+    result = await session.execute(
+        select(OrgMember).where(OrgMember.org_id == membership.org_id).order_by(OrgMember.created_at)
     )
-
-    if not members.data:
+    members = result.scalars().all()
+    if not members:
         return []
 
-    # Batch-fetch emails
-    user_ids = [m["user_id"] for m in members.data]
-    users_raw = db.table("users").select("id, email").in_("id", user_ids).execute()
-    email_map = {u["id"]: u["email"] for u in (users_raw.data or [])}
+    user_ids = [m.user_id for m in members]
+    ur = await session.execute(select(User.id, User.email).where(User.id.in_(user_ids)))
+    email_map = {r.id: r.email for r in ur.all()}
 
-    result = []
-    for m in members.data:
-        result.append({**m, "email": email_map.get(m["user_id"], "")})
-    return result
+    return [{
+        "id": str(m.id), "user_id": str(m.user_id), "role": m.role,
+        "created_at": str(m.created_at) if m.created_at else None,
+        "email": email_map.get(m.user_id, ""),
+    } for m in members]
 
 
 @router.patch("/members/{member_id}", response_model=OrgMemberResponse)
-async def update_member_role(member_id: str, body: RoleUpdate, user: dict = Depends(require_employer)):
-    db = get_client()
-    membership = _require_org_permission(db, user["id"], "manage_members")
+async def update_member_role(member_id: str, body: RoleUpdate, user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    membership = await _require_org_permission(session, user["id"], "manage_members")
 
-    # Fetch target member
-    try:
-        target = db.table("org_members").select("*").eq("id", member_id).single().execute()
-    except APIError:
-        raise HTTPException(404, "Member not found")
-    if not target.data:
+    target = await session.get(OrgMember, uuid.UUID(member_id))
+    if not target or target.org_id != membership.org_id:
         raise HTTPException(404, "Member not found")
 
-    target_data = target.data
-    if target_data["org_id"] != membership["org_id"]:
-        raise HTTPException(403, "Member not in your organization")
-
-    # Can't change owner's role
-    if target_data["role"] == "owner":
+    if target.role == "owner":
         raise HTTPException(400, "Cannot change the owner's role")
-
-    # Can't promote to owner
     if body.role == "owner":
         raise HTTPException(400, "Cannot promote to owner")
-
-    # Admins can't change other admins (only owner can)
-    if membership["role"] == "admin" and target_data["role"] == "admin":
+    if membership.role == "admin" and target.role == "admin":
         raise HTTPException(403, "Admins cannot change other admins' roles")
 
-    db.table("org_members").update({"role": body.role}).eq("id", member_id).execute()
+    target.role = body.role
+    session.add(target)
+    await session.commit()
+    await session.refresh(target)
 
-    updated = db.table("org_members").select("*").eq("id", member_id).single().execute()
-    email_row = db.table("users").select("email").eq("id", updated.data["user_id"]).single().execute()
-    return {**updated.data, "email": email_row.data["email"] if email_row.data else ""}
+    u = await session.get(User, target.user_id)
+    return {
+        "id": str(target.id), "user_id": str(target.user_id), "role": target.role,
+        "created_at": str(target.created_at) if target.created_at else None,
+        "email": u.email if u else "",
+    }
 
 
 @router.delete("/members/{member_id}", status_code=204)
-async def remove_member(member_id: str, user: dict = Depends(require_employer)):
-    db = get_client()
-    membership = _require_org_permission(db, user["id"], "manage_members")
+async def remove_member(member_id: str, user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    membership = await _require_org_permission(session, user["id"], "manage_members")
 
-    try:
-        target = db.table("org_members").select("*").eq("id", member_id).single().execute()
-    except APIError:
-        raise HTTPException(404, "Member not found")
-    if not target.data:
+    target = await session.get(OrgMember, uuid.UUID(member_id))
+    if not target or target.org_id != membership.org_id:
         raise HTTPException(404, "Member not found")
 
-    target_data = target.data
-    if target_data["org_id"] != membership["org_id"]:
-        raise HTTPException(403, "Member not in your organization")
-
-    if target_data["role"] == "owner":
+    if target.role == "owner":
         raise HTTPException(400, "Cannot remove the owner")
-
-    if target_data["user_id"] == user["id"]:
+    if str(target.user_id) == user["id"]:
         raise HTTPException(400, "Cannot remove yourself")
-
-    # Admins can't remove other admins
-    if membership["role"] == "admin" and target_data["role"] == "admin":
+    if membership.role == "admin" and target.role == "admin":
         raise HTTPException(403, "Admins cannot remove other admins")
 
-    db.table("org_members").delete().eq("id", member_id).execute()
-    # NOTE: We keep employer_profiles.org_id so the org retains access to
-    # matches/jobs created by this former member. The removed user loses access
-    # because they're no longer in org_members (checked by all access functions).
+    await session.delete(target)
+    await session.commit()
 
 
 # ── Invites ──────────────────────────────────────────────────────────────────
 
 @router.post("/invites", response_model=InviteResponse, status_code=201)
-async def create_invite(body: InviteCreate, user: dict = Depends(require_employer)):
-    db = get_client()
-    membership = _require_org_permission(db, user["id"], "manage_members")
+async def create_invite(body: InviteCreate, user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    membership = await _require_org_permission(session, user["id"], "manage_members")
 
-    # Check if email is already a member
-    existing_user = db.table("users").select("id").eq("email", body.email).execute()
-    if existing_user.data:
-        existing_member = (
-            db.table("org_members")
-            .select("id")
-            .eq("org_id", membership["org_id"])
-            .eq("user_id", existing_user.data[0]["id"])
-            .execute()
+    # Check if already a member
+    ur = await session.execute(select(User.id).where(User.email == body.email))
+    existing_user = ur.first()
+    if existing_user:
+        mr = await session.execute(
+            select(OrgMember.id).where(OrgMember.org_id == membership.org_id, OrgMember.user_id == existing_user.id)
         )
-        if existing_member.data:
+        if mr.first():
             raise HTTPException(400, "This user is already a member")
 
-    # Check for existing unused invite
-    existing_invite = (
-        db.table("org_invites")
-        .select("id")
-        .eq("org_id", membership["org_id"])
-        .eq("email", body.email)
-        .eq("used", False)
-        .execute()
+    # Check existing unused invite
+    ir = await session.execute(
+        select(OrgInvite.id).where(
+            OrgInvite.org_id == membership.org_id, OrgInvite.email == body.email, OrgInvite.used == False
+        )
     )
-    if existing_invite.data:
+    if ir.first():
         raise HTTPException(400, "An active invite already exists for this email")
 
-    row = db.table("org_invites").insert({
-        "org_id": membership["org_id"],
-        "email": body.email,
-        "role": body.role,
-    }).execute()
+    import secrets
+    invite = OrgInvite(
+        id=uuid.uuid4(), org_id=membership.org_id, email=body.email, role=body.role,
+        token=secrets.token_hex(32), created_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + __import__('datetime').timedelta(days=7),
+    )
+    session.add(invite)
+    await session.commit()
 
-    if not row.data:
-        raise HTTPException(500, "Failed to create invite")
-    return row.data[0]
+    return {
+        "id": str(invite.id), "org_id": str(invite.org_id), "email": invite.email,
+        "role": invite.role, "token": invite.token, "used": invite.used,
+        "created_at": str(invite.created_at), "expires_at": str(invite.expires_at),
+    }
 
 
 @router.get("/invites", response_model=list[InviteResponse])
-async def list_invites(user: dict = Depends(require_employer)):
-    db = get_client()
-    membership = _require_org_permission(db, user["id"], "manage_members")
+async def list_invites(user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    membership = await _require_org_permission(session, user["id"], "manage_members")
 
-    rows = (
-        db.table("org_invites")
-        .select("*")
-        .eq("org_id", membership["org_id"])
-        .eq("used", False)
-        .order("created_at", desc=True)
-        .execute()
+    result = await session.execute(
+        select(OrgInvite)
+        .where(OrgInvite.org_id == membership.org_id, OrgInvite.used == False)
+        .order_by(OrgInvite.created_at.desc())
     )
-    return rows.data or []
+    return [{
+        "id": str(i.id), "org_id": str(i.org_id), "email": i.email,
+        "role": i.role, "token": i.token, "used": i.used,
+        "created_at": str(i.created_at), "expires_at": str(i.expires_at),
+    } for i in result.scalars().all()]
 
 
 @router.delete("/invites/{invite_id}", status_code=204)
-async def revoke_invite(invite_id: str, user: dict = Depends(require_employer)):
-    db = get_client()
-    membership = _require_org_permission(db, user["id"], "manage_members")
+async def revoke_invite(invite_id: str, user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    membership = await _require_org_permission(session, user["id"], "manage_members")
 
-    try:
-        invite = db.table("org_invites").select("*").eq("id", invite_id).single().execute()
-    except APIError:
-        raise HTTPException(404, "Invite not found")
-    if not invite.data or invite.data["org_id"] != membership["org_id"]:
+    invite = await session.get(OrgInvite, uuid.UUID(invite_id))
+    if not invite or invite.org_id != membership.org_id:
         raise HTTPException(404, "Invite not found")
 
-    db.table("org_invites").delete().eq("id", invite_id).execute()
+    await session.delete(invite)
+    await session.commit()
 
 
-# ── Accept invite (called by the invited user) ──────────────────────────────
+# ── Join ──────────────────────────────────────────────────────────────────────
 
 @router.post("/join", response_model=OrgMemberResponse)
-async def join_org(token: str, user: dict = Depends(require_employer)):
-    db = get_client()
-    uid = user["id"]
+async def join_org(token: str, user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    uid = uuid.UUID(user["id"])
 
-    # Check user isn't already in an org
-    existing = _get_user_membership(db, uid)
+    existing = await _get_user_membership(session, user["id"])
     if existing:
         raise HTTPException(400, "You already belong to an organization")
 
-    # Find invite
-    invite_row = (
-        db.table("org_invites")
-        .select("*")
-        .eq("token", token)
-        .eq("used", False)
-        .execute()
+    result = await session.execute(
+        select(OrgInvite).where(OrgInvite.token == token, OrgInvite.used == False)
     )
-    if not invite_row.data:
+    invite = result.scalars().first()
+    if not invite:
         raise HTTPException(404, "Invalid or expired invite")
 
-    invite = invite_row.data[0]
-
-    # Verify email matches (case-insensitive — invites may have been created
-    # with mixed-case input before normalization was added).
-    if invite["email"].lower() != user.get("email", "").lower():
+    if invite.email.lower() != user.get("email", "").lower():
         raise HTTPException(403, "This invite was sent to a different email")
 
-    # Check expiry
-    from datetime import datetime, timezone
-    expires = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
-    if datetime.now(timezone.utc) > expires:
+    if datetime.now(timezone.utc) > invite.expires_at:
         raise HTTPException(400, "Invite has expired")
 
-    # Add as member
-    member = db.table("org_members").insert({
-        "org_id": invite["org_id"],
-        "user_id": uid,
-        "role": invite["role"],
-    }).execute()
+    member = OrgMember(id=uuid.uuid4(), org_id=invite.org_id, user_id=uid, role=invite.role, created_at=datetime.now(timezone.utc))
+    session.add(member)
 
-    # Link employer profile to org
-    db.table("employer_profiles").update({
-        "org_id": invite["org_id"],
-    }).eq("user_id", uid).execute()
+    profile = await session.get(EmployerProfile, uid)
+    if profile:
+        profile.org_id = invite.org_id
+        session.add(profile)
 
-    # Mark invite as used
-    db.table("org_invites").update({"used": True}).eq("id", invite["id"]).execute()
+    invite.used = True
+    session.add(invite)
+    await session.commit()
 
-    result = member.data[0]
-    return {**result, "email": user.get("email", "")}
+    return {
+        "id": str(member.id), "user_id": str(member.user_id), "role": member.role,
+        "created_at": str(member.created_at), "email": user.get("email", ""),
+    }
 
 
-# ── Get my role ──────────────────────────────────────────────────────────────
+# ── My membership ────────────────────────────────────────────────────────────
 
 @router.get("/me")
-async def get_my_membership(user: dict = Depends(require_employer)):
-    db = get_client()
-    membership = _get_user_membership(db, user["id"])
+async def get_my_membership(user: dict = Depends(require_employer), session: AsyncSession = Depends(get_session)):
+    membership = await _get_user_membership(session, user["id"])
     if not membership:
         return {"has_org": False, "role": None, "org_id": None}
-    return {"has_org": True, "role": membership["role"], "org_id": membership["org_id"]}
+    return {"has_org": True, "role": membership.role, "org_id": str(membership.org_id)}

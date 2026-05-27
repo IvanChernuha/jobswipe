@@ -1,6 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.user import RegisterRequest, LoginRequest, AuthResponse
-from app.db.client import get_client, get_auth_client
+from app.db.client import get_auth_client
+from app.db.session import get_session
+from app.models.tables.user import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -8,9 +12,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", response_model=AuthResponse, status_code=201)
 async def register(body: RegisterRequest):
     """
-    Register via the backend API (alternative to the frontend's direct Supabase signUp).
-    The DB trigger on_auth_user_created handles public.users + empty profile creation,
-    so we only call sign_up here and return the token.
+    Register via the backend API.
+    The DB trigger on_auth_user_created handles public.users + empty profile creation.
     """
     auth_db = get_auth_client()
     try:
@@ -25,9 +28,6 @@ async def register(body: RegisterRequest):
     if not auth_res.user:
         raise HTTPException(status_code=400, detail="Registration failed")
 
-    # The trigger handles public.users + empty profile rows automatically.
-    # No manual inserts needed — they would conflict with the trigger.
-
     access_token = auth_res.session.access_token if auth_res.session else ""
     return AuthResponse(
         access_token=access_token,
@@ -37,7 +37,7 @@ async def register(body: RegisterRequest):
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(body: LoginRequest):
+async def login(body: LoginRequest, session: AsyncSession = Depends(get_session)):
     auth_db = get_auth_client()
     try:
         auth_res = auth_db.auth.sign_in_with_password({"email": body.email, "password": body.password})
@@ -48,9 +48,8 @@ async def login(body: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     user_id = auth_res.user.id
-    db = get_client()
-    user_row = db.table("users").select("role").eq("id", user_id).single().execute()
-    role = user_row.data["role"] if user_row.data else "worker"
+    user = await session.get(User, user_id)
+    role = user.role if user else "worker"
 
     return AuthResponse(
         access_token=auth_res.session.access_token,

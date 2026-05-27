@@ -1,51 +1,80 @@
-"""Async session factory and FastAPI dependency for SQLModel.
+"""Session factories for SQLModel — async (FastAPI) and sync (Celery).
 
-Usage in a router (after Phase 4 of the refactor):
-
-    from fastapi import Depends
-    from sqlmodel.ext.asyncio.session import AsyncSession
+Async usage (routers):
     from app.db.session import get_session
+    async def endpoint(session: AsyncSession = Depends(get_session)):
+        ...
 
-    @router.get("/things")
-    async def list_things(session: AsyncSession = Depends(get_session)):
-        result = await session.exec(select(Thing))
-        return result.all()
-
-Handlers are responsible for calling `await session.commit()` themselves.
-The dependency only rolls back on unhandled exceptions.
+Sync usage (Celery tasks):
+    from app.db.session import get_sync_session
+    with get_sync_session() as session:
+        session.execute(...)
+        session.commit()
 """
 from __future__ import annotations
 
-from typing import AsyncIterator
+from contextlib import contextmanager
+from typing import AsyncIterator, Iterator
 
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
+from app.config import settings
 from app.db.engine import get_engine
 
-_sessionmaker: async_sessionmaker[AsyncSession] | None = None
+# ── Async (FastAPI) ──────────────────────────────────────────────────────────
+
+_async_sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
-def _get_sessionmaker() -> async_sessionmaker[AsyncSession]:
-    global _sessionmaker
-    if _sessionmaker is None:
-        _sessionmaker = async_sessionmaker(
+def _get_async_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    global _async_sessionmaker
+    if _async_sessionmaker is None:
+        _async_sessionmaker = async_sessionmaker(
             bind=get_engine(),
             class_=AsyncSession,
             expire_on_commit=False,
             autoflush=False,
         )
-    return _sessionmaker
+    return _async_sessionmaker
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency that yields an AsyncSession.
-
-    Commits are explicit — handlers call `await session.commit()` themselves.
-    Rolls back and re-raises on any unhandled exception.
-    """
-    async with _get_sessionmaker()() as session:
+    """FastAPI dependency that yields an AsyncSession."""
+    async with _get_async_sessionmaker()() as session:
         try:
             yield session
         except Exception:
             await session.rollback()
             raise
+
+
+# ── Sync (Celery) ────────────────────────────────────────────────────────────
+
+_sync_engine = None
+_sync_sessionmaker: sessionmaker | None = None
+
+
+def _get_sync_sessionmaker() -> sessionmaker:
+    global _sync_engine, _sync_sessionmaker
+    if _sync_sessionmaker is None:
+        if not settings.DATABASE_URL:
+            raise RuntimeError("DATABASE_URL is not set")
+        sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://", 1)
+        _sync_engine = create_engine(sync_url, pool_size=5, max_overflow=10, pool_pre_ping=True)
+        _sync_sessionmaker = sessionmaker(bind=_sync_engine, expire_on_commit=False)
+    return _sync_sessionmaker
+
+
+@contextmanager
+def get_sync_session() -> Iterator[Session]:
+    """Context manager that yields a sync Session for Celery tasks."""
+    session = _get_sync_sessionmaker()()
+    try:
+        yield session
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

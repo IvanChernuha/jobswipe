@@ -1,152 +1,158 @@
 """GDPR compliance: data export and account deletion."""
+import uuid
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.deps import get_current_user
-from app.db.client import get_client, get_auth_client
+from app.db.client import get_auth_client
+from app.db.session import get_session
+from app.models.tables.user import User
+from app.models.tables.worker import WorkerProfile, WorkerTag
+from app.models.tables.employer import EmployerProfile
+from app.models.tables.job import JobPosting, JobPostingTag
+from app.models.tables.tag import Tag
+from app.models.tables.swipe import Swipe
+from app.models.tables.match import Match
+from app.models.tables.message import Message, MessageReadCursor
+from app.models.tables.bookmark import Bookmark
+from app.models.tables.report import Report
+from app.models.tables.organization import OrgMember
 
 router = APIRouter(prefix="/account", tags=["gdpr"])
 
 
 @router.get("/export")
-async def export_my_data(user: dict = Depends(get_current_user)):
-    """Download all personal data (GDPR Article 15 - Right of Access)."""
-    db = get_client()
-    uid = user["id"]
+async def export_my_data(user: dict = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    """Download all personal data (GDPR Article 15)."""
+    uid = uuid.UUID(user["id"])
     role = user["role"]
 
-    # Core user data
-    user_row = db.table("users").select("*").eq("id", uid).single().execute()
+    u = await session.get(User, uid)
 
-    # Profile
     if role == "worker":
-        profile = db.table("worker_profiles").select("*").eq("user_id", uid).single().execute()
-        tags = db.table("worker_tags").select("tags(id, name, category)").eq("worker_id", uid).execute()
+        profile = await session.get(WorkerProfile, uid)
+        tr = await session.execute(
+            select(Tag.id, Tag.name, Tag.category)
+            .join(WorkerTag, WorkerTag.tag_id == Tag.id)
+            .where(WorkerTag.worker_id == uid)
+        )
+        tags = [{"id": str(r.id), "name": r.name, "category": r.category} for r in tr.all()]
     else:
-        profile = db.table("employer_profiles").select("*").eq("user_id", uid).single().execute()
+        profile = await session.get(EmployerProfile, uid)
         tags = None
 
     # Job postings (employers)
     jobs = []
     if role == "employer":
-        jobs_raw = db.table("job_postings").select("*").eq("employer_id", uid).execute()
-        jobs = jobs_raw.data or []
-        if jobs:
-            job_ids = [j["id"] for j in jobs]
-            job_tags = db.table("job_posting_tags").select("job_posting_id, requirement, tags(id, name, category)").in_("job_posting_id", job_ids).execute()
-            tags_by_job: dict[str, list] = {}
-            for row in (job_tags.data or []):
-                td = row.get("tags")
-                if td:
-                    td["requirement"] = row.get("requirement", "nice")
-                    tags_by_job.setdefault(row["job_posting_id"], []).append(td)
-            for j in jobs:
-                j["tags"] = tags_by_job.get(j["id"], [])
+        jr = await session.execute(select(JobPosting).where(JobPosting.employer_id == uid))
+        for j in jr.scalars().all():
+            jtr = await session.execute(
+                select(JobPostingTag.requirement, Tag.id, Tag.name, Tag.category)
+                .join(Tag, Tag.id == JobPostingTag.tag_id)
+                .where(JobPostingTag.job_posting_id == j.id)
+            )
+            jtags = [{"id": str(r.id), "name": r.name, "category": r.category, "requirement": r.requirement} for r in jtr.all()]
+            jobs.append({
+                "id": str(j.id), "title": j.title, "description": j.description,
+                "salary_min": j.salary_min, "salary_max": j.salary_max,
+                "location": j.location, "remote": j.remote, "active": j.active,
+                "created_at": str(j.created_at), "tags": jtags,
+            })
 
     # Swipes
-    swipes = db.table("swipes").select("target_id, direction, created_at").eq("swiper_id", uid).order("created_at", desc=True).execute()
+    sr = await session.execute(
+        select(Swipe.target_id, Swipe.direction, Swipe.created_at)
+        .where(Swipe.swiper_id == uid).order_by(Swipe.created_at.desc())
+    )
+    swipes = [{"target_id": str(r.target_id), "direction": r.direction, "created_at": str(r.created_at)} for r in sr.all()]
 
     # Matches
     if role == "worker":
-        matches = db.table("matches").select("*").eq("worker_id", uid).execute()
+        mr = await session.execute(select(Match).where(Match.worker_id == uid))
     else:
-        matches = db.table("matches").select("*").eq("employer_id", uid).execute()
+        mr = await session.execute(select(Match).where(Match.employer_id == uid))
+    matches = [{
+        "id": str(m.id), "worker_id": str(m.worker_id), "employer_id": str(m.employer_id),
+        "job_posting_id": str(m.job_posting_id) if m.job_posting_id else None,
+        "status": m.status, "matched_at": str(m.matched_at),
+    } for m in mr.scalars().all()]
 
-    # Messages
-    messages = db.table("messages").select("match_id, body, created_at, sender_id").eq("sender_id", uid).order("created_at", desc=True).execute()
+    # Messages sent
+    msgr = await session.execute(
+        select(Message).where(Message.sender_id == uid).order_by(Message.created_at.desc())
+    )
+    messages = [{"match_id": str(m.match_id), "body": m.body, "created_at": str(m.created_at)} for m in msgr.scalars().all()]
 
     # Bookmarks
-    bookmarks = db.table("bookmarks").select("target_id, note, created_at").eq("user_id", uid).execute()
+    br = await session.execute(select(Bookmark).where(Bookmark.user_id == uid))
+    bookmarks = [{"target_id": str(b.target_id), "note": b.note, "created_at": str(b.created_at)} for b in br.scalars().all()]
 
-    # Reports I filed
-    reports = db.table("reports").select("target_id, target_type, reason, details, created_at").eq("reporter_id", uid).execute()
+    # Reports
+    rr = await session.execute(select(Report).where(Report.reporter_id == uid))
+    reports = [{
+        "target_id": str(r.target_id), "target_type": r.target_type,
+        "reason": r.reason, "details": r.details, "created_at": str(r.created_at),
+    } for r in rr.scalars().all()]
 
-    # Org membership
-    org_membership = db.table("org_members").select("org_id, role, created_at").eq("user_id", uid).execute()
+    # Org
+    omr = await session.execute(select(OrgMember).where(OrgMember.user_id == uid))
+    org_memberships = [{"org_id": str(o.org_id), "role": o.role, "created_at": str(o.created_at)} for o in omr.scalars().all()]
 
-    # Build export
-    export = {
-        "user": user_row.data,
-        "profile": profile.data if profile else None,
-        "tags": [r["tags"] for r in (tags.data or [])] if tags else None,
+    profile_data = None
+    if profile:
+        profile_data = {k: v for k, v in profile.__dict__.items() if not k.startswith("_")}
+        for k in ("user_id", "org_id"):
+            if k in profile_data and profile_data[k]:
+                profile_data[k] = str(profile_data[k])
+        profile_data.pop("embedding", None)
+
+    user_data = {"id": str(u.id), "email": u.email, "role": u.role, "created_at": str(u.created_at)} if u else None
+
+    return {
+        "user": user_data,
+        "profile": profile_data,
+        "tags": tags,
         "job_postings": jobs,
-        "swipes": swipes.data or [],
-        "matches": matches.data or [],
-        "messages_sent": messages.data or [],
-        "bookmarks": bookmarks.data or [],
-        "reports_filed": reports.data or [],
-        "org_memberships": org_membership.data or [],
-        "exported_at": "now",
+        "swipes": swipes,
+        "matches": matches,
+        "messages_sent": messages,
+        "bookmarks": bookmarks,
+        "reports_filed": reports,
+        "org_memberships": org_memberships,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
     }
-
-    # Strip internal fields
-    if export["user"]:
-        export["user"].pop("embedding", None)
-
-    if export["profile"]:
-        export["profile"].pop("embedding", None)
-
-    return export
 
 
 @router.delete("/delete", status_code=200)
-async def delete_my_account(user: dict = Depends(get_current_user)):
-    """Permanently delete account and all associated data (GDPR Article 17 - Right to Erasure).
-
-    This cascades through foreign keys and deletes:
-    - User profile (worker/employer)
-    - All job postings (employers)
-    - All swipes
-    - All matches
-    - All messages sent
-    - All bookmarks
-    - All reports filed
-    - Org memberships
-    - The auth account itself
-    """
-    db = get_client()
+async def delete_my_account(user: dict = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    """Permanently delete account and all data (GDPR Article 17)."""
     auth_db = get_auth_client()
-    uid = user["id"]
+    uid = uuid.UUID(user["id"])
 
-    # Delete in order (most FK-dependent first)
-    # Messages where I'm sender
-    db.table("messages").delete().eq("sender_id", uid).execute()
-
-    # Bookmarks
-    db.table("bookmarks").delete().eq("user_id", uid).execute()
-
-    # Reports
-    db.table("reports").delete().eq("reporter_id", uid).execute()
-
-    # Org memberships
-    db.table("org_members").delete().eq("user_id", uid).execute()
-
-    # Message read cursors
-    db.table("message_read_cursors").delete().eq("user_id", uid).execute()
-
-    # Matches (both sides)
-    db.table("matches").delete().eq("worker_id", uid).execute()
-    db.table("matches").delete().eq("employer_id", uid).execute()
-
-    # Swipes (both directions)
-    db.table("swipes").delete().eq("swiper_id", uid).execute()
-    db.table("swipes").delete().eq("target_id", uid).execute()
-
-    # Job postings + their tags (cascade handles job_posting_tags)
-    db.table("job_postings").delete().eq("employer_id", uid).execute()
-
-    # Worker tags
-    db.table("worker_tags").delete().eq("worker_id", uid).execute()
-
-    # Profiles
-    db.table("worker_profiles").delete().eq("user_id", uid).execute()
-    db.table("employer_profiles").delete().eq("user_id", uid).execute()
-
-    # User row (FK cascades handle remaining refs)
-    db.table("users").delete().eq("id", uid).execute()
+    # Delete in FK-dependent order
+    await session.execute(delete(Message).where(Message.sender_id == uid))
+    await session.execute(delete(Bookmark).where(Bookmark.user_id == uid))
+    await session.execute(delete(Report).where(Report.reporter_id == uid))
+    await session.execute(delete(OrgMember).where(OrgMember.user_id == uid))
+    await session.execute(delete(MessageReadCursor).where(MessageReadCursor.user_id == uid))
+    await session.execute(delete(Match).where(Match.worker_id == uid))
+    await session.execute(delete(Match).where(Match.employer_id == uid))
+    await session.execute(delete(Swipe).where(Swipe.swiper_id == uid))
+    await session.execute(delete(Swipe).where(Swipe.target_id == uid))
+    await session.execute(delete(JobPosting).where(JobPosting.employer_id == uid))
+    await session.execute(delete(WorkerTag).where(WorkerTag.worker_id == uid))
+    await session.execute(delete(WorkerProfile).where(WorkerProfile.user_id == uid))
+    await session.execute(delete(EmployerProfile).where(EmployerProfile.user_id == uid))
+    await session.execute(delete(User).where(User.id == uid))
+    await session.commit()
 
     # Delete from Supabase Auth
     try:
-        auth_db.auth.admin.delete_user(uid)
+        auth_db.auth.admin.delete_user(user["id"])
     except Exception:
-        pass  # Auth deletion is best-effort — data is already gone
+        pass
 
-    return {"deleted": True, "user_id": uid}
+    return {"deleted": True, "user_id": user["id"]}
