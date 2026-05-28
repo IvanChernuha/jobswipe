@@ -39,20 +39,6 @@ async def batch_expand_implications(session: AsyncSession, all_tag_ids: set[str]
     return impl_map
 
 
-def expand_tags_with_implications(db, tag_ids: set[str]) -> set[str]:
-    """Expand a set of tag IDs with their implied (shadow) tags. Sync/PostgREST version.
-    DEPRECATED: Use expand_tags_with_implications_async for new code."""
-    if not tag_ids:
-        return tag_ids
-    impl_rows = (
-        db.table("tag_implications")
-        .select("implied_tag_id")
-        .in_("parent_tag_id", list(tag_ids))
-        .execute()
-    )
-    implied = {r["implied_tag_id"] for r in (impl_rows.data or [])}
-    return tag_ids | implied
-
 
 def compute_match_score(
     my_tag_ids: set[str],

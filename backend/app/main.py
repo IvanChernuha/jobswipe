@@ -5,7 +5,8 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.routers import auth, workers, employers, swipes, matches, uploads, tags, messages, organizations, bookmarks, gdpr, reports, cv
-from app.db.client import get_client
+from app.db.client import get_supabase_client
+from app.db.engine import dispose_engine
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -43,12 +44,18 @@ app.include_router(cv.router, prefix="/api")
 @app.on_event("startup")
 async def ensure_storage_buckets():
     """Create required storage buckets if they don't exist."""
-    db = get_client()
-    existing = {b.name for b in db.storage.list_buckets()}
+    sb = get_supabase_client()
+    existing = {b.name for b in sb.storage.list_buckets()}
     if "avatars" not in existing:
-        db.storage.create_bucket("avatars", options={"public": True})
+        sb.storage.create_bucket("avatars", options={"public": True})
     if "resumes" not in existing:
-        db.storage.create_bucket("resumes", options={"public": False})
+        sb.storage.create_bucket("resumes", options={"public": False})
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Release database connection pool."""
+    await dispose_engine()
 
 
 @app.get("/health")

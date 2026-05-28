@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user
-from app.db.client import get_client  # Supabase Storage only
+from app.db.client import get_supabase_client
 from app.db.session import get_session
 from app.models.tables.worker import WorkerProfile
 from app.models.tables.employer import EmployerProfile
@@ -44,7 +44,7 @@ async def upload_avatar(
     path = f"avatars/{user['id']}/avatar.{ext}"
 
     # Supabase Storage for file upload
-    sb = get_client()
+    sb = get_supabase_client()
     try:
         sb.storage.from_("avatars").upload(path, content, {"content-type": file.content_type, "upsert": "true"})
     except Exception:
@@ -88,7 +88,7 @@ async def upload_resume(
     path = f"resumes/{user['id']}/resume.{ext}"
 
     # Supabase Storage
-    sb = get_client()
+    sb = get_supabase_client()
     try:
         sb.storage.from_("resumes").upload(path, content, {"content-type": file.content_type, "upsert": "true"})
     except Exception:
