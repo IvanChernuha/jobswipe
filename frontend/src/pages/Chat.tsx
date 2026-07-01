@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getMessages, sendMessage, getMatch } from '../lib/api'
 import type { Message, Match } from '../lib/api'
+import ReportModal from '../components/ReportModal'
 
 export default function Chat() {
   const { matchId } = useParams<{ matchId: string }>()
@@ -16,6 +17,7 @@ export default function Chat() {
   const [sending, setSending] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [showReport, setShowReport] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -132,13 +134,31 @@ export default function Chat() {
             {otherName.charAt(0).toUpperCase()}
           </span>
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="font-semibold text-gray-900 text-sm truncate">{otherName}</p>
           <p className="text-xs text-gray-400">
             {matchInfo ? `Matched ${new Date(matchInfo.matched_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
           </p>
         </div>
+        <button
+          onClick={() => setShowReport(true)}
+          className="text-gray-400 hover:text-red-500 transition-colors p-1"
+          title="Report user"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
+          </svg>
+        </button>
       </div>
+
+      {showReport && matchInfo && (
+        <ReportModal
+          targetId={role === 'worker' ? matchInfo.employer_id : matchInfo.worker_id}
+          targetType="user"
+          token={token}
+          onClose={() => setShowReport(false)}
+        />
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getMatches, getMatch, getUnreadCounts } from '../lib/api'
 import type { Match, UnreadCount } from '../lib/api'
+import ReportModal from '../components/ReportModal'
 
 export default function Matches() {
   const { session, role } = useAuth()
@@ -13,6 +14,7 @@ export default function Matches() {
   const [unread, setUnread] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reportTarget, setReportTarget] = useState<{ id: string; name: string } | null>(null)
   useEffect(() => {
     if (!token) return
     setLoading(true)
@@ -74,17 +76,33 @@ export default function Matches() {
         </h1>
 
         <div className="space-y-3">
-          {matches.map((m) => (
-            <MatchCard
-              key={m.id}
-              match={m}
-              role={role}
-              token={token}
-              unreadCount={unread[m.id] ?? 0}
-              onChat={() => navigate(`/chat/${m.id}`)}
-            />
-          ))}
+          {matches.map((m) => {
+            const otherId = role === 'worker' ? m.employer_id : m.worker_id
+            const otherName = role === 'worker'
+              ? m.employer?.company_name ?? 'User'
+              : m.worker?.name ?? 'User'
+            return (
+              <MatchCard
+                key={m.id}
+                match={m}
+                role={role}
+                token={token}
+                unreadCount={unread[m.id] ?? 0}
+                onChat={() => navigate(`/chat/${m.id}`)}
+                onReport={() => setReportTarget({ id: otherId, name: otherName })}
+              />
+            )
+          })}
         </div>
+
+        {reportTarget && (
+          <ReportModal
+            targetId={reportTarget.id}
+            targetType="user"
+            token={token}
+            onClose={() => setReportTarget(null)}
+          />
+        )}
       </div>
     </PageShell>
   )
@@ -100,12 +118,14 @@ function MatchCard({
   token,
   unreadCount,
   onChat,
+  onReport,
 }: {
   match: Match
   role: string | null
   token: string
   unreadCount: number
   onChat: () => void
+  onReport: () => void
 }) {
   const [contactEmail, setContactEmail] = useState<string | null>(null)
   const [loadingContact, setLoadingContact] = useState(false)
@@ -206,6 +226,17 @@ function MatchCard({
             {loadingContact ? '...' : 'Email'}
           </button>
         )}
+
+        {/* Report */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onReport(); }}
+          className="w-8 h-8 rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors"
+          title="Report"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
+          </svg>
+        </button>
       </div>
     </div>
   )
