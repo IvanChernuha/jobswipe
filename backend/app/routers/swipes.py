@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, delete
@@ -78,6 +79,7 @@ async def record_swipe(
         swiper_type=role,
         target_id=target_uuid,
         direction=body.direction,
+        created_at=datetime.now(timezone.utc),
     )
     session.add(swipe)
     await session.commit()
@@ -85,32 +87,30 @@ async def record_swipe(
     if body.direction == "pass":
         return SwipeResponse(matched=False)
 
-    # TODO(REVERT): Temporary non-mutual matching for testing (#559)
+    # Mutual matching: only create a match when BOTH sides have liked
     matched = False
     match_id = None
 
     if role == "worker":
+        # Worker liked a job posting — check if employer already liked this worker
         job = await session.get(JobPosting, target_uuid)
         if not job:
             return SwipeResponse(matched=False)
 
         employer_id = job.employer_id
 
-        # Check existing match
-        existing_match = await session.execute(
-            select(Match.id)
-            .where(Match.worker_id == uid, Match.employer_id == employer_id, Match.job_posting_id == target_uuid)
+        reverse = await session.execute(
+            select(Swipe.id)
+            .where(Swipe.swiper_id == employer_id, Swipe.target_id == uid)
+            .where(Swipe.direction.in_(["like", "super_like"]))
         )
-        em = existing_match.first()
-        if em:
-            matched = True
-            match_id = str(em.id)
-        else:
+        if reverse.first():
             new_match = Match(
                 id=uuid.uuid4(),
                 worker_id=uid,
                 employer_id=employer_id,
                 job_posting_id=target_uuid,
+                matched_at=datetime.now(timezone.utc),
             )
             session.add(new_match)
             try:
@@ -124,41 +124,41 @@ async def record_swipe(
                 await session.rollback()
 
     else:
-        # Employer likes worker — pick first active job
+        # Employer liked a worker — check if worker already liked any of employer's jobs
         result = await session.execute(
-            select(JobPosting.id).where(JobPosting.employer_id == uid, JobPosting.active == True)
+            select(JobPosting.id).where(JobPosting.employer_id == uid)
         )
         job_ids = [row.id for row in result.all()]
-        matched_job_id = job_ids[0] if job_ids else None
 
-        existing_match = await session.execute(
-            select(Match.id).where(Match.worker_id == target_uuid, Match.employer_id == uid)
-        )
-        em = existing_match.first()
-        if em:
-            matched = True
-            match_id = str(em.id)
-        else:
-            new_match = Match(
-                id=uuid.uuid4(),
-                worker_id=target_uuid,
-                employer_id=uid,
-                job_posting_id=matched_job_id,
+        if job_ids:
+            reverse = await session.execute(
+                select(Swipe.target_id)
+                .where(Swipe.swiper_id == target_uuid)
+                .where(Swipe.direction.in_(["like", "super_like"]))
+                .where(Swipe.target_id.in_(job_ids))
             )
-            session.add(new_match)
-            try:
-                await session.commit()
-                matched = True
-                match_id = str(new_match.id)
+            reverse_row = reverse.first()
+            if reverse_row:
+                matched_job_id = reverse_row.target_id
+                new_match = Match(
+                    id=uuid.uuid4(),
+                    worker_id=target_uuid,
+                    employer_id=uid,
+                    job_posting_id=matched_job_id,
+                    matched_at=datetime.now(timezone.utc),
+                )
+                session.add(new_match)
+                try:
+                    await session.commit()
+                    matched = True
+                    match_id = str(new_match.id)
 
-                job_title = "a job"
-                if matched_job_id:
                     j = await session.get(JobPosting, matched_job_id)
                     job_title = j.title if j else "a job"
-                w_user = await session.get(User, target_uuid)
-                _fire_match_email(w_user.email if w_user else "", user.get("email", ""), job_title)
-            except Exception:
-                await session.rollback()
+                    w_user = await session.get(User, target_uuid)
+                    _fire_match_email(w_user.email if w_user else "", user.get("email", ""), job_title)
+                except Exception:
+                    await session.rollback()
 
     return SwipeResponse(matched=matched, match_id=match_id)
 
