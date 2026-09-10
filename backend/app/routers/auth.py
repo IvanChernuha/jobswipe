@@ -1,16 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import RegisterRequest, LoginRequest, AuthResponse
 from app.db.client import get_auth_client
 from app.db.session import get_session
 from app.models.tables.user import User
+from app.rate_limit import limiter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=AuthResponse, status_code=201)
-async def register(body: RegisterRequest):
+@limiter.limit("20/hour")
+async def register(request: Request, body: RegisterRequest):
     """
     Register via the backend API.
     The DB trigger on_auth_user_created handles public.users + empty profile creation.
@@ -23,7 +29,10 @@ async def register(body: RegisterRequest):
             "options": {"data": {"role": body.role}},
         })
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Do NOT reflect the raw provider error — it enables email enumeration
+        # ("user already registered" vs. other errors). Log server-side only.
+        logger.warning("Registration failed for %s: %s", body.email, e)
+        raise HTTPException(status_code=400, detail="Registration failed")
 
     if not auth_res.user:
         raise HTTPException(status_code=400, detail="Registration failed")
@@ -37,7 +46,8 @@ async def register(body: RegisterRequest):
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(body: LoginRequest, session: AsyncSession = Depends(get_session)):
+@limiter.limit("5/minute")
+async def login(request: Request, body: LoginRequest, session: AsyncSession = Depends(get_session)):
     auth_db = get_auth_client()
     try:
         auth_res = auth_db.auth.sign_in_with_password({"email": body.email, "password": body.password})

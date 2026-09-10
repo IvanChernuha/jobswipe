@@ -6,4 +6,13 @@ metadata:
 data:
   REDIS_URL: "redis://redis-service:6379/0"
   CELERY_BROKER_URL: "redis://redis-service:6379/1"
+  # Rate-limit counters — separate logical DB on the same Redis so keys never
+  # collide with the Celery broker/result backend. Shared across all API pods.
+  RATELIMIT_STORAGE_URL: "redis://redis-service:6379/2"
+  # Observability. SENTRY_DSN itself is set via the Secret (see secret.yaml).
+  ENVIRONMENT: "production"
+  SENTRY_TRACES_SAMPLE_RATE: "0.0"
+  # CORS is still "*" (app default). Set CORS_ORIGINS to the real domain in
+  # Block 2 once the production hostname is confirmed, e.g.:
+  #   CORS_ORIGINS: "https://app.yourdomain.com"
   # Set SUPABASE_URL to your Cloud SQL / Supabase Cloud endpoint via Secret

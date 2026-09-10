@@ -16,8 +16,26 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     REDIS_URL: str = "redis://redis:6379/0"
     CELERY_BROKER_URL: str = "redis://redis:6379/1"
+    # Rate-limit counters (slowapi). Separate Redis logical DB from the Celery
+    # broker/result backend so keys never collide. Shared across all API pods.
+    RATELIMIT_STORAGE_URL: str = "redis://redis:6379/2"
+    # Comma-separated allowed CORS origins for the browser app. Default "*"
+    # preserves current behaviour; set to your real domain(s) in production.
+    CORS_ORIGINS: str = "*"
     RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "noreply@jobswipe.example.com"
+
+    # --- Observability (Sentry) ---
+    # DSN of the Sentry project that receives error events. Empty = Sentry
+    # disabled (errors still logged locally). Set via the k8s Secret in prod.
+    SENTRY_DSN: str = ""
+    # Environment tag on every Sentry event ("production" / "staging" /
+    # "development"). Set to "production" in the prod ConfigMap.
+    ENVIRONMENT: str = "development"
+    # Fraction of requests traced for performance (0.0-1.0). 0.0 = tracing off.
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
+    # Optional release identifier (e.g. git SHA) shown on Sentry events.
+    RELEASE: str = ""
 
     # LLM tag extraction
     LLM_PROVIDER: str = "gemini"   # "gemini" | "vertex" | "deepseek"
