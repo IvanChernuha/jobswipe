@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user
+from app.rate_limit import limiter, user_or_ip
 from app.db.session import get_session
 from app.models.swipe import SwipeRequest, SwipeResponse, UndoResponse
 from app.models.organization import has_permission
@@ -41,7 +42,9 @@ def _fire_match_email(worker_email: str, emp_email: str, title: str) -> None:
 
 
 @router.post("", response_model=SwipeResponse, status_code=201)
+@limiter.limit("120/minute", key_func=user_or_ip)
 async def record_swipe(
+    request: Request,
     body: SwipeRequest,
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -164,7 +167,9 @@ async def record_swipe(
 
 
 @router.delete("/last", response_model=UndoResponse)
+@limiter.limit("60/minute", key_func=user_or_ip)
 async def undo_last_swipe(
+    request: Request,
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):

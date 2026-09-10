@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user
+from app.rate_limit import limiter, user_or_ip
 from app.db.session import get_session
 from app.models.message import MessageCreate, MessageResponse, UnreadCount
 from app.models.tables.match import Match
@@ -105,7 +106,9 @@ async def list_messages(
 
 
 @router.post("", response_model=MessageResponse, status_code=201)
+@limiter.limit("30/minute", key_func=user_or_ip)
 async def send_message(
+    request: Request,
     match_id: str,
     payload: MessageCreate,
     user: dict = Depends(get_current_user),

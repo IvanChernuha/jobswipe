@@ -1,10 +1,12 @@
 import base64
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user
+from app.rate_limit import limiter, user_or_ip
+from app.services.llm_quota import consume_llm_units
 from app.db.client import get_supabase_client
 from app.db.session import get_session
 from app.models.tables.worker import WorkerProfile
@@ -28,7 +30,9 @@ MAX_RESUME_BYTES = 10 * 1024 * 1024
 
 
 @router.post("/avatar")
+@limiter.limit("10/hour", key_func=user_or_ip)
 async def upload_avatar(
+    request: Request,
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -70,7 +74,9 @@ async def upload_avatar(
 
 
 @router.post("/resume")
+@limiter.limit("10/hour", key_func=user_or_ip)
 async def upload_resume(
+    request: Request,
     file: UploadFile = File(...),
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -83,6 +89,10 @@ async def upload_resume(
     content = await file.read()
     if len(content) > MAX_RESUME_BYTES:
         raise HTTPException(400, "Resume must be under 10 MB")
+
+    # Reserve LLM quota before any side effects so an over-quota request is
+    # rejected cleanly instead of storing the file and then refusing to parse it.
+    await consume_llm_units(user["id"], 1)
 
     ext = RESUME_EXTENSIONS[file.content_type]
     path = f"resumes/{user['id']}/resume.{ext}"

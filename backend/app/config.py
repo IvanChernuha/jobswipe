@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     # Comma-separated allowed CORS origins for the browser app. Default "*"
     # preserves current behaviour; set to your real domain(s) in production.
     CORS_ORIGINS: str = "*"
+
+    # --- Abuse / cost controls ---
+    # Daily LLM extraction budget per account: 1 unit per CV, job description,
+    # or job file sent to the LLM (see services/llm_quota.py).
+    LLM_DAILY_UNITS_PER_ACCOUNT: int = 300
+    # Per-account login lockout: after this many failures within the window,
+    # /auth/login returns 429 for the rest of the window (services/login_guard.py).
+    LOGIN_MAX_FAILURES: int = 10
+    LOGIN_LOCKOUT_SECONDS: int = 900
     RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "noreply@jobswipe.example.com"
 

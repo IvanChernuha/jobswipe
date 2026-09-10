@@ -9,6 +9,7 @@ from app.rate_limit import limiter
 from app.routers import auth, workers, employers, swipes, matches, uploads, tags, messages, organizations, bookmarks, gdpr, reports, cv
 from app.db.client import get_supabase_client
 from app.db.engine import dispose_engine
+from app.db.redis import close_redis
 
 # Initialise logging + Sentry as early as possible — before the app and its
 # routers are built — so import/startup errors are captured too.
@@ -64,8 +65,9 @@ async def ensure_storage_buckets():
 
 @app.on_event("shutdown")
 async def shutdown():
-    """Release database connection pool."""
+    """Release database connection pool and the app Redis client."""
     await dispose_engine()
+    await close_redis()
 
 
 @app.get("/health")

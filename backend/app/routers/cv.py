@@ -3,13 +3,15 @@ import asyncio
 import base64
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user, require_worker, require_employer
 from app.db.session import get_session
+from app.rate_limit import limiter, user_or_ip
+from app.services.llm_quota import consume_llm_units
 from app.models.tables.worker import WorkerProfile
 from app.models.tables.employer import EmployerProfile
 from app.models.tables.job import JobPosting
@@ -38,7 +40,9 @@ class BulkJobRequest(BaseModel):
 
 
 @router.post("/parse")
+@limiter.limit("10/hour", key_func=user_or_ip)
 async def parse_my_cv(
+    request: Request,
     file: UploadFile = File(...),
     user: dict = Depends(require_worker),
 ):
@@ -50,6 +54,7 @@ async def parse_my_cv(
     if len(content) > MAX_CV_BYTES:
         raise HTTPException(400, "File must be under 10 MB")
 
+    await consume_llm_units(user["id"], 1)
     content_b64 = base64.b64encode(content).decode()
     extract_cv_tags.delay(user["id"], content_b64, file.content_type)
 
@@ -73,7 +78,9 @@ async def cv_extraction_status(
 
 
 @router.post("/bulk-jobs")
+@limiter.limit("10/hour", key_func=user_or_ip)
 async def bulk_extract_job_tags(
+    request: Request,
     payload: BulkJobRequest,
     user: dict = Depends(require_employer),
     session: AsyncSession = Depends(get_session),
@@ -98,6 +105,8 @@ async def bulk_extract_job_tags(
     if invalid:
         raise HTTPException(403, f"Jobs not owned by you: {invalid}")
 
+    # One quota unit per job, reserved only after the ownership check passed.
+    await consume_llm_units(user["id"], len(payload.jobs))
     jobs = [{"job_id": j.job_id, "description": j.description} for j in payload.jobs]
     extract_job_tags_bulk.delay(jobs)
 
@@ -113,7 +122,9 @@ async def bulk_extract_job_tags(
 
 
 @router.post("/jobs/{job_id}/extract")
+@limiter.limit("30/hour", key_func=user_or_ip)
 async def extract_single_job_tags(
+    request: Request,
     job_id: str,
     user: dict = Depends(require_employer),
     session: AsyncSession = Depends(get_session),
@@ -127,6 +138,7 @@ async def extract_single_job_tags(
     if job.employer_id != employer_id:
         raise HTTPException(403, "Not your job posting")
 
+    await consume_llm_units(user["id"], 1)
     extract_job_tags.delay(job_id, job.description or "")
 
     return {"status": "queued", "message": "Tag extraction queued for this job."}
@@ -139,19 +151,33 @@ ALLOWED_JOB_FILE_TYPES = {
 }
 MAX_JOB_FILE_BYTES = 10 * 1024 * 1024
 MAX_JOB_FILES = 10
-MAX_BULK_JOBS = 200
+# Lowered from 200: the per-account daily quota (LLM_DAILY_UNITS_PER_ACCOUNT)
+# is the real cost ceiling; this just keeps a single request from being a
+# 200-way fan-out on the worker.
+MAX_BULK_JOBS = 50
+# Per-process cap on concurrent on-request-path LLM calls (so per pod).
 _LLM_SEMAPHORE = asyncio.Semaphore(5)
 
 
 @router.post("/parse-job-files")
+@limiter.limit("10/hour", key_func=user_or_ip)
 async def parse_job_files(
+    request: Request,
     files: list[UploadFile] = File(...),
     user: dict = Depends(require_employer),
     session: AsyncSession = Depends(get_session),
 ):
-    """Parse job description files and return structured data."""
+    """Parse job description files and return structured data.
+
+    Note: this is the one LLM call still on the request path (the response
+    contract returns parsed results synchronously). Bounded by the per-user
+    rate limit, the per-account quota, and _LLM_SEMAPHORE; moving it to Celery
+    is a follow-up that also needs a frontend change.
+    """
     if len(files) > MAX_JOB_FILES:
         raise HTTPException(400, f"Maximum {MAX_JOB_FILES} files per request")
+
+    await consume_llm_units(user["id"], len(files))
 
     # Get tag taxonomy
     result = await session.execute(select(Tag.id, Tag.name))

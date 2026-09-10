@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import Literal, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user
+from app.rate_limit import limiter, user_or_ip
 from app.db.session import get_session
 from app.models.tables.report import Report
 
@@ -34,7 +35,9 @@ class ReportResponse(BaseModel):
 
 
 @router.post("", response_model=ReportResponse, status_code=201)
+@limiter.limit("10/hour", key_func=user_or_ip)
 async def submit_report(
+    request: Request,
     body: ReportRequest,
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),

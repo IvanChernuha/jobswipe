@@ -8,6 +8,7 @@ from app.db.client import get_auth_client
 from app.db.session import get_session
 from app.models.tables.user import User
 from app.rate_limit import limiter
+from app.services.login_guard import assert_not_locked, record_failure, clear_failures
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +49,23 @@ async def register(request: Request, body: RegisterRequest):
 @router.post("/login", response_model=AuthResponse)
 @limiter.limit("5/minute")
 async def login(request: Request, body: LoginRequest, session: AsyncSession = Depends(get_session)):
+    # Per-account lockout (many IPs -> one account); the @limiter.limit above
+    # covers the one IP -> many accounts case. Same generic message either way
+    # so a locked account is not distinguishable from a wrong password.
+    await assert_not_locked(body.email)
+
     auth_db = get_auth_client()
     try:
         auth_res = auth_db.auth.sign_in_with_password({"email": body.email, "password": body.password})
     except Exception:
+        await record_failure(body.email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not auth_res.user or not auth_res.session:
+        await record_failure(body.email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    await clear_failures(body.email)
     user_id = auth_res.user.id
     user = await session.get(User, user_id)
     role = user.role if user else "worker"
