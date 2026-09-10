@@ -12,6 +12,15 @@ data:
   # Observability. SENTRY_DSN itself is set via the Secret (see secret.yaml).
   ENVIRONMENT: "production"
   SENTRY_TRACES_SAMPLE_RATE: "0.0"
+  # Trust & safety (Phase 2). Set ADMIN_EMAILS / ADMIN_ALERT_EMAIL to your
+  # login email to enable the /admin/* endpoints and founder alert emails.
+  MODERATION_AUTO_ACTIONS: "true"
+  REPORT_AUTO_ACTION_THRESHOLD: "3"
+  # Photos unscanned by decision (reports handle abuse). "gemini" enables scanning.
+  IMAGE_MODERATION: "off"
+  # Demo owner account for now — swap to your real login email before launch.
+  ADMIN_EMAILS: "demo_employer@jobswipe.com"
+  ADMIN_ALERT_EMAIL: "demo_employer@jobswipe.com"
   # CORS is still "*" (app default). Set CORS_ORIGINS to the real domain in
   # Block 2 once the production hostname is confirmed, e.g.:
   #   CORS_ORIGINS: "https://app.yourdomain.com"

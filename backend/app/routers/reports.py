@@ -1,7 +1,8 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Literal, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,10 @@ from app.deps import get_current_user
 from app.rate_limit import limiter, user_or_ip
 from app.db.session import get_session
 from app.models.tables.report import Report
+from app.services.content_filter import assert_clean
+from app.services.moderation import evaluate_after_report
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -19,6 +24,14 @@ class ReportRequest(BaseModel):
     target_type: Literal["user", "job"]
     reason: Literal["spam", "inappropriate", "fake", "harassment", "other"]
     details: str = ""
+
+    @field_validator("details")
+    @classmethod
+    def details_clean(cls, v: str) -> str:
+        if len(v) > 2000:
+            raise ValueError("details cannot exceed 2000 characters")
+        assert_clean(v, "details")
+        return v
 
 
 class ReportResponse(BaseModel):
@@ -65,6 +78,16 @@ async def submit_report(
     )
     session.add(report)
     await session.commit()
+
+    # The report is saved; the automated loop must never make submission fail.
+    try:
+        outcome = await evaluate_after_report(session, report)
+        logger.warning(
+            "report filed: %s %s reason=%s reporters=%s actioned=%s",
+            body.target_type, body.target_id, body.reason, outcome["reporters"], outcome["actioned"],
+        )
+    except Exception:
+        logger.exception("report loop failed for %s %s", body.target_type, body.target_id)
 
     return {
         "id": str(report.id),

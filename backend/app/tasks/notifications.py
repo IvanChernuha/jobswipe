@@ -47,6 +47,35 @@ def send_match_email(self, worker_email: str, employer_email: str, job_title: st
             raise self.retry(exc=exc)
 
 
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def send_admin_alert(self, subject: str, body: str):
+    """Founder alert for moderation events. No-op unless Resend + ADMIN_ALERT_EMAIL are set."""
+    if not settings.RESEND_API_KEY or not settings.ADMIN_ALERT_EMAIL:
+        return
+    try:
+        resp = httpx.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+            json={
+                "from": settings.EMAIL_FROM,
+                "to": [settings.ADMIN_ALERT_EMAIL],
+                "subject": f"[JobSwipe moderation] {subject}",
+                "text": body,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code >= 500:
+            raise self.retry(exc=exc)
+        import logging
+        logging.getLogger(__name__).warning(
+            "Resend %d for admin alert: %s", exc.response.status_code, exc.response.text[:200]
+        )
+    except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        raise self.retry(exc=exc)
+
+
 @celery_app.task
 def send_daily_digest():
     """Placeholder for daily digest — query DB and send summary emails."""

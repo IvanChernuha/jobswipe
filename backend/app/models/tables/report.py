@@ -18,4 +18,5 @@ class Report(SQLModel, table=True):
     reason: str  # 'spam' | 'inappropriate' | 'fake' | 'harassment' | 'other'
     details: Optional[str] = ""
     status: str = "pending"  # 'pending' | 'reviewed' | 'dismissed' | 'actioned'
+    actioned_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
     created_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))

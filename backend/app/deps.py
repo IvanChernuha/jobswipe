@@ -48,6 +48,9 @@ async def get_current_user(
         raise credentials_error
     if not user:
         raise credentials_error
+    if user.suspended_at is not None:
+        # Set by the report loop or an admin (routers/admin.py to undo).
+        raise HTTPException(status_code=403, detail="Account suspended")
 
     return {"id": str(user.id), "email": user.email, "role": user.role, "token": token}
 
@@ -91,3 +94,14 @@ def require_employer_with_permission(action: str):
             user["org_id"] = None
         return user
     return dependency
+
+
+def _admin_emails() -> set[str]:
+    return {e.strip().lower() for e in settings.ADMIN_EMAILS.split(",") if e.strip()}
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Moderation endpoints: caller's email must be in ADMIN_EMAILS (deny-all when unset)."""
+    if (user.get("email") or "").strip().lower() not in _admin_emails():
+        raise HTTPException(status_code=403, detail="Admin only")
+    return user

@@ -157,6 +157,7 @@ export default function Chat() {
           targetType="user"
           token={token}
           onClose={() => setShowReport(false)}
+          onBlocked={() => navigate('/matches')}
         />
       )}
 

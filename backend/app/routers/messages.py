@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user
 from app.rate_limit import limiter, user_or_ip
+from app.services.blocks import is_blocked_pair
 from app.db.session import get_session
 from app.models.message import MessageCreate, MessageResponse, UnreadCount
 from app.models.tables.match import Match
@@ -116,7 +117,11 @@ async def send_message(
 ):
     uid = user["id"]
     uid_uuid = uuid.UUID(uid)
-    await _verify_match_participant(session, match_id, uid, user.get("role", ""))
+    match = await _verify_match_participant(session, match_id, uid, user.get("role", ""))
+
+    other = match.employer_id if user.get("role") == "worker" else match.worker_id
+    if await is_blocked_pair(session, uid_uuid, other):
+        raise HTTPException(403, "You can't message this user")
 
     msg = Message(
         id=uuid.uuid4(),

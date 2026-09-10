@@ -18,6 +18,8 @@ from app.models.tables.swipe import Swipe
 from app.models.tables.match import Match
 from app.models.tables.worker import WorkerProfile, WorkerTag
 from app.models.tables.organization import OrgMember
+from app.models.tables.user import User
+from app.services.blocks import blocked_ids_for
 from app.services.scoring import (
     expand_tags_with_implications_async, batch_expand_implications, compute_match_score,
 )
@@ -308,11 +310,18 @@ async def worker_feed(
     result = await session.execute(select(Swipe.target_id).where(Swipe.swiper_id == uid))
     swiped_ids = [r.target_id for r in result.all()]
 
-    # 2. Active non-expired jobs
+    # 2. Active non-expired jobs from employers who are neither suspended nor blocked
     now = datetime.now(timezone.utc)
-    query = select(JobPosting).where(JobPosting.active == True, JobPosting.expires_at >= now)
+    blocked = await blocked_ids_for(session, uid)
+    query = (
+        select(JobPosting)
+        .join(User, User.id == JobPosting.employer_id)
+        .where(JobPosting.active == True, JobPosting.expires_at >= now, User.suspended_at.is_(None))
+    )
     if swiped_ids:
         query = query.where(JobPosting.id.not_in(swiped_ids))
+    if blocked:
+        query = query.where(JobPosting.employer_id.not_in(blocked))
     if remote is not None:
         query = query.where(JobPosting.remote == remote)
     if salary_min is not None:

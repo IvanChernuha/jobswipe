@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { submitReport, type ReportReason } from '../lib/api'
+import { submitReport, blockUser, type ReportReason } from '../lib/api'
 
 const REASONS: { value: ReportReason; label: string }[] = [
   { value: 'spam', label: 'Spam' },
@@ -14,16 +14,22 @@ export default function ReportModal({
   targetType,
   token,
   onClose,
+  onBlocked,
 }: {
   targetId: string
   targetType: 'user' | 'job'
   token: string
   onClose: () => void
+  /** Called once the target user has been blocked (only for targetType 'user'). */
+  onBlocked?: () => void
 }) {
+  const canBlock = targetType === 'user'
   const [reason, setReason] = useState<ReportReason>('spam')
   const [details, setDetails] = useState('')
+  const [block, setBlock] = useState(canBlock)
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
+  const [blocked, setBlocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -32,6 +38,11 @@ export default function ReportModal({
     setError(null)
     try {
       await submitReport(token, targetId, targetType, reason, details)
+      if (canBlock && block) {
+        await blockUser(token, targetId)
+        setBlocked(true)
+        onBlocked?.()
+      }
       setDone(true)
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes('409')) {
@@ -50,8 +61,12 @@ export default function ReportModal({
         {done ? (
           <div className="text-center py-4">
             <p className="text-3xl mb-3">&#10003;</p>
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Report Submitted</h2>
-            <p className="text-sm text-gray-500 mb-4">Thank you. We'll review this shortly.</p>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">{blocked ? 'Reported & Blocked' : 'Report Submitted'}</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              {blocked
+                ? "Thank you. You won't see each other on JobSwipe anymore."
+                : "Thank you. We'll review this shortly."}
+            </p>
             <button onClick={onClose} className="btn-primary text-sm py-2 px-6">Done</button>
           </div>
         ) : (
@@ -95,12 +110,27 @@ export default function ReportModal({
                 />
               </div>
 
+              {canBlock && (
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={block}
+                    onChange={(e) => setBlock(e.target.checked)}
+                    className="mt-0.5 text-brand-500 focus:ring-brand-300"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Also block this user
+                    <span className="block text-xs text-gray-400">Ends the match and hides you from each other.</span>
+                  </span>
+                </label>
+              )}
+
               <div className="flex gap-3">
                 <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">
                   Cancel
                 </button>
                 <button type="submit" disabled={submitting} className="flex-1 btn-primary py-2.5 text-sm bg-red-500 hover:bg-red-600">
-                  {submitting ? 'Submitting...' : 'Submit Report'}
+                  {submitting ? 'Submitting...' : canBlock && block ? 'Report & Block' : 'Submit Report'}
                 </button>
               </div>
             </form>

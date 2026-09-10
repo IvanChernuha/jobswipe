@@ -21,6 +21,7 @@ class JobPosting(SQLModel, table=True):
     location: Optional[str] = ""
     remote: Optional[bool] = False
     active: Optional[bool] = True
+    moderation_note: Optional[str] = None  # set when auto-hidden by the report loop
     # embedding: vector(1536) — skipped, handled by pgvector extension
     created_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
     updated_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))

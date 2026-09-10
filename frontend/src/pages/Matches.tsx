@@ -101,6 +101,10 @@ export default function Matches() {
             targetType="user"
             token={token}
             onClose={() => setReportTarget(null)}
+            onBlocked={() => {
+              const id = reportTarget?.id
+              if (id) setMatches((prev) => prev.filter((m) => m.worker_id !== id && m.employer_id !== id))
+            }}
           />
         )}
       </div>

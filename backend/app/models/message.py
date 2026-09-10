@@ -1,5 +1,6 @@
 from pydantic import BaseModel, field_validator
 from typing import Optional
+from app.services.content_filter import assert_clean
 
 
 class MessageCreate(BaseModel):
@@ -13,6 +14,7 @@ class MessageCreate(BaseModel):
             raise ValueError("Message body cannot be empty")
         if len(v) > 5000:
             raise ValueError("Message body cannot exceed 5000 characters")
+        assert_clean(v, "body")
         return v
 
 

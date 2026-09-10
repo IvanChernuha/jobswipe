@@ -15,3 +15,7 @@ class User(SQLModel, table=True):
     email: str
     role: str  # 'worker' | 'employer'
     created_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    # Set by the report loop / admin. While set, every API call returns 403
+    # and the user is excluded from feeds (see deps.get_current_user).
+    suspended_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    suspended_reason: Optional[str] = None

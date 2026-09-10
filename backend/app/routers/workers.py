@@ -13,6 +13,8 @@ from app.models.tables.swipe import Swipe
 from app.models.tables.job import JobPosting, JobPostingTag
 from app.models.tables.employer import EmployerProfile
 from app.models.tables.organization import OrgMember
+from app.models.tables.user import User
+from app.services.blocks import blocked_ids_for
 from app.services.scoring import (
     expand_tags_with_implications_async, batch_expand_implications, compute_match_score,
 )
@@ -146,10 +148,15 @@ async def employer_feed(
     result = await session.execute(select(Swipe.target_id).where(Swipe.swiper_id == uid))
     swiped_ids = [row.target_id for row in result.all()]
 
-    # 2. Unswiped workers
-    query = select(WorkerProfile).where(WorkerProfile.name != "")
-    if swiped_ids:
-        query = query.where(WorkerProfile.user_id.not_in(swiped_ids))
+    # 2. Unswiped workers who are neither suspended nor blocked (either direction)
+    hidden_ids = set(swiped_ids) | await blocked_ids_for(session, uid)
+    query = (
+        select(WorkerProfile)
+        .join(User, User.id == WorkerProfile.user_id)
+        .where(WorkerProfile.name != "", User.suspended_at.is_(None))
+    )
+    if hidden_ids:
+        query = query.where(WorkerProfile.user_id.not_in(hidden_ids))
     if experience_min is not None:
         query = query.where(WorkerProfile.experience_years >= experience_min)
     if experience_max is not None:

@@ -635,6 +635,22 @@ export function submitReport(
 }
 
 // ---------------------------------------------------------------------------
+// Blocks
+// ---------------------------------------------------------------------------
+
+export function blockUser(token: string, userId: string): Promise<{ blocked: boolean; matches_archived: number }> {
+  return request<{ blocked: boolean; matches_archived: number }>(`/blocks/${userId}`, { method: 'POST', token })
+}
+
+export function unblockUser(token: string, userId: string): Promise<{ blocked: boolean }> {
+  return request<{ blocked: boolean }>(`/blocks/${userId}`, { method: 'DELETE', token })
+}
+
+export function listBlocks(token: string): Promise<string[]> {
+  return request<string[]>('/blocks', { token })
+}
+
+// ---------------------------------------------------------------------------
 // GDPR
 // ---------------------------------------------------------------------------
 

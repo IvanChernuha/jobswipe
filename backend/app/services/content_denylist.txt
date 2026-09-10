@@ -1,0 +1,46 @@
+# Content-filter denylist — one term per line, "#" starts a comment.
+# Deliberately conservative: slurs, explicit sexual terms, self-harm and
+# extremist incitement. NOT general profanity (that needs context — the
+# planned LLM pass). Matching is case/accent/leet-insensitive; see
+# content_filter.py. Add site-specific terms via CONTENT_DENYLIST_EXTRA.
+
+# racial / ethnic slurs
+nigger
+nigga
+chink
+gook
+spic
+wetback
+kike
+raghead
+towelhead
+beaner
+paki
+
+# homophobic / transphobic slurs
+faggot
+fag
+tranny
+shemale
+
+# ableist slurs
+retard
+retarded
+
+# explicit sexual
+blowjob
+handjob
+cumshot
+gangbang
+deepthroat
+porn
+porno
+hentai
+milf
+pussy
+
+# self-harm / extremist incitement (letters only — leet normalisation turns
+# digit codes like "1488" into short letter runs that false-positive)
+kys
+kill yourself
+heil hitler

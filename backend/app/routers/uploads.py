@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import get_current_user
 from app.rate_limit import limiter, user_or_ip
 from app.services.llm_quota import consume_llm_units
+from app.services.image_moderation import check_image, resolve_mode
 from app.db.client import get_supabase_client
 from app.db.session import get_session
 from app.models.tables.worker import WorkerProfile
@@ -43,6 +44,12 @@ async def upload_avatar(
     content = await file.read()
     if len(content) > MAX_IMAGE_BYTES:
         raise HTTPException(400, "File must be under 5 MB")
+
+    # Moderate before storing anything. The Gemini check is an LLM call, so it
+    # draws on the same daily quota as CV/job extraction.
+    if resolve_mode() == "gemini":
+        await consume_llm_units(user["id"], 1)
+    await check_image(content, file.content_type)
 
     ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else "jpg"
     path = f"avatars/{user['id']}/avatar.{ext}"

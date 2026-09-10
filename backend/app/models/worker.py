@@ -1,6 +1,7 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationInfo, field_validator
 from typing import Optional
 from app.models.tag import Tag
+from app.services.content_filter import assert_clean
 
 MAX_BIO_LEN = 5000
 MAX_NAME_LEN = 200
@@ -37,6 +38,13 @@ class WorkerProfileUpdate(BaseModel):
             raise ValueError("experience_years cannot be negative")
         if v is not None and v > 100:
             raise ValueError("experience_years cannot exceed 100")
+        return v
+
+    @field_validator("name", "bio", "location")
+    @classmethod
+    def no_prohibited_language(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v:
+            assert_clean(v, info.field_name or "text")
         return v
 
 

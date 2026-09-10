@@ -1,5 +1,6 @@
 from pydantic import BaseModel, field_validator
 from typing import Optional
+from app.services.content_filter import assert_clean
 
 VALID_ORG_ROLES = {"owner", "admin", "manager", "viewer"}
 
@@ -18,6 +19,12 @@ def has_permission(role: str, action: str) -> bool:
 
 class OrgCreate(BaseModel):
     name: str
+
+    @field_validator("name")
+    @classmethod
+    def name_clean(cls, v: str) -> str:
+        assert_clean(v, "name")
+        return v
 
     @field_validator("name")
     @classmethod

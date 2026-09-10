@@ -347,6 +347,7 @@ export default function Feed() {
           targetType={role === 'worker' ? 'job' : 'user'}
           token={token}
           onClose={() => setShowReport(false)}
+          onBlocked={() => setCards((prev) => prev.slice(1))}
         />
       )}
 

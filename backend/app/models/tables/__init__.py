@@ -11,6 +11,7 @@ from app.models.tables.message import Message, MessageReadCursor
 from app.models.tables.bookmark import Bookmark
 from app.models.tables.organization import Organization, OrgMember, OrgInvite
 from app.models.tables.report import Report
+from app.models.tables.block import BlockedUser
 
 __all__ = [
     "User",
@@ -24,4 +25,5 @@ __all__ = [
     "Bookmark",
     "Organization", "OrgMember", "OrgInvite",
     "Report",
+    "BlockedUser",
 ]

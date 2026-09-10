@@ -1,6 +1,7 @@
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 from typing import Optional
 from app.models.tag import Tag
+from app.services.content_filter import assert_clean
 
 MAX_NAME_LEN = 200
 MAX_DESC_LEN = 5000
@@ -26,6 +27,13 @@ class EmployerProfileUpdate(BaseModel):
     def desc_length(cls, v: str | None) -> str | None:
         if v and len(v) > MAX_DESC_LEN:
             raise ValueError(f"description cannot exceed {MAX_DESC_LEN} characters")
+        return v
+
+    @field_validator("company_name", "description")
+    @classmethod
+    def no_prohibited_language(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v:
+            assert_clean(v, info.field_name or "text")
         return v
 
 
@@ -75,6 +83,13 @@ class JobPostingCreate(BaseModel):
     def expires_in_days_valid(cls, v: int) -> int:
         if v < 1 or v > 365:
             raise ValueError("expires_in_days must be between 1 and 365")
+        return v
+
+    @field_validator("title", "description")
+    @classmethod
+    def no_prohibited_language(cls, v: str, info: ValidationInfo) -> str:
+        if v:
+            assert_clean(v, info.field_name or "text")
         return v
 
     @model_validator(mode="after")
@@ -138,6 +153,13 @@ class JobPostingUpdate(BaseModel):
     def expires_in_days_valid(cls, v: int | None) -> int | None:
         if v is not None and (v < 1 or v > 365):
             raise ValueError("expires_in_days must be between 1 and 365")
+        return v
+
+    @field_validator("title", "description")
+    @classmethod
+    def no_prohibited_language(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v:
+            assert_clean(v, info.field_name or "text")
         return v
 
 

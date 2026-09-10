@@ -31,6 +31,23 @@ class Settings(BaseSettings):
     # /auth/login returns 429 for the rest of the window (services/login_guard.py).
     LOGIN_MAX_FAILURES: int = 10
     LOGIN_LOCKOUT_SECONDS: int = 900
+
+    # --- Trust & safety ---
+    # Kill switch: when False the report loop only alerts, never hides/suspends.
+    MODERATION_AUTO_ACTIONS: bool = True
+    # Distinct reporters needed before a job is auto-hidden / a user suspended.
+    REPORT_AUTO_ACTION_THRESHOLD: int = 3
+    # Comma-separated emails allowed to call /admin/* (deny-all when empty).
+    ADMIN_EMAILS: str = ""
+    # Founder alert recipient for moderation events (sent via Resend if set).
+    ADMIN_ALERT_EMAIL: str = ""
+    # Extra comma-separated denylist terms for the content filter.
+    CONTENT_DENYLIST_EXTRA: str = ""
+    # Photo moderation: "off" (launch decision 2026-09-10: photos are unscanned
+    # and abuse is handled via the report loop), "gemini" (scan with Gemini
+    # Flash-Lite, fail-closed), "block" (disable uploads), or "auto" (gemini if
+    # GEMINI_API_KEY is set, else block).
+    IMAGE_MODERATION: str = "off"
     RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "noreply@jobswipe.example.com"
 

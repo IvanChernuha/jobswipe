@@ -2,13 +2,14 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user
 from app.db.session import get_session
+from app.services.content_filter import assert_clean
 from app.models.tag import Tag as TagResponse
 from app.models.tables.bookmark import Bookmark
 from app.models.tables.job import JobPosting, JobPostingTag
@@ -23,9 +24,21 @@ from app.services.scoring import (
 router = APIRouter(prefix="/bookmarks", tags=["bookmarks"])
 
 
+def _clean_note(v: str) -> str:
+    if len(v) > 2000:
+        raise ValueError("note cannot exceed 2000 characters")
+    assert_clean(v, "note")
+    return v
+
+
 class BookmarkRequest(BaseModel):
     target_id: str
     note: str = ""
+
+    @field_validator("note")
+    @classmethod
+    def note_clean(cls, v: str) -> str:
+        return _clean_note(v)
 
 
 class BookmarkMoveRequest(BaseModel):
@@ -34,6 +47,11 @@ class BookmarkMoveRequest(BaseModel):
 
 class BookmarkNoteRequest(BaseModel):
     note: str
+
+    @field_validator("note")
+    @classmethod
+    def note_clean(cls, v: str) -> str:
+        return _clean_note(v)
 
 
 class BookmarkTarget(BaseModel):

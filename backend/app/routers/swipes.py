@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user
 from app.rate_limit import limiter, user_or_ip
+from app.services.blocks import is_blocked_pair
 from app.db.session import get_session
 from app.models.swipe import SwipeRequest, SwipeResponse, UndoResponse
 from app.models.organization import has_permission
@@ -70,10 +71,16 @@ async def record_swipe(
         job = await session.get(JobPosting, target_uuid)
         if not job:
             raise HTTPException(400, "Target must be a valid job posting")
+        other_user_id = job.employer_id
     else:
         wp = await session.get(WorkerProfile, target_uuid)
         if not wp:
             raise HTTPException(400, "Target must be a valid worker profile")
+        other_user_id = target_uuid
+
+    # A pass on a blocked user is fine (it just clears the card); a like is not.
+    if body.direction != "pass" and await is_blocked_pair(session, uid, other_user_id):
+        raise HTTPException(403, "You can't interact with this user")
 
     # Insert swipe
     swipe = Swipe(

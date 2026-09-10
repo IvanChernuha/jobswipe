@@ -36,6 +36,7 @@ def _fetch_taxonomy() -> dict[str, str]:
 def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: str):
     """Parse a worker's CV and auto-apply extracted tags."""
     import base64
+    from app.services.content_filter import sanitize
 
     wid = uuid.UUID(worker_id)
 
@@ -64,14 +65,18 @@ def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: s
             if profile:
                 profile.cv_extraction_status = "done"
                 profile.cv_extracted_tag_count = len(tag_ids)
-                if cv_profile.name:
-                    profile.name = cv_profile.name
+                # Machine-written text goes through the content filter too: a
+                # dirty auto-filled name/bio is dropped, not saved.
+                clean_name = sanitize(cv_profile.name) if cv_profile.name else None
+                if clean_name:
+                    profile.name = clean_name
                 if cv_profile.location:
                     profile.location = cv_profile.location
                 if cv_profile.experience_years is not None:
                     profile.experience_years = cv_profile.experience_years
-                if cv_profile.bio:
-                    profile.bio = cv_profile.bio
+                clean_bio = sanitize(cv_profile.bio) if cv_profile.bio else None
+                if clean_bio:
+                    profile.bio = clean_bio
             session.commit()
 
     except _RETRYABLE as exc:
