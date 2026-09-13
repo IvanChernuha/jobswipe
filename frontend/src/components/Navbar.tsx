@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getUnreadCounts } from '../lib/api'
+import { useTranslation } from 'react-i18next'
+import LangToggle from './LangToggle'
 
 export default function Navbar() {
+  const { t } = useTranslation()
   const { signOut, role, session } = useAuth()
   const navigate = useNavigate()
   const token = session?.access_token ?? ''
@@ -42,37 +45,41 @@ export default function Navbar() {
 
         {/* Centre links: icon + small label on phones, icon + text on desktop */}
         <div className="flex items-center gap-0.5 sm:gap-1 min-w-0">
-          <NavItem to="/feed" label="Feed" icon="🔍" />
-          {role === 'employer' && <NavItem to="/jobs" label="Jobs" icon="📋" />}
-          {role === 'employer' && <NavItem to="/team" label="Team" icon="👥" />}
-          <NavItem to="/saved" label="Saved" icon="&#x2691;" />
-          <NavItem to="/matches" label="Matches" icon="💙" badge={unread} />
-          <NavItem to="/profile" label="Profile" icon={role === 'employer' ? '🏢' : '👤'} />
+          <NavItem to="/feed" label={t('nav.feed')} icon="🔍" />
+          {role === 'employer' && <NavItem to="/jobs" label={t('nav.jobs')} icon="📋" />}
+          {role === 'employer' && <NavItem to="/team" label={t('nav.team')} icon="👥" />}
+          <NavItem to="/saved" label={t('nav.saved')} icon="&#x2691;" />
+          <NavItem to="/matches" label={t('nav.matches')} icon="💙" badge={unread} />
+          <NavItem to="/profile" label={t('nav.profile')} icon={role === 'employer' ? '🏢' : '👤'} />
         </div>
 
-        {/* Sign out */}
+        {/* Language + sign out */}
+        <div className="flex items-center gap-1 shrink-0">
+        <LangToggle className="hidden sm:inline-flex" />
         <button
           onClick={handleSignOut}
           className="btn-ghost text-sm py-1.5 px-2 sm:px-3 shrink-0"
-          title="Sign out"
-          aria-label="Sign out"
+          title={t('nav.signOut')}
+          aria-label={t('nav.signOut')}
         >
-          <span className="hidden sm:inline">Sign out</span>
+          <span className="hidden sm:inline">{t('nav.signOut')}</span>
           <svg className="sm:hidden w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
         </button>
+        </div>
       </div>
     </nav>
   )
 }
 
 function NavItem({ to, label, icon, badge = 0 }: { to: string; label: string; icon: string; badge?: number }) {
+  const { t } = useTranslation()
   return (
     <NavLink
       to={to}
-      aria-label={badge > 0 ? `${label}, ${badge} unread` : label}
+      aria-label={badge > 0 ? t('nav.unread', { label, count: badge }) : label}
       className={({ isActive }) =>
         `flex flex-col sm:flex-row items-center justify-center gap-0 sm:gap-1.5
          min-w-[44px] min-h-[44px] px-1.5 sm:px-3 py-0.5 sm:py-1.5 rounded-xl
@@ -86,7 +93,7 @@ function NavItem({ to, label, icon, badge = 0 }: { to: string; label: string; ic
       <span className="relative text-base sm:text-sm leading-none">
         {icon}
         {badge > 0 && (
-          <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-4 text-center">
+          <span className="absolute -top-1.5 -end-2.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-4 text-center">
             {badge > 99 ? '99+' : badge}
           </span>
         )}

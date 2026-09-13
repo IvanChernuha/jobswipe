@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { useSwipe } from '../hooks/useSwipe'
 import {
@@ -23,6 +24,7 @@ let cachedCards: CardData[] | null = null
 let cachedFilters: string = '{}'
 
 export default function Feed() {
+  const { t } = useTranslation()
   const { session, role, user } = useAuth()
   const token = session?.access_token ?? ''
 
@@ -86,7 +88,7 @@ export default function Feed() {
         setCards(mapped)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load feed.')
+        setError(err instanceof Error ? err.message : t('feed.failedToLoadShort'))
       })
       .finally(() => setLoading(false))
   }, [token, role, filters])
@@ -285,7 +287,7 @@ export default function Feed() {
       <PageShell>
         <div className="flex flex-col items-center gap-3 py-20">
           <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
-          <p className="text-sm text-gray-500">Finding profiles…</p>
+          <p className="text-sm text-gray-500">{t('feed.findingProfiles')}</p>
         </div>
       </PageShell>
     )
@@ -295,13 +297,13 @@ export default function Feed() {
     return (
       <PageShell>
         <div className="max-w-sm w-full bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
-          <p className="text-red-700 font-medium mb-3">Failed to load feed</p>
+          <p className="text-red-700 font-medium mb-3">{t('feed.failedToLoad')}</p>
           <p className="text-sm text-red-600 mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
             className="btn-primary text-sm"
           >
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       </PageShell>
@@ -334,7 +336,7 @@ export default function Feed() {
             renders instead of the main one once the deck is empty. */}
         {match && (
           <MatchModal
-            myName={user?.email ?? 'You'}
+            myName={user?.email ?? t('common.you')}
             theirName={match.theirName}
             matchId={match.matchId}
             onClose={() => setMatch(null)}
@@ -354,14 +356,14 @@ export default function Feed() {
       {bookmarkFlash && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
           <div className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2">
-            <span>&#x2691;</span> Saved for later
+            <span>&#x2691;</span> {t('feed.savedForLater')}
           </div>
         </div>
       )}
       {superFlash && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
           <div className="bg-blue-500 text-white px-4 py-2 rounded-xl shadow-lg text-sm font-medium">
-            ⭐ Super like sent — they'll see you first
+            ⭐ {t('feed.superLikeSent')}
           </div>
         </div>
       )}
@@ -380,7 +382,7 @@ export default function Feed() {
           onClose={() => setShowReport(false)}
           onBlocked={() => {
             setCards((prev) => prev.slice(1))
-            setNotice("Reported and blocked — you won't see each other again.")
+            setNotice(t('feed.reportedAndBlocked'))
             setTimeout(() => setNotice(null), 3000)
           }}
         />
@@ -389,7 +391,7 @@ export default function Feed() {
       {/* Match modal */}
       {match && (
         <MatchModal
-          myName={user?.email ?? 'You'}
+          myName={user?.email ?? t('common.you')}
           theirName={match.theirName}
           matchId={match.matchId}
           onClose={() => setMatch(null)}
@@ -424,27 +426,27 @@ export default function Feed() {
         <p className="hidden [@media(hover:hover)]:flex text-xs text-gray-400 items-center gap-4 flex-wrap justify-center">
           <span>
             <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">X</kbd>
-            &nbsp;pass
+            &nbsp;{t('feed.kbdPass')}
           </span>
           {canLike && (
             <>
               <span>
                 <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">V</kbd>
-                &nbsp;like
+                &nbsp;{t('feed.kbdLike')}
               </span>
               <span>
                 <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">S</kbd>
-                &nbsp;super
+                &nbsp;{t('feed.kbdSuper')}
               </span>
             </>
           )}
           <span>
             <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">B</kbd>
-            &nbsp;save
+            &nbsp;{t('feed.kbdSave')}
           </span>
           <span>
             <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">Z</kbd>
-            &nbsp;undo
+            &nbsp;{t('feed.kbdUndo')}
           </span>
         </p>
 
@@ -484,14 +486,14 @@ export default function Feed() {
         {/* Remaining count + report */}
         <div className="flex items-center gap-3">
           <p className="text-xs text-gray-400">
-            {cards.length} profile{cards.length !== 1 ? 's' : ''} remaining
+            {t('feed.remaining', { count: cards.length })}
           </p>
           <button
             onClick={() => setShowReport(true)}
             className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-            title="Report this profile"
+            title={t('feed.reportThisProfile')}
           >
-            Report
+            {t('common.report')}
           </button>
         </div>
 
@@ -501,7 +503,7 @@ export default function Feed() {
           <SwipeButton
             onClick={() => handleSwipe('pass')}
             disabled={swiping}
-            label="Pass"
+            label={t('feed.pass')}
             variant="pass"
           />
 
@@ -509,7 +511,7 @@ export default function Feed() {
           <button
             onClick={handleBookmark}
             disabled={swiping || cards.length === 0}
-            aria-label="Bookmark"
+            aria-label={t('feed.bookmark')}
             className={`w-11 h-11 text-base
                        rounded-full flex items-center justify-center
                        border-2 shadow-lg transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed
@@ -525,7 +527,7 @@ export default function Feed() {
           <button
             onClick={handleUndo}
             disabled={!lastSwiped || undoing}
-            aria-label="Undo"
+            aria-label={t('common.undo')}
             className="w-11 h-11 rounded-full flex items-center justify-center text-base
                        bg-white text-amber-500 border-2 border-amber-300 hover:bg-amber-50
                        shadow-lg shadow-amber-100 hover:shadow-amber-200
@@ -539,7 +541,7 @@ export default function Feed() {
               <SwipeButton
                 onClick={() => handleSwipe('like')}
                 disabled={swiping}
-                label="Like"
+                label={t('feed.like')}
                 variant="like"
               />
 
@@ -547,7 +549,7 @@ export default function Feed() {
               <button
                 onClick={handleSuperLike}
                 disabled={swiping}
-                aria-label="Super Like"
+                aria-label={t('feed.superLike')}
                 className="w-14 h-14 rounded-full flex items-center justify-center text-xl
                            bg-white text-yellow-500 border-2 border-yellow-400 hover:bg-yellow-50
                            shadow-lg shadow-yellow-100 hover:shadow-yellow-200
@@ -586,6 +588,7 @@ function FeedToolbar({
   onUndo: () => void
   canUndo: boolean
 }) {
+  const { t } = useTranslation()
   return (
     <div className="flex items-center gap-3 w-full max-w-sm px-4">
       <button
@@ -600,7 +603,7 @@ function FeedToolbar({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
             d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
         </svg>
-        Filters
+        {t('feed.filters')}
         {hasActiveFilters && (
           <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
         )}
@@ -613,7 +616,7 @@ function FeedToolbar({
                    bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-600
                    transition-all disabled:opacity-30 disabled:cursor-not-allowed"
       >
-        ↩ Undo
+        ↩ {t('common.undo')}
       </button>
     </div>
   )
@@ -632,16 +635,17 @@ function FilterPanel({
   onApply: () => void
   onClear: () => void
 }) {
+  const { t } = useTranslation()
   const isWorker = role === 'worker'
 
   return (
     <div className="w-full max-w-sm bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-3">
       {/* Location */}
       <div>
-        <label className="text-xs font-medium text-gray-500 mb-1 block">Location</label>
+        <label className="text-xs font-medium text-gray-500 mb-1 block">{t('common.location')}</label>
         <input
           type="text"
-          placeholder="e.g. New York, Remote..."
+          placeholder={t('feed.locationPlaceholder')}
           value={filters.location ?? ''}
           onChange={(e) => onChange({ ...filters, location: e.target.value || undefined })}
           className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300"
@@ -653,7 +657,7 @@ function FilterPanel({
           {/* Salary minimum */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">
-              Minimum salary {filters.salary_min ? `($${(filters.salary_min / 1000).toFixed(0)}k+)` : ''}
+              {t('feed.minSalary')} {filters.salary_min ? t('feed.minSalaryAmount', { amount: `$${(filters.salary_min / 1000).toFixed(0)}k` }) : ''}
             </label>
             <input
               type="range"
@@ -677,7 +681,7 @@ function FilterPanel({
               onChange={(e) => onChange({ ...filters, remote: e.target.checked || undefined })}
               className="rounded border-gray-300 text-brand-500 focus:ring-brand-300"
             />
-            <span className="text-sm text-gray-700">Remote only</span>
+            <span className="text-sm text-gray-700">{t('feed.remoteOnly')}</span>
           </label>
         </>
       ) : (
@@ -685,7 +689,7 @@ function FilterPanel({
           {/* Experience range */}
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Min experience (yrs)</label>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">{t('feed.minExperience')}</label>
               <input
                 type="number"
                 min={0}
@@ -697,7 +701,7 @@ function FilterPanel({
               />
             </div>
             <div className="flex-1">
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Max experience (yrs)</label>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">{t('feed.maxExperience')}</label>
               <input
                 type="number"
                 min={0}
@@ -718,13 +722,13 @@ function FilterPanel({
           onClick={onApply}
           className="flex-1 px-3 py-1.5 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 transition-colors"
         >
-          Apply
+          {t('common.apply')}
         </button>
         <button
           onClick={onClear}
           className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
         >
-          Clear
+          {t('common.clear')}
         </button>
       </div>
     </div>
@@ -761,27 +765,28 @@ function SwipeButton({
 }
 
 function EmptyState({ role, hasFilters, onClear }: { role: string | null; hasFilters: boolean; onClear: () => void }) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center gap-4 py-16 px-6 text-center">
       <div className="text-6xl">{hasFilters ? '🔍' : '🌟'}</div>
       <h2 className="text-xl font-bold text-gray-800">
-        {hasFilters ? 'No matches for your filters' : "You're all caught up!"}
+        {hasFilters ? t('feed.emptyNoMatches') : t('feed.emptyAllCaughtUp')}
       </h2>
       <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
         {hasFilters
-          ? 'Try broadening your filters to see more results.'
-          : `No more ${role === 'employer' ? 'worker' : 'employer'} profiles right now. Check back soon — new people join every day.`
+          ? t('feed.emptyTryBroadening')
+          : t('feed.emptyNoMoreProfiles', { role: role === 'employer' ? t('feed.roleWorker') : t('feed.roleEmployer') })
         }
       </p>
       {hasFilters && (
         <button onClick={onClear} className="btn-primary text-sm">
-          Clear filters
+          {t('feed.clearFilters')}
         </button>
       )}
       {role === 'worker' && (
         <p className="text-xs text-gray-400 max-w-xs leading-relaxed">
-          Jobs are matched to the skills on your profile — the more you add, the more you'll see.{' '}
-          <Link to="/profile" className="text-brand-600 hover:underline font-medium">Add skills</Link>
+          {t('feed.skillsMatchInfo')}{' '}
+          <Link to="/profile" className="text-brand-600 hover:underline font-medium">{t('feed.addSkills')}</Link>
         </p>
       )}
     </div>

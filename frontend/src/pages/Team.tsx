@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import {
   getMyOrg, createOrg, getOrgMembers, getOrgInvites,
@@ -7,23 +8,24 @@ import {
   type Org, type OrgMember, type OrgInvite, type OrgMembership,
 } from '../lib/api'
 
-const ROLE_LABELS: Record<string, string> = {
-  owner: 'Owner',
-  admin: 'Admin',
-  manager: 'Manager',
-  viewer: 'Viewer',
+const ROLE_LABEL_KEYS: Record<string, string> = {
+  owner: 'team.roles.owner',
+  admin: 'team.roles.admin',
+  manager: 'team.roles.manager',
+  viewer: 'team.roles.viewer',
 }
 
-const ROLE_DESCRIPTIONS: Record<string, string> = {
-  owner: 'Full control over organization, members, and all jobs',
-  admin: 'Manage members + all job and chat actions',
-  manager: 'Create/edit jobs + chat with matches',
-  viewer: 'Read-only access to jobs and stats',
+const ROLE_DESCRIPTION_KEYS: Record<string, string> = {
+  owner: 'team.roleDescriptions.owner',
+  admin: 'team.roleDescriptions.admin',
+  manager: 'team.roleDescriptions.manager',
+  viewer: 'team.roleDescriptions.viewer',
 }
 
 const ASSIGNABLE_ROLES = ['admin', 'manager', 'viewer']
 
 export default function Team() {
+  const { t, i18n } = useTranslation()
   const { session, user } = useAuth()
   const token = session?.access_token ?? ''
 
@@ -70,7 +72,7 @@ export default function Team() {
         setInvites(inv)
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load')
+      setError(err instanceof Error ? err.message : t('team.failedToLoad'))
     } finally {
       setLoading(false)
     }
@@ -84,7 +86,7 @@ export default function Team() {
       await createOrg(token, orgName.trim())
       await loadData()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create organization')
+      setError(err instanceof Error ? err.message : t('team.failedToCreateOrg'))
     } finally {
       setCreating(false)
     }
@@ -100,7 +102,7 @@ export default function Team() {
       setInvites((prev) => [inv, ...prev])
       setInvEmail('')
     } catch (err: unknown) {
-      setInviteError(err instanceof Error ? err.message : 'Failed to send invite')
+      setInviteError(err instanceof Error ? err.message : t('team.failedToSendInvite'))
     } finally {
       setInviting(false)
     }
@@ -118,17 +120,17 @@ export default function Team() {
       const updated = await updateMemberRole(token, memberId, newRole)
       setMembers((prev) => prev.map((m) => (m.id === memberId ? updated : m)))
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to update role')
+      setError(err instanceof Error ? err.message : t('team.failedToUpdateRole'))
     }
   }
 
   async function handleRemove(memberId: string, email: string) {
-    if (!confirm(`Remove ${email} from the organization?`)) return
+    if (!confirm(t('team.confirmRemove', { email }))) return
     try {
       await removeMember(token, memberId)
       setMembers((prev) => prev.filter((m) => m.id !== memberId))
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to remove member')
+      setError(err instanceof Error ? err.message : t('team.failedToRemoveMember'))
     }
   }
 
@@ -140,7 +142,7 @@ export default function Team() {
       await joinOrg(token, joinToken.trim())
       await loadData()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to join')
+      setError(err instanceof Error ? err.message : t('team.failedToJoin'))
     } finally {
       setJoining(false)
     }
@@ -182,16 +184,16 @@ export default function Team() {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{org?.name ?? 'Organization'}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{org?.name ?? t('team.organization')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Your role: <span className="font-medium text-gray-700">{ROLE_LABELS[membership.role ?? ''] ?? membership.role}</span>
+            {t('team.yourRole')} <span className="font-medium text-gray-700">{membership.role && ROLE_LABEL_KEYS[membership.role] ? t(ROLE_LABEL_KEYS[membership.role]) : membership.role}</span>
           </p>
         </div>
 
         {/* Members */}
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Members ({members.length})
+            {t('team.membersCount', { count: members.length })}
           </h2>
           <div className="space-y-2">
             {members.map((m) => (
@@ -203,7 +205,7 @@ export default function Team() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{m.email}</p>
-                  <p className="text-xs text-gray-400">{ROLE_DESCRIPTIONS[m.role] ?? m.role}</p>
+                  <p className="text-xs text-gray-400">{ROLE_DESCRIPTION_KEYS[m.role] ? t(ROLE_DESCRIPTION_KEYS[m.role]) : m.role}</p>
                 </div>
 
                 {/* Role selector (only for admins+ and not for self or owner) */}
@@ -215,14 +217,14 @@ export default function Team() {
                       className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-300"
                     >
                       {ASSIGNABLE_ROLES.map((r) => (
-                        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                        <option key={r} value={r}>{t(ROLE_LABEL_KEYS[r])}</option>
                       ))}
                     </select>
                     <button
                       onClick={() => handleRemove(m.id, m.email)}
                       className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
                     >
-                      Remove
+                      {t('bookmarks.remove')}
                     </button>
                   </div>
                 ) : (
@@ -232,7 +234,7 @@ export default function Team() {
                     m.role === 'manager' ? 'bg-green-50 text-green-600' :
                     'bg-gray-50 text-gray-600'
                   }`}>
-                    {ROLE_LABELS[m.role]}
+                    {t(ROLE_LABEL_KEYS[m.role])}
                   </span>
                 )}
               </div>
@@ -244,7 +246,7 @@ export default function Team() {
         {canManage && (
           <div className="mb-8">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Invite Team Member
+              {t('team.inviteTeamMember')}
             </h2>
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
               {inviteError && (
@@ -254,7 +256,7 @@ export default function Team() {
                 <input
                   required
                   type="email"
-                  placeholder="colleague@company.com"
+                  placeholder={t('team.invitePlaceholder')}
                   value={invEmail}
                   onChange={(e) => setInvEmail(e.target.value)}
                   className="input flex-1"
@@ -265,11 +267,11 @@ export default function Team() {
                   className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-300"
                 >
                   {ASSIGNABLE_ROLES.map((r) => (
-                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                    <option key={r} value={r}>{t(ROLE_LABEL_KEYS[r])}</option>
                   ))}
                 </select>
                 <button type="submit" disabled={inviting} className="btn-primary text-sm px-4">
-                  {inviting ? '...' : 'Invite'}
+                  {inviting ? '...' : t('team.invite')}
                 </button>
               </form>
             </div>
@@ -280,7 +282,7 @@ export default function Team() {
         {canManage && invites.length > 0 && (
           <div>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Pending Invites ({invites.length})
+              {t('team.pendingInvites', { count: invites.length })}
             </h2>
             <div className="space-y-2">
               {invites.map((inv) => (
@@ -288,7 +290,7 @@ export default function Team() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900">{inv.email}</p>
                     <p className="text-xs text-gray-400">
-                      {ROLE_LABELS[inv.role]} — expires {new Date(inv.expires_at).toLocaleDateString()}
+                      {t('team.inviteExpiresLabel', { role: t(ROLE_LABEL_KEYS[inv.role]), date: new Date(inv.expires_at).toLocaleDateString(i18n.language) })}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -296,17 +298,17 @@ export default function Team() {
                       onClick={() => {
                         const link = `${window.location.origin}/join?token=${inv.token}`
                         navigator.clipboard.writeText(link)
-                        alert('Invite link copied! Send it to your team member.')
+                        alert(t('team.inviteLinkCopied'))
                       }}
                       className="text-xs text-brand-600 hover:text-brand-700 px-2 py-1.5 rounded-lg hover:bg-brand-50 transition-colors"
                     >
-                      Copy Link
+                      {t('team.copyLink')}
                     </button>
                     <button
                       onClick={() => handleRevoke(inv.id)}
                       className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
                     >
-                      Revoke
+                      {t('team.revoke')}
                     </button>
                   </div>
                 </div>
@@ -335,6 +337,7 @@ function NoOrgView({
   joining: boolean
   onJoin: (e: React.FormEvent) => void
 }) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<'create' | 'join'>('create')
 
   return (
@@ -344,8 +347,8 @@ function NoOrgView({
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">👥</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Team</h1>
-          <p className="text-gray-500 text-sm mt-1">Collaborate with your team on hiring</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('nav.team')}</h1>
+          <p className="text-gray-500 text-sm mt-1">{t('team.collaborateHint')}</p>
         </div>
 
         {error && <ErrorBanner message={error} onDismiss={onDismissError} />}
@@ -360,7 +363,7 @@ function NoOrgView({
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            Create Organization
+            {t('team.createOrganization')}
           </button>
           <button
             onClick={() => setTab('join')}
@@ -370,7 +373,7 @@ function NoOrgView({
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            Join Organization
+            {t('team.joinOrganization')}
           </button>
         </div>
 
@@ -378,15 +381,15 @@ function NoOrgView({
         {tab === 'create' && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 animate-fade-in">
             <p className="text-sm text-gray-500 mb-4">
-              Start a new organization and invite your team members to collaborate on job postings and candidate management.
+              {t('team.createOrgHint')}
             </p>
             <form onSubmit={onCreateOrg} className="space-y-4">
               <div>
-                <label className="label">Organization name</label>
+                <label className="label">{t('team.organizationName')}</label>
                 <input
                   required
                   className="input"
-                  placeholder="e.g. Acme Corp Recruiting"
+                  placeholder={t('team.organizationNamePlaceholder')}
                   value={orgName}
                   onChange={(e) => onOrgNameChange(e.target.value)}
                 />
@@ -395,10 +398,10 @@ function NoOrgView({
                 {creating ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Creating...
+                    {t('team.creatingEllipsis')}
                   </span>
                 ) : (
-                  'Create Organization'
+                  t('team.createOrganization')
                 )}
               </button>
             </form>
@@ -409,15 +412,15 @@ function NoOrgView({
         {tab === 'join' && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 animate-fade-in">
             <p className="text-sm text-gray-500 mb-4">
-              Your team lead will send you an invite link. Open it to join automatically, or paste the token below.
+              {t('team.joinOrgHint')}
             </p>
             <form onSubmit={onJoin} className="space-y-4">
               <div>
-                <label className="label">Invite token</label>
+                <label className="label">{t('team.inviteToken')}</label>
                 <input
                   required
                   className="input"
-                  placeholder="Paste the token from your invite link"
+                  placeholder={t('team.inviteTokenPlaceholder')}
                   value={joinToken}
                   onChange={(e) => onJoinTokenChange(e.target.value)}
                 />
@@ -426,10 +429,10 @@ function NoOrgView({
                 {joining ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Joining...
+                    {t('team.joiningEllipsis')}
                   </span>
                 ) : (
-                  'Join Organization'
+                  t('team.joinOrganization')
                 )}
               </button>
             </form>
@@ -452,7 +455,7 @@ function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () =>
   return (
     <div className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
       <span className="text-sm text-red-700">{message}</span>
-      <button onClick={onDismiss} className="text-red-400 hover:text-red-600 ml-2">✕</button>
+      <button onClick={onDismiss} className="text-red-400 hover:text-red-600 ms-2">✕</button>
     </div>
   )
 }

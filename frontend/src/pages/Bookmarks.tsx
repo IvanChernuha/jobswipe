@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import {
   getBookmarks, removeBookmark, postSwipe, moveBookmark, updateBookmarkNote,
@@ -36,6 +37,7 @@ interface EnrichedGroup {
 }
 
 export default function Bookmarks() {
+  const { t } = useTranslation()
   const { session, role } = useAuth()
   const token = session?.access_token ?? ''
 
@@ -119,7 +121,7 @@ export default function Bookmarks() {
       <Shell>
         <div className="flex flex-col items-center gap-3 py-20">
           <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
-          <p className="text-sm text-gray-500">Loading saved...</p>
+          <p className="text-sm text-gray-500">{t('bookmarks.loading')}</p>
         </div>
       </Shell>
     )
@@ -132,9 +134,9 @@ export default function Bookmarks() {
       <Shell>
         <div className="text-center py-16">
           <p className="text-5xl mb-3">&#x2691;</p>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">No saved profiles yet</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">{t('bookmarks.emptyTitle')}</h2>
           <p className="text-gray-500 text-sm">
-            Tap the flag button while browsing to save profiles for later.<span className="hidden [@media(hover:hover)]:inline"> (or press <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">B</kbd>)</span>
+            {t('bookmarks.emptyHint')}<span className="hidden [@media(hover:hover)]:inline"> ({t('bookmarks.emptyHintOrPress')} <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">B</kbd>)</span>
           </p>
         </div>
       </Shell>
@@ -146,8 +148,8 @@ export default function Bookmarks() {
   return (
     <Shell>
       <div className="max-w-2xl w-full px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Saved</h1>
-        <p className="text-sm text-gray-500 mb-6">{totalCount} saved profile{totalCount !== 1 ? 's' : ''}</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">{t('nav.saved')}</h1>
+        <p className="text-sm text-gray-500 mb-6">{t('bookmarks.savedCount', { count: totalCount })}</p>
 
         <div className="space-y-6">
           {groups.map((group) => {
@@ -161,7 +163,7 @@ export default function Bookmarks() {
                     onClick={() => toggleCollapse(key)}
                     className="flex items-center gap-2 w-full mb-3 group"
                   >
-                    <span className={`text-xs transition-transform ${isOpen ? 'rotate-90' : ''}`}>&#9654;</span>
+                    <span className={`text-xs transition-transform ${isOpen ? 'rotate-90' : 'rtl:rotate-180'}`}>&#9654;</span>
                     <h2 className="text-sm font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
                       {group.job_title}
                     </h2>
@@ -215,11 +217,12 @@ function BookmarkCard({
   canLike?: boolean
   onNote: (id: string, note: string) => void
 }) {
+  const { t, i18n } = useTranslation()
   const [editingNote, setEditingNote] = useState(false)
   const [noteText, setNoteText] = useState(bm.note || '')
   const [showMove, setShowMove] = useState(false)
 
-  const saved = new Date(bm.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const saved = new Date(bm.created_at).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })
   const isJob = role === 'worker'
 
   // Expiry
@@ -228,12 +231,12 @@ function BookmarkCard({
   const daysLeft = Math.max(0, Math.ceil((expiresDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
   const expiryColor = daysLeft <= 3 ? 'text-red-500' : daysLeft <= 7 ? 'text-amber-500' : 'text-gray-400'
   // Saved profiles expire after 30 days — say so instead of a bare "30d left".
-  const expiryLabel = daysLeft === 0 ? 'Expires today' : `Expires in ${daysLeft}d`
+  const expiryLabel = daysLeft === 0 ? t('bookmarks.expiresToday') : t('bookmarks.expiresInDays', { count: daysLeft })
 
-  const title = isJob ? bm.job_title || 'Untitled Job' : bm.name || 'Unknown Worker'
+  const title = isJob ? bm.job_title || t('bookmarks.untitledJob') : bm.name || t('bookmarks.unknownWorker')
   const subtitle = isJob
     ? bm.company_name || ''
-    : bm.experience_years != null ? `${bm.experience_years} years experience` : ''
+    : bm.experience_years != null ? t('bookmarks.yearsExperience', { count: bm.experience_years }) : ''
   const desc = isJob ? bm.description : bm.bio
   const loc = bm.location || ''
   const salary = isJob && (bm.salary_min || bm.salary_max)
@@ -256,15 +259,15 @@ function BookmarkCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-gray-900 truncate">{title}</h3>
+            <h3 dir="auto" className="font-semibold text-gray-900 truncate">{title}</h3>
             {isJob && bm.remote && (
               <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-semibold rounded-full flex-shrink-0">
-                Remote
+                {t('bookmarks.remote')}
               </span>
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5 text-sm text-gray-500">
-            {subtitle && <span>{subtitle}</span>}
+            {subtitle && <span dir="auto">{subtitle}</span>}
             {subtitle && loc && <span>·</span>}
             {loc && <span>{loc}</span>}
             {salary && <span>· {salary}</span>}
@@ -272,13 +275,13 @@ function BookmarkCard({
         </div>
 
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <span className="text-xs text-gray-400">Saved {saved}</span>
+          <span className="text-xs text-gray-400">{t('bookmarks.savedOn', { date: saved })}</span>
           <span className={`text-xs font-medium ${expiryColor}`}>{expiryLabel}</span>
         </div>
       </div>
 
       {/* Description */}
-      {desc && <p className="text-sm text-gray-600 mt-3 line-clamp-2">{desc}</p>}
+      {desc && <p dir="auto" className="text-sm text-gray-600 mt-3 line-clamp-2">{desc}</p>}
 
       {/* Tags */}
       {bm.tags && bm.tags.length > 0 && (
@@ -287,7 +290,7 @@ function BookmarkCard({
             <TagBadge key={tag.id} tag={tag} />
           ))}
           {bm.tags.length > 8 && (
-            <span className="text-xs text-gray-400 self-center">+{bm.tags.length - 8} more</span>
+            <span className="text-xs text-gray-400 self-center">{t('swipeCard.plusMore', { count: bm.tags.length - 8 })}</span>
           )}
         </div>
       )}
@@ -309,7 +312,7 @@ function BookmarkCard({
             className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300"
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
-            placeholder="Add a note..."
+            placeholder={t('bookmarks.addNotePlaceholder')}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 onNote(bm.target_id, noteText)
@@ -322,7 +325,7 @@ function BookmarkCard({
             onClick={() => { onNote(bm.target_id, noteText); setEditingNote(false) }}
             className="text-xs font-medium text-brand-600 px-2 py-1 rounded-lg hover:bg-brand-50"
           >
-            Save
+            {t('common.save')}
           </button>
         </div>
       ) : bm.note ? (
@@ -338,12 +341,12 @@ function BookmarkCard({
       {/* Move dropdown */}
       {showMove && onMove && (
         <div className="mt-3 bg-gray-50 rounded-xl p-3 space-y-1">
-          <p className="text-xs font-medium text-gray-500 mb-2">Move to:</p>
+          <p className="text-xs font-medium text-gray-500 mb-2">{t('bookmarks.moveTo')}</p>
           {jobs.filter((j) => j.active).map((j) => (
             <button
               key={j.id}
               onClick={() => { onMove(bm.target_id, j.id); setShowMove(false) }}
-              className={`block w-full text-left text-sm px-3 py-1.5 rounded-lg transition-colors ${
+              className={`block w-full text-start text-sm px-3 py-1.5 rounded-lg transition-colors ${
                 bm.job_posting_id === j.id
                   ? 'bg-brand-100 text-brand-700 font-medium'
                   : 'hover:bg-gray-100 text-gray-700'
@@ -354,11 +357,11 @@ function BookmarkCard({
           ))}
           <button
             onClick={() => { onMove(bm.target_id, null); setShowMove(false) }}
-            className={`block w-full text-left text-sm px-3 py-1.5 rounded-lg transition-colors ${
+            className={`block w-full text-start text-sm px-3 py-1.5 rounded-lg transition-colors ${
               !bm.job_posting_id ? 'bg-gray-200 text-gray-700 font-medium' : 'hover:bg-gray-100 text-gray-500'
             }`}
           >
-            Unsorted
+            {t('bookmarks.unsorted')}
           </button>
         </div>
       )}
@@ -370,7 +373,7 @@ function BookmarkCard({
             onClick={() => onSwipe(bm.target_id, 'pass')}
             className="text-xs font-medium text-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1"
           >
-            <span className="text-sm">&#10007;</span> Pass
+            <span className="text-sm">&#10007;</span> {t('feed.pass')}
           </button>
         )}
         {onSwipe && canLike && (
@@ -378,7 +381,7 @@ function BookmarkCard({
             onClick={() => onSwipe(bm.target_id, 'like')}
             className="text-xs font-medium text-green-500 hover:text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-50 transition-colors flex items-center gap-1"
           >
-            <span className="text-sm">&#10003;</span> Like
+            <span className="text-sm">&#10003;</span> {t('feed.like')}
           </button>
         )}
         {onMove && (
@@ -386,21 +389,21 @@ function BookmarkCard({
             onClick={() => setShowMove(!showMove)}
             className="text-xs font-medium text-brand-500 hover:text-brand-700 px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors"
           >
-            Move
+            {t('bookmarks.move')}
           </button>
         )}
         <button
           onClick={() => { setEditingNote(true); setNoteText(bm.note || '') }}
           className="text-xs font-medium text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
         >
-          {bm.note ? 'Edit note' : 'Add note'}
+          {bm.note ? t('bookmarks.editNote') : t('bookmarks.addNote')}
         </button>
         <div className="flex-1" />
         <button
           onClick={() => onRemove(bm.target_id)}
           className="text-xs font-medium text-gray-400 hover:text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
         >
-          Remove
+          {t('bookmarks.remove')}
         </button>
       </div>
     </div>

@@ -1,9 +1,11 @@
 import { useState, useRef, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { updateWorkerProfile, updateEmployerProfile, uploadAvatar } from '../lib/api'
 import type { Tag } from '../lib/api'
 import TagPicker from '../components/TagPicker'
+import LangToggle from '../components/LangToggle'
 
 // ---------------------------------------------------------------------------
 // Step indicator
@@ -46,6 +48,7 @@ function WorkerOnboarding({
   loading: boolean
   onStepChange: (step: number) => void
 }) {
+  const { t } = useTranslation()
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
   const [bio, setBio] = useState('')
@@ -127,26 +130,26 @@ function WorkerOnboarding({
             </div>
           </button>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarChange} />
-          <p className="text-xs text-gray-400">Tap to add a photo</p>
+          <p className="text-xs text-gray-400">{t('onboarding.worker.tapPhoto')}</p>
         </div>
 
         <div>
-          <label className="label">Full name</label>
+          <label className="label">{t('onboarding.worker.fullName')}</label>
           <input
             required
             className="input"
-            placeholder="Alex Johnson"
+            placeholder={t('onboarding.worker.fullNamePlaceholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
         </div>
 
         <div>
-          <label className="label">Short bio <span className="text-gray-400 font-normal">(optional)</span></label>
+          <label className="label">{t('onboarding.worker.shortBio')} <span className="text-gray-400 font-normal">({t('common.optional')})</span></label>
           <textarea
             rows={3}
             className="input resize-none"
-            placeholder="Tell employers about yourself..."
+            placeholder={t('onboarding.worker.bioPlaceholder')}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
           />
@@ -154,16 +157,16 @@ function WorkerOnboarding({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label">Location <span className="text-gray-400 font-normal">(optional)</span></label>
+            <label className="label">{t('common.location')} <span className="text-gray-400 font-normal">({t('common.optional')})</span></label>
             <input
               className="input"
-              placeholder="Tel Aviv"
+              placeholder={t('onboarding.worker.locationPlaceholder')}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
             />
           </div>
           <div>
-            <label className="label">Years of experience <span className="text-gray-400 font-normal">(optional)</span></label>
+            <label className="label">{t('onboarding.worker.yearsExperience')} <span className="text-gray-400 font-normal">({t('common.optional')})</span></label>
             <input
               type="number"
               min={0}
@@ -177,7 +180,7 @@ function WorkerOnboarding({
         </div>
 
         <button type="submit" className="btn-primary w-full py-3 text-base mt-2">
-          Next — Pick your skills
+          {t('onboarding.worker.nextPickSkills')}
         </button>
       </form>
     )
@@ -186,27 +189,26 @@ function WorkerOnboarding({
   return (
     <form onSubmit={handleFinish} className="space-y-5">
       <p className="text-sm text-gray-500">
-        Jobs are matched to your skills — with none selected you'd see almost nothing. Pick at least one now;
-        you can add more any time from your profile.
+        {t('onboarding.worker.skillsIntro')}
       </p>
 
-      <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} suggestions={10} label="Your skills" />
+      <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} suggestions={10} label={t('onboarding.worker.yourSkills')} />
       {selectedTags.length === 0 && (
-        <p className="text-xs text-amber-600">Pick at least 1 skill to continue.</p>
+        <p className="text-xs text-amber-600">{t('onboarding.worker.pickAtLeastOne')}</p>
       )}
 
       <div className="flex gap-3 mt-2">
         <button type="button" onClick={handleBack} className="flex-1 py-3 text-base font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
-          Back
+          {t('common.back')}
         </button>
         <button type="submit" disabled={loading || selectedTags.length === 0} className="flex-1 btn-primary py-3 text-base disabled:opacity-50">
           {loading ? (
             <span className="flex items-center justify-center gap-2">
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Saving...
+              {t('common.savingEllipsis')}
             </span>
           ) : (
-            'Complete profile'
+            t('onboarding.completeProfile')
           )}
         </button>
       </div>
@@ -233,6 +235,7 @@ function EmployerOnboarding({
   onSubmit: (data: EmployerFormData) => void
   loading: boolean
 }) {
+  const { t } = useTranslation()
   const [form, setForm] = useState({
     company_name: '',
     description: '',
@@ -300,26 +303,26 @@ function EmployerOnboarding({
           </div>
         </button>
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleLogoChange} />
-        <p className="text-xs text-gray-400">Tap to add company logo</p>
+        <p className="text-xs text-gray-400">{t('onboarding.employer.tapLogo')}</p>
       </div>
 
       <div>
-        <label className="label">Company name</label>
+        <label className="label">{t('onboarding.employer.companyName')}</label>
         <input
           required
           className="input"
-          placeholder="Acme Corp"
+          placeholder={t('onboarding.employer.companyNamePlaceholder')}
           value={form.company_name}
           onChange={set('company_name')}
         />
       </div>
 
       <div>
-        <label className="label">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+        <label className="label">{t('common.description')} <span className="text-gray-400 font-normal">({t('common.optional')})</span></label>
         <textarea
           rows={3}
           className="input resize-none"
-          placeholder="What does your company do? What's the culture like?"
+          placeholder={t('onboarding.employer.descriptionPlaceholder')}
           value={form.description}
           onChange={set('description')}
         />
@@ -327,20 +330,20 @@ function EmployerOnboarding({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="label">Industry <span className="text-gray-400 font-normal">(optional)</span></label>
+          <label className="label">{t('onboarding.employer.industry')} <span className="text-gray-400 font-normal">({t('common.optional')})</span></label>
           <input
             className="input"
-            placeholder="Technology"
+            placeholder={t('onboarding.employer.industryPlaceholder')}
             value={form.industry}
             onChange={set('industry')}
           />
         </div>
         <div>
-          <label className="label">Location</label>
+          <label className="label">{t('common.location')}</label>
           <input
             required
             className="input"
-            placeholder="New York, NY"
+            placeholder={t('onboarding.employer.locationPlaceholder')}
             value={form.location}
             onChange={set('location')}
           />
@@ -351,10 +354,10 @@ function EmployerOnboarding({
         {loading ? (
           <span className="flex items-center justify-center gap-2">
             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Saving...
+            {t('common.savingEllipsis')}
           </span>
         ) : (
-          'Complete profile'
+          t('onboarding.completeProfile')
         )}
       </button>
     </form>
@@ -366,6 +369,7 @@ function EmployerOnboarding({
 // ---------------------------------------------------------------------------
 
 export default function Onboarding() {
+  const { t } = useTranslation()
   const { role, session } = useAuth()
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
@@ -392,7 +396,7 @@ export default function Onboarding() {
       })
       navigate('/feed', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save profile.')
+      setError(err instanceof Error ? err.message : t('onboarding.saveFailed'))
     } finally {
       setLoading(false)
     }
@@ -414,7 +418,7 @@ export default function Onboarding() {
       // Employers start by posting a job — the feed is empty-handed without one.
       navigate('/jobs', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save profile.')
+      setError(err instanceof Error ? err.message : t('onboarding.saveFailed'))
     } finally {
       setLoading(false)
     }
@@ -424,22 +428,23 @@ export default function Onboarding() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-purple-50 px-4 py-12">
       <div className="w-full max-w-lg">
         <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8 sm:p-10">
+          <div className="flex justify-end mb-3"><LangToggle /></div>
           <StepIndicator current={role === 'worker' ? workerStep : 1} total={role === 'worker' ? 2 : 1} />
 
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900">
               {role === 'employer'
-                ? 'Tell us about your company'
+                ? t('onboarding.employer.title')
                 : workerStep === 1
-                  ? 'Tell us about yourself'
-                  : 'Pick your skills'}
+                  ? t('onboarding.worker.title')
+                  : t('onboarding.worker.step2Title')}
             </h1>
             <p className="text-sm text-gray-500 mt-1">
               {role === 'employer'
-                ? 'This information appears on your public profile.'
+                ? t('onboarding.publicProfileInfo')
                 : workerStep === 1
-                  ? 'This information appears on your public profile.'
-                  : 'Help us match you with the right opportunities.'}
+                  ? t('onboarding.publicProfileInfo')
+                  : t('onboarding.worker.matchHelp')}
             </p>
           </div>
 

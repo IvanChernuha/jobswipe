@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import {
   getJobPostings, toggleJobActive, deleteJobPosting, updateJobPosting,
@@ -9,6 +10,7 @@ import TagPicker from '../components/TagPicker'
 import TagBadge from '../components/TagBadge'
 
 export default function Jobs() {
+  const { t } = useTranslation()
   const { session } = useAuth()
   const token = session?.access_token ?? ''
 
@@ -27,7 +29,7 @@ export default function Jobs() {
     setLoading(true)
     getJobPostings(token)
       .then(setJobs)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load'))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : t('jobs.failedToLoad')))
       .finally(() => setLoading(false))
   }, [token])
 
@@ -35,15 +37,15 @@ export default function Jobs() {
     try {
       const updated = await toggleJobActive(token, jobId)
       setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, active: updated.active } : j)))
-    } catch (err) { setActionError(err instanceof Error ? err.message : 'Could not update the job') }
+    } catch (err) { setActionError(err instanceof Error ? err.message : t('jobs.couldNotUpdate')) }
   }
 
   async function handleDelete(jobId: string) {
-    if (!confirm('Delete this job posting? This cannot be undone.')) return
+    if (!confirm(t('jobs.confirmDelete'))) return
     try {
       await deleteJobPosting(token, jobId)
       setJobs((prev) => prev.filter((j) => j.id !== jobId))
-    } catch (err) { setActionError(err instanceof Error ? err.message : 'Could not delete the job') }
+    } catch (err) { setActionError(err instanceof Error ? err.message : t('jobs.couldNotDelete')) }
   }
 
   // Create/edit errors propagate to JobFormModal, which shows them inline.
@@ -73,14 +75,14 @@ export default function Jobs() {
         // Multiple files → show review list
         setParsedJobs(results)
       }
-    } catch (err) { setActionError(err instanceof Error ? err.message : 'Could not parse the file(s)') }
+    } catch (err) { setActionError(err instanceof Error ? err.message : t('jobs.couldNotParse')) }
     finally { setParsing(false) }
   }
 
   async function handleCreateParsed(parsed: ParsedJobFile) {
     try {
       const created = await createJobPosting(token, {
-        title: parsed.title ?? 'Untitled',
+        title: parsed.title ?? t('jobs.untitled'),
         description: parsed.description ?? '',
         location: parsed.location ?? '',
         remote: parsed.remote,
@@ -94,7 +96,7 @@ export default function Jobs() {
       } as any)
       setJobs((prev) => [{ ...created, swipe_count: 0, like_count: 0, match_count: 0, active: true } as JobPosting, ...prev])
       setParsedJobs((prev) => prev?.filter((p) => p.filename !== parsed.filename) ?? null)
-    } catch (err) { setActionError(err instanceof Error ? err.message : 'Could not create the job') }
+    } catch (err) { setActionError(err instanceof Error ? err.message : t('jobs.couldNotCreate')) }
   }
 
   if (loading) {
@@ -102,7 +104,7 @@ export default function Jobs() {
       <Shell>
         <div className="flex flex-col items-center gap-3 py-20">
           <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
-          <p className="text-sm text-gray-500">Loading jobs...</p>
+          <p className="text-sm text-gray-500">{t('jobs.loading')}</p>
         </div>
       </Shell>
     )
@@ -128,15 +130,15 @@ export default function Jobs() {
       {actionError && (
         <div className="mx-4 mt-4 flex items-start justify-between gap-3 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert">
           <span>{actionError}</span>
-          <button type="button" onClick={() => setActionError(null)} className="text-red-500 hover:text-red-700 font-bold" aria-label="Dismiss">&times;</button>
+          <button type="button" onClick={() => setActionError(null)} className="text-red-500 hover:text-red-700 font-bold" aria-label={t('common.dismiss')}>&times;</button>
         </div>
       )}
       <div className="max-w-3xl w-full px-4 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Your Jobs</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{jobs.length} posting{jobs.length !== 1 ? 's' : ''}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t('jobs.yourJobs')}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{t('jobs.postingCount', { count: jobs.length })}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -154,7 +156,7 @@ export default function Jobs() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
               )}
-              {parsing ? 'Analyzing...' : 'Upload Job File'}
+              {parsing ? t('jobs.analyzing') : t('jobs.uploadJobFile')}
             </button>
             <input
               ref={fileInputRef}
@@ -171,7 +173,7 @@ export default function Jobs() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              New Job
+              {t('jobs.newJob')}
             </button>
           </div>
         </div>
@@ -181,10 +183,10 @@ export default function Jobs() {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-gray-700">
-                Review parsed jobs ({parsedJobs.length} remaining)
+                {t('jobs.reviewParsedJobs', { count: parsedJobs.length })}
               </h2>
               <button onClick={() => setParsedJobs(null)} className="text-xs text-gray-400 hover:text-gray-600">
-                Dismiss all
+                {t('jobs.dismissAll')}
               </button>
             </div>
             <div className="space-y-3">
@@ -207,7 +209,7 @@ export default function Jobs() {
                 }}
                 className="mt-4 w-full btn-primary py-2.5 text-sm"
               >
-                Create All ({parsedJobs.filter((p) => !p.error).length} jobs)
+                {t('jobs.createAll', { count: parsedJobs.filter((p) => !p.error).length })}
               </button>
             )}
           </div>
@@ -219,7 +221,7 @@ export default function Jobs() {
             prefilled={createModal.prefilled ?? undefined}
             onSave={(data) => handleCreate(data)}
             onClose={() => setCreateModal({ open: false, prefilled: null })}
-            title="Create Job Posting"
+            title={t('jobs.createJobPosting')}
           />
         )}
 
@@ -229,7 +231,7 @@ export default function Jobs() {
             job={editingJob}
             onSave={(data) => handleSaveEdit(editingJob.id, data)}
             onClose={() => setEditingJob(null)}
-            title="Edit Job Posting"
+            title={t('jobs.editJobPosting')}
           />
         )}
 
@@ -237,10 +239,10 @@ export default function Jobs() {
         {jobs.length === 0 && (
           <div className="text-center py-16">
             <p className="text-5xl mb-3">📋</p>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">No job postings yet</h2>
-            <p className="text-gray-500 text-sm mb-4">Create your first job to start receiving candidates.</p>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">{t('jobs.emptyTitle')}</h2>
+            <p className="text-gray-500 text-sm mb-4">{t('jobs.emptyHint')}</p>
             <button onClick={() => setCreateModal({ open: true, prefilled: null })} className="btn-primary text-sm">
-              Create Job
+              {t('jobs.createJob')}
             </button>
           </div>
         )}
@@ -249,7 +251,7 @@ export default function Jobs() {
         {activeJobs.length > 0 && (
           <div className="space-y-3 mb-8">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-              Active ({activeJobs.length})
+              {t('jobs.activeCount', { count: activeJobs.length })}
             </h2>
             {activeJobs.map((job) => (
               <JobCard
@@ -267,7 +269,7 @@ export default function Jobs() {
         {expiredJobs.length > 0 && (
           <div className="space-y-3 mb-8">
             <h2 className="text-sm font-semibold text-amber-600 uppercase tracking-wide">
-              Expired ({expiredJobs.length})
+              {t('jobs.expiredCount', { count: expiredJobs.length })}
             </h2>
             {expiredJobs.map((job) => (
               <JobCard
@@ -292,7 +294,7 @@ export default function Jobs() {
         {inactiveJobs.length > 0 && (
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-              Inactive ({inactiveJobs.length})
+              {t('jobs.inactiveCount', { count: inactiveJobs.length })}
             </h2>
             {inactiveJobs.map((job) => (
               <JobCard
@@ -329,7 +331,8 @@ function JobCard({
   onExtend?: (days: number) => void
   expired?: boolean
 }) {
-  const posted = new Date(job.created_at).toLocaleDateString(undefined, {
+  const { t, i18n } = useTranslation()
+  const posted = new Date(job.created_at).toLocaleDateString(i18n.language, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -338,11 +341,12 @@ function JobCard({
   const expiresDate = new Date(job.expires_at)
   const now = new Date()
   const daysLeft = Math.ceil((expiresDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  const expiryDateStr = expiresDate.toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })
   const expiryLabel = expired
-    ? `Expired ${expiresDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+    ? t('jobs.expiredOn', { date: expiryDateStr })
     : daysLeft <= 7
-      ? `Expires in ${daysLeft}d`
-      : `Expires ${expiresDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+      ? t('bookmarks.expiresInDays', { count: daysLeft })
+      : t('jobs.expiresOn', { date: expiryDateStr })
   const expiryColor = expired
     ? 'text-red-500'
     : daysLeft <= 3
@@ -363,20 +367,20 @@ function JobCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-gray-900 truncate">{job.title}</h3>
+            <h3 dir="auto" className="font-semibold text-gray-900 truncate">{job.title}</h3>
             {expired && (
               <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-full uppercase">
-                Expired
+                {t('jobs.expired')}
               </span>
             )}
             {!job.active && !expired && (
               <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-semibold rounded-full uppercase">
-                Inactive
+                {t('jobs.inactive')}
               </span>
             )}
             {job.remote && (
               <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-semibold rounded-full">
-                Remote
+                {t('bookmarks.remote')}
               </span>
             )}
           </div>
@@ -384,12 +388,12 @@ function JobCard({
           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
             {job.location && <span>{job.location}</span>}
             {salary && <span>{salary}</span>}
-            <span>Posted {posted}</span>
+            <span>{t('jobs.posted', { date: posted })}</span>
             <span className={expiryColor}>{expiryLabel}</span>
           </div>
 
           {job.description && (
-            <p className="text-sm text-gray-600 mt-2 line-clamp-2">{job.description}</p>
+            <p dir="auto" className="text-sm text-gray-600 mt-2 line-clamp-2">{job.description}</p>
           )}
 
           {/* Tags */}
@@ -399,20 +403,20 @@ function JobCard({
                 <TagBadge key={tag.id} tag={tag} />
               ))}
               {job.tags.length > 6 && (
-                <span className="text-xs text-gray-400 self-center">+{job.tags.length - 6} more</span>
+                <span className="text-xs text-gray-400 self-center">{t('swipeCard.plusMore', { count: job.tags.length - 6 })}</span>
               )}
-              {job.tags.some((t) => t.requirement === 'required') && (
-                <span className="text-[11px] text-gray-400 self-center">* must-have</span>
+              {job.tags.some((tg) => tg.requirement === 'required') && (
+                <span className="text-[11px] text-gray-400 self-center">{t('jobs.mustHaveLegend')}</span>
               )}
             </div>
           )}
         </div>
 
         {/* Stats column */}
-        <div className="flex-shrink-0 flex flex-col items-end gap-1 text-right">
-          <StatPill label="Views" value={job.swipe_count} color="gray" />
-          <StatPill label="Likes" value={job.like_count} color="green" />
-          <StatPill label="Matches" value={job.match_count} color="brand" />
+        <div className="flex-shrink-0 flex flex-col items-end gap-1 text-end">
+          <StatPill label={t('jobs.views')} value={job.swipe_count} color="gray" />
+          <StatPill label={t('jobs.likes')} value={job.like_count} color="green" />
+          <StatPill label={t('jobs.matches')} value={job.match_count} color="brand" />
         </div>
       </div>
 
@@ -422,7 +426,7 @@ function JobCard({
           onClick={onEdit}
           className="text-xs font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
         >
-          Edit
+          {t('common.edit')}
         </button>
         {expired && onExtend ? (
           <>
@@ -430,13 +434,13 @@ function JobCard({
               onClick={() => onExtend(30)}
               className="text-xs font-medium text-green-600 px-3 py-1.5 rounded-lg hover:bg-green-50 transition-colors"
             >
-              Extend 30d
+              {t('jobs.extend30d')}
             </button>
             <button
               onClick={() => onExtend(7)}
               className="text-xs font-medium text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
             >
-              Extend 7d
+              {t('jobs.extend7d')}
             </button>
           </>
         ) : (
@@ -448,7 +452,7 @@ function JobCard({
                 : 'text-green-600 hover:bg-green-50'
             }`}
           >
-            {job.active ? 'Deactivate' : 'Reactivate'}
+            {job.active ? t('jobs.deactivate') : t('jobs.reactivate')}
           </button>
         )}
         <div className="flex-1" />
@@ -456,7 +460,7 @@ function JobCard({
           onClick={onDelete}
           className="text-xs font-medium text-red-500 hover:text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
         >
-          Delete
+          {t('common.delete')}
         </button>
       </div>
     </div>
@@ -493,6 +497,7 @@ function JobFormModal({
   onClose: () => void
   title: string
 }) {
+  const { t } = useTranslation()
   const defaultDays = job?.expires_at
     ? Math.max(1, Math.ceil((new Date(job.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : 30
@@ -550,7 +555,7 @@ function JobFormModal({
     try {
       await onSave(payload)
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Could not save the job')
+      setFormError(err instanceof Error ? err.message : t('jobs.couldNotSave'))
     } finally {
       setSaving(false)
     }
@@ -566,19 +571,19 @@ function JobFormModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="label">Job title</label>
-            <input required className="input" value={form.title} onChange={set('title')} placeholder="Senior Frontend Engineer" />
+            <label className="label">{t('jobs.form.jobTitle')}</label>
+            <input required className="input" value={form.title} onChange={set('title')} placeholder={t('jobs.form.jobTitlePlaceholder')} />
           </div>
 
           <div>
-            <label className="label">Description</label>
-            <textarea rows={3} className="input resize-none" value={form.description} onChange={set('description')} placeholder="What will this person do?" />
+            <label className="label">{t('common.description')}</label>
+            <textarea rows={3} className="input resize-none" value={form.description} onChange={set('description')} placeholder={t('jobs.form.descriptionPlaceholder')} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Location</label>
-              <input className="input" value={form.location} onChange={set('location')} placeholder="New York, NY" />
+              <label className="label">{t('common.location')}</label>
+              <input className="input" value={form.location} onChange={set('location')} placeholder={t('onboarding.employer.locationPlaceholder')} />
             </div>
             <label className="flex items-center gap-2 self-end cursor-pointer pb-2">
               <input
@@ -587,41 +592,40 @@ function JobFormModal({
                 onChange={(e) => setForm((prev) => ({ ...prev, remote: e.target.checked }))}
                 className="rounded border-gray-300 text-brand-500 focus:ring-brand-300"
               />
-              <span className="text-sm text-gray-700">Remote</span>
+              <span className="text-sm text-gray-700">{t('bookmarks.remote')}</span>
             </label>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Min salary ($/yr) <span className="text-gray-400 font-normal">(optional)</span></label>
-              <input type="number" min={0} className="input" value={form.salary_min || ''} onChange={set('salary_min')} placeholder="e.g. 80000" />
+              <label className="label">{t('jobs.form.minSalary')} <span className="text-gray-400 font-normal">({t('common.optional')})</span></label>
+              <input type="number" min={0} className="input" value={form.salary_min || ''} onChange={set('salary_min')} placeholder={t('jobs.form.minSalaryPlaceholder')} />
             </div>
             <div>
-              <label className="label">Max salary ($/yr) <span className="text-gray-400 font-normal">(optional)</span></label>
-              <input type="number" min={0} className="input" value={form.salary_max || ''} onChange={set('salary_max')} placeholder="e.g. 120000" />
+              <label className="label">{t('jobs.form.maxSalary')} <span className="text-gray-400 font-normal">({t('common.optional')})</span></label>
+              <input type="number" min={0} className="input" value={form.salary_max || ''} onChange={set('salary_max')} placeholder={t('jobs.form.maxSalaryPlaceholder')} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Min experience (years)</label>
-              <input type="number" min={0} className="input" value={form.min_experience_years} onChange={set('min_experience_years')} placeholder="Optional" />
+              <label className="label">{t('jobs.form.minExperienceYears')}</label>
+              <input type="number" min={0} className="input" value={form.min_experience_years} onChange={set('min_experience_years')} placeholder={t('common.optional')} />
             </div>
             <div>
-              <label className="label">Listing expires after (days)</label>
+              <label className="label">{t('jobs.form.expiresAfterDays')}</label>
               <input type="number" min={1} max={365} className="input" value={form.expires_in_days} onChange={set('expires_in_days')} />
-              <p className="text-[11px] text-gray-400 mt-1">Default 30 — you can extend it later from this page.</p>
+              <p className="text-[11px] text-gray-400 mt-1">{t('jobs.form.expiresDefaultHint')}</p>
             </div>
           </div>
 
           <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-3">
             <p className="text-xs text-gray-500">
-              Skills decide who sees this job. Only <span className="font-medium">must-have</span> skills filter candidates out;
-              the rest just raise the match score.
+              {t('jobs.form.skillsInfo')}
             </p>
-            <TagPicker selectedTags={requiredTags} onChange={setRequiredTags} label="Must-have skills — candidates need ALL of these" />
-            <TagPicker selectedTags={preferredTags} onChange={setPreferredTags} label="Preferred skills — at least one" />
-            <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} label="Nice-to-have skills" />
+            <TagPicker selectedTags={requiredTags} onChange={setRequiredTags} label={t('jobs.form.mustHaveSkills')} />
+            <TagPicker selectedTags={preferredTags} onChange={setPreferredTags} label={t('jobs.form.preferredSkills')} />
+            <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} label={t('jobs.form.niceToHaveSkills')} />
           </div>
 
           {formError && (
@@ -632,10 +636,10 @@ function JobFormModal({
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button type="submit" disabled={saving} className="flex-1 btn-primary py-2.5 text-sm">
-              {saving ? 'Saving...' : job ? 'Save Changes' : 'Create Job'}
+              {saving ? t('common.savingEllipsis') : job ? t('jobs.saveChanges') : t('jobs.createJob')}
             </button>
           </div>
         </form>
@@ -655,6 +659,7 @@ function ParsedJobCard({
   onEdit: () => void
   onDiscard: () => void
 }) {
+  const { t } = useTranslation()
   if (parsed.error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between">
@@ -663,7 +668,7 @@ function ParsedJobCard({
           <p className="text-xs text-red-500 mt-0.5">{parsed.error}</p>
         </div>
         <button onClick={onDiscard} className="text-xs text-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100">
-          Dismiss
+          {t('common.dismiss')}
         </button>
       </div>
     )
@@ -680,10 +685,10 @@ function ParsedJobCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs text-gray-400 mb-1">{parsed.filename}</p>
-          <h3 className="font-semibold text-gray-900">{parsed.title ?? 'Untitled'}</h3>
+          <h3 className="font-semibold text-gray-900">{parsed.title ?? t('jobs.untitled')}</h3>
           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
             {parsed.location && <span>{parsed.location}</span>}
-            {parsed.remote && <span className="text-blue-500">Remote</span>}
+            {parsed.remote && <span className="text-blue-500">{t('bookmarks.remote')}</span>}
             {salary && <span>{salary}</span>}
           </div>
           {parsed.description && (
@@ -694,21 +699,21 @@ function ParsedJobCard({
               {allTags.slice(0, 8).map((t) => (
                 <span key={t} className="px-2 py-0.5 bg-brand-50 text-brand-600 text-xs rounded-full">{t}</span>
               ))}
-              {allTags.length > 8 && <span className="text-xs text-gray-400 self-center">+{allTags.length - 8} more</span>}
+              {allTags.length > 8 && <span className="text-xs text-gray-400 self-center">{t('swipeCard.plusMore', { count: allTags.length - 8 })}</span>}
             </div>
           )}
         </div>
       </div>
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
         <button onClick={onCreate} className="btn-primary text-xs py-1.5 px-3">
-          Create
+          {t('jobs.create')}
         </button>
         <button onClick={onEdit} className="text-xs font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100">
-          Edit before creating
+          {t('jobs.editBeforeCreating')}
         </button>
         <div className="flex-1" />
         <button onClick={onDiscard} className="text-xs text-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50">
-          Discard
+          {t('jobs.discard')}
         </button>
       </div>
     </div>

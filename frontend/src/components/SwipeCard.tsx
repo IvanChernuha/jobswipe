@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18n from '../i18n'
 import type { WorkerCard, EmployerCard, Tag, MatchScore } from '../lib/api'
 import TagBadge from './TagBadge'
 
@@ -27,7 +29,7 @@ export function workerToCard(w: WorkerCard): CardData {
     id: w.id,
     name: w.name,
     avatar_url: w.avatar_url,
-    title: `${w.experience_years} yr${w.experience_years !== 1 ? 's' : ''} experience`,
+    title: i18n.t('swipeCard.yearsExperience', { count: w.experience_years }),
     bio: w.bio,
     location: w.location,
     skills: w.skills ?? [],
@@ -41,7 +43,7 @@ export function employerToCard(e: EmployerCard): CardData {
     e.salary_min && e.salary_max
       ? `$${(e.salary_min / 1000).toFixed(0)}k\u2013$${(e.salary_max / 1000).toFixed(0)}k`
       : e.salary_min
-        ? `From $${(e.salary_min / 1000).toFixed(0)}k`
+        ? i18n.t('swipeCard.fromSalary', { amount: `$${(e.salary_min / 1000).toFixed(0)}k` })
         : null
 
   return {
@@ -66,20 +68,22 @@ export function employerToCard(e: EmployerCard): CardData {
 type OverlayDir = 'like' | 'pass' | 'super' | null
 
 function Overlay({ dir }: { dir: OverlayDir }) {
+  const { t } = useTranslation()
   if (!dir) return null
   const isLike = dir === 'like' || dir === 'super'
-  const label = dir === 'super' ? 'SUPER LIKE' : dir === 'like' ? 'LIKE' : 'NOPE'
+  const label = dir === 'super' ? t('swipeCard.superLike') : dir === 'like' ? t('swipeCard.like') : t('swipeCard.nope')
   const tone = dir === 'super'
     ? '-rotate-12 text-blue-500 border-blue-500'
     : isLike ? '-rotate-12 text-green-500 border-green-500' : 'rotate-12 text-red-500 border-red-500'
   return (
     <div
-      className={`absolute inset-0 rounded-3xl flex items-start p-6 transition-opacity z-10
-        ${dir === 'super' ? 'justify-start bg-blue-400/20' : isLike ? 'justify-start bg-green-400/20' : 'justify-end bg-red-400/20'}`}
+      className={`absolute inset-0 rounded-3xl transition-opacity z-10
+        ${dir === 'super' ? 'bg-blue-400/20' : isLike ? 'bg-green-400/20' : 'bg-red-400/20'}`}
     >
-      {/* LIKE/SUPER sit top-left, NOPE top-right: the stamp stays on-screen while
-          the card is dragged in its own direction (Tinder convention). */}
-      <span className={`text-4xl font-black border-4 px-3 py-1 rounded-lg ${tone}`}>{label}</span>
+      {/* Physical positions on purpose (not start/end): swipe direction is the
+          same in RTL — right = like — so LIKE/SUPER sit top-LEFT and NOPE
+          top-RIGHT regardless of text direction, staying on-screen mid-drag. */}
+      <span className={`absolute top-6 ${isLike ? 'left-6' : 'right-6'} text-4xl font-black border-4 px-3 py-1 rounded-lg ${tone}`}>{label}</span>
     </div>
   )
 }
@@ -117,6 +121,7 @@ function Avatar({ url, name }: { url: string | null; name: string }) {
 // ---------------------------------------------------------------------------
 
 function MatchBadge({ score }: { score: MatchScore }) {
+  const { t } = useTranslation()
   const pct = score.percentage
   // Color: green ≥70%, yellow ≥40%, gray <40%
   const color =
@@ -127,9 +132,9 @@ function MatchBadge({ score }: { score: MatchScore }) {
         : 'bg-gray-600/80 text-white'
 
   return (
-    <div className={`absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full backdrop-blur-sm shadow-lg ${color}`}>
+    <div className={`absolute top-3 start-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full backdrop-blur-sm shadow-lg ${color}`}>
       <span className="text-sm font-bold">{pct}%</span>
-      <span className="text-xs opacity-90">match</span>
+      <span className="text-xs opacity-90">{t('swipeCard.match')}</span>
       <span className="text-[10px] opacity-75">({score.matched}/{score.total})</span>
     </div>
   )
@@ -151,6 +156,7 @@ const SWIPE_COMMIT_PX = 96   // drag distance that commits a like/pass
 const SWIPE_OVERLAY_PX = 32  // drag distance before LIKE/NOPE shows
 
 export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe }: SwipeCardProps) {
+  const { t } = useTranslation()
   // Prefer tags over legacy skills array
   const hasTags = card.tags.length > 0
 
@@ -228,14 +234,14 @@ export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe 
         )}
 
         {/* Kind badge: makes a job card read as a job at a glance */}
-        <span className="absolute top-3 right-3 z-10 px-2 py-0.5 rounded-full bg-black/40 text-white text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm">
-          {card.headline ? 'Job' : 'Candidate'}
+        <span className="absolute top-3 end-3 z-10 px-2 py-0.5 rounded-full bg-black/40 text-white text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm">
+          {card.headline ? t('swipeCard.job') : t('swipeCard.candidate')}
         </span>
 
         {/* Headline (job title) or name, then the secondary line */}
-        <div className="absolute bottom-4 left-5 right-5">
-          <p className="text-white text-xl font-bold leading-tight drop-shadow">{card.headline ?? card.name}</p>
-          <p className="text-white/80 text-sm mt-0.5">{card.title}</p>
+        <div className="absolute bottom-4 start-5 end-5">
+          <p dir="auto" className="text-white text-xl font-bold leading-tight drop-shadow">{card.headline ?? card.name}</p>
+          <p dir="auto" className="text-white/80 text-sm mt-0.5">{card.title}</p>
         </div>
       </div>
 
@@ -261,14 +267,15 @@ export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe 
         {/* Bio — tap to expand */}
         {card.bio ? (
           <p
+            dir="auto"
             className={`text-sm text-gray-600 leading-relaxed ${expanded ? '' : 'line-clamp-3'}`}
             onClick={() => setExpanded((v) => !v)}
           >
             {card.bio}
-            {!expanded && card.bio.length > 140 && <span className="text-brand-600 font-medium"> … more</span>}
+            {!expanded && card.bio.length > 140 && <span className="text-brand-600 font-medium"> {t('swipeCard.moreEllipsis')}</span>}
           </p>
         ) : (
-          <p className="text-sm text-gray-400 italic">No description yet.</p>
+          <p className="text-sm text-gray-400 italic">{t('swipeCard.noDescription')}</p>
         )}
 
         {/* Tags (color-coded) or legacy skills fallback */}
@@ -279,7 +286,7 @@ export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe 
             ))}
             {card.tags.length > 6 && (
               <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
-                +{card.tags.length - 6} more
+                {t('swipeCard.plusMore', { count: card.tags.length - 6 })}
               </span>
             )}
           </div>
@@ -296,7 +303,7 @@ export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe 
             ))}
             {card.skills.length > 6 && (
               <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
-                +{card.skills.length - 6} more
+                {t('swipeCard.plusMore', { count: card.skills.length - 6 })}
               </span>
             )}
           </div>

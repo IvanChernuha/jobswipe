@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { joinOrg } from '../lib/api'
 
 export default function JoinOrg() {
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const inviteToken = searchParams.get('token') ?? ''
   const { session, role } = useAuth()
@@ -16,7 +18,7 @@ export default function JoinOrg() {
   useEffect(() => {
     if (!inviteToken) {
       setStatus('error')
-      setError('No invite token found in the link.')
+      setError(t('joinOrg.noToken'))
       return
     }
 
@@ -35,7 +37,7 @@ export default function JoinOrg() {
       .then(() => setStatus('success'))
       .catch((err: unknown) => {
         setStatus('error')
-        setError(err instanceof Error ? err.message : 'Failed to join organization')
+        setError(err instanceof Error ? err.message : t('joinOrg.failedToJoin'))
       })
   }, [inviteToken, session, token, role])
 
@@ -45,17 +47,17 @@ export default function JoinOrg() {
         {status === 'loading' && (
           <>
             <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-gray-600">Joining organization...</p>
+            <p className="text-gray-600">{t('joinOrg.joining')}</p>
           </>
         )}
 
         {status === 'success' && (
           <>
             <div className="text-5xl mb-4">🎉</div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">You're in!</h1>
-            <p className="text-gray-500 mb-6">You've successfully joined the organization.</p>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('joinOrg.youreIn')}</h1>
+            <p className="text-gray-500 mb-6">{t('joinOrg.joinedSuccess')}</p>
             <button onClick={() => navigate('/team')} className="btn-primary px-6 py-2.5">
-              Go to Team
+              {t('joinOrg.goToTeam')}
             </button>
           </>
         )}
@@ -63,22 +65,22 @@ export default function JoinOrg() {
         {status === 'needsLogin' && (
           <>
             <div className="text-5xl mb-4">🔑</div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Sign in to join</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('joinOrg.signInToJoin')}</h1>
             <p className="text-gray-500 mb-6">
-              You need to sign in or create an employer account to accept this invite.
+              {t('joinOrg.signInHint')}
             </p>
             <div className="flex gap-3 justify-center">
               <button
                 onClick={() => navigate(`/login?redirect=/join?token=${encodeURIComponent(inviteToken)}`)}
                 className="btn-primary px-5 py-2.5"
               >
-                Sign In
+                {t('common.signIn')}
               </button>
               <button
                 onClick={() => navigate(`/register?redirect=/join?token=${encodeURIComponent(inviteToken)}`)}
                 className="px-5 py-2.5 border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 font-medium"
               >
-                Register
+                {t('joinOrg.register')}
               </button>
             </div>
           </>
@@ -87,12 +89,12 @@ export default function JoinOrg() {
         {status === 'needsEmployer' && (
           <>
             <div className="text-5xl mb-4">🏢</div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Employer account required</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('joinOrg.employerRequired')}</h1>
             <p className="text-gray-500 mb-6">
-              Only employer accounts can join organizations. You're currently signed in as a worker.
+              {t('joinOrg.employerRequiredHint')}
             </p>
             <button onClick={() => navigate('/feed')} className="btn-primary px-6 py-2.5">
-              Back to Feed
+              {t('joinOrg.backToFeed')}
             </button>
           </>
         )}
@@ -100,10 +102,10 @@ export default function JoinOrg() {
         {status === 'error' && (
           <>
             <div className="text-5xl mb-4">😕</div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Couldn't join</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('joinOrg.couldNotJoin')}</h1>
             <p className="text-red-600 mb-6">{error}</p>
             <button onClick={() => navigate('/team')} className="btn-primary px-6 py-2.5">
-              Go to Team
+              {t('joinOrg.goToTeam')}
             </button>
           </>
         )}

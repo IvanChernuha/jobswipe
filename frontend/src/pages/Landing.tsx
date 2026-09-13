@@ -1,10 +1,14 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import LangToggle from '../components/LangToggle'
 
 export default function Landing() {
+  const { t } = useTranslation()
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-brand-50 via-white to-purple-50">
       {/* Hero */}
-      <header className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center">
+      <header className="relative flex-1 flex flex-col items-center justify-center px-6 py-20 text-center">
+        <div className="absolute end-4 top-4"><LangToggle /></div>
         {/* Logo mark */}
         <div className="mb-6 w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-200">
           <span className="text-4xl">💼</span>
@@ -15,9 +19,9 @@ export default function Landing() {
         </h1>
 
         <p className="max-w-xl text-lg sm:text-xl text-gray-600 mb-10 leading-relaxed">
-          The fastest way to find your perfect career match.
+          {t('landing.tagline1')}
           <br />
-          Workers and employers swipe on each other — no cover letters required.
+          {t('landing.tagline2')}
         </p>
 
         {/* CTAs */}
@@ -27,21 +31,21 @@ export default function Landing() {
             className="btn-primary text-base px-8 py-3 rounded-2xl shadow-md shadow-brand-200
                        hover:shadow-lg hover:shadow-brand-300 transition-shadow"
           >
-            I'm a Worker
+            {t('landing.ctaWorker')}
           </Link>
           <Link
             to="/register?role=employer"
             className="btn-secondary text-base px-8 py-3 rounded-2xl
                        hover:border-brand-300 hover:text-brand-600 transition-colors"
           >
-            I'm an Employer
+            {t('landing.ctaEmployer')}
           </Link>
         </div>
 
         <p className="mt-6 text-sm text-gray-500">
-          Already have an account?{' '}
+          {t('landing.haveAccount')}{' '}
           <Link to="/login" className="text-brand-600 font-medium hover:underline">
-            Sign in
+            {t('common.signIn')}
           </Link>
         </p>
       </header>
@@ -51,24 +55,24 @@ export default function Landing() {
         <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
           <Feature
             emoji="⚡"
-            title="Instant Matches"
-            desc="Get notified the moment both sides swipe right — no waiting, no ghosting."
+            title={t('landing.feature1Title')}
+            desc={t('landing.feature1Desc')}
           />
           <Feature
             emoji="🎯"
-            title="Precision Fit"
-            desc="Profiles surface the details that matter most: skills, experience, and culture."
+            title={t('landing.feature2Title')}
+            desc={t('landing.feature2Desc')}
           />
           <Feature
             emoji="🔑"
-            title="No Cover Letters"
-            desc="Your profile does the talking. Spend less time applying, more time interviewing."
+            title={t('landing.feature3Title')}
+            desc={t('landing.feature3Desc')}
           />
         </div>
       </section>
 
       <footer className="py-6 text-center text-xs text-gray-400">
-        © {new Date().getFullYear()} JobSwipe — All rights reserved.
+        {t('landing.footer', { year: new Date().getFullYear() })}
       </footer>
     </div>
   )

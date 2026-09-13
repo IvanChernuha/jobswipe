@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { getMessages, sendMessage, getMatch } from '../lib/api'
 import type { Message, Match } from '../lib/api'
 import ReportModal from '../components/ReportModal'
+import i18n from '../i18n'
 
 export default function Chat() {
+  const { t } = useTranslation()
   const { matchId } = useParams<{ matchId: string }>()
   const { session, role } = useAuth()
   const navigate = useNavigate()
@@ -43,7 +46,7 @@ export default function Chat() {
         setMessages(msgs)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load chat')
+        setError(err instanceof Error ? err.message : t('chat.failedToLoad'))
       })
       .finally(() => setLoading(false))
   }, [token, matchId])
@@ -86,7 +89,7 @@ export default function Chat() {
       inputRef.current?.focus()
     } catch (err) {
       // e.g. content filter (422) or blocked (403): keep the draft, say why.
-      setSendError(err instanceof Error ? err.message : 'Message not sent')
+      setSendError(err instanceof Error ? err.message : t('chat.messageNotSent'))
     } finally {
       setSending(false)
     }
@@ -94,8 +97,8 @@ export default function Chat() {
 
   // Derive counterpart name
   const otherName = role === 'worker'
-    ? matchInfo?.employer?.company_name ?? 'Employer'
-    : matchInfo?.worker?.name ?? 'Worker'
+    ? matchInfo?.employer?.company_name ?? t('chat.employer')
+    : matchInfo?.worker?.name ?? t('chat.worker')
 
   if (loading) {
     return (
@@ -126,9 +129,9 @@ export default function Chat() {
         <button
           onClick={() => navigate('/matches')}
           className="text-gray-400 hover:text-gray-600 transition-colors"
-          aria-label="Back"
+          aria-label={t('common.back')}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 rtl:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
@@ -140,13 +143,13 @@ export default function Chat() {
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-gray-900 text-sm truncate">{otherName}</p>
           <p className="text-xs text-gray-400">
-            {matchInfo ? `Matched ${new Date(matchInfo.matched_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
+            {matchInfo ? t('chat.matchedOn', { date: new Date(matchInfo.matched_at).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }) }) : ''}
           </p>
         </div>
         <button
           onClick={() => setShowReport(true)}
           className="text-gray-400 hover:text-red-500 transition-colors p-1"
-          title="Report user"
+          title={t('report.reportUser')}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
@@ -160,7 +163,7 @@ export default function Chat() {
           targetType="user"
           token={token}
           onClose={() => setShowReport(false)}
-          onBlocked={() => navigate('/matches', { state: { notice: "Reported and blocked — you won't see each other again." } })}
+          onBlocked={() => navigate('/matches', { state: { notice: t('feed.reportedAndBlocked') } })}
         />
       )}
 
@@ -169,7 +172,7 @@ export default function Chat() {
         {messages.length === 0 && (
           <div className="text-center py-16">
             <p className="text-4xl mb-3">👋</p>
-            <p className="text-gray-500 text-sm">Say hello to {otherName}!</p>
+            <p className="text-gray-500 text-sm">{t('chat.sayHello', { name: otherName })}</p>
           </div>
         )}
 
@@ -194,9 +197,10 @@ export default function Chat() {
                 <div
                   className={`max-w-[75%] px-3.5 py-2 rounded-2xl text-sm leading-relaxed
                     ${msg.is_mine
-                      ? 'bg-brand-500 text-white rounded-br-md'
-                      : 'bg-gray-100 text-gray-900 rounded-bl-md'
+                      ? 'bg-brand-500 text-white rounded-ee-md'
+                      : 'bg-gray-100 text-gray-900 rounded-es-md'
                     }`}
+                  dir="auto"
                 >
                   {msg.body}
                 </div>
@@ -210,7 +214,7 @@ export default function Chat() {
       {/* Send error (content filter, blocked, network) */}
       {sendError && (
         <div className="bg-red-50 border-t border-red-200 px-4 py-2 text-xs text-red-700" role="alert">
-          Not sent: {sendError}
+          {t('chat.notSent', { error: sendError })}
         </div>
       )}
 
@@ -222,7 +226,7 @@ export default function Chat() {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Type a message..."
+          placeholder={t('chat.typeMessage')}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           maxLength={5000}
@@ -237,7 +241,7 @@ export default function Chat() {
           className="w-10 h-10 rounded-full bg-brand-500 text-white flex items-center justify-center
                      hover:bg-brand-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed
                      active:scale-90"
-          aria-label="Send"
+          aria-label={t('chat.send')}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -264,14 +268,14 @@ function diffMinutes(a: string, b: string): number {
 function formatDay(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
-  if (d.toDateString() === now.toDateString()) return 'Today'
+  if (d.toDateString() === now.toDateString()) return i18n.t('chat.today')
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  if (d.toDateString() === yesterday.toDateString()) return i18n.t('chat.yesterday')
+  return d.toLocaleDateString(i18n.language, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 /** Time only — the day is shown by the separator above. */
 function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
 }

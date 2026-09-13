@@ -1,4 +1,5 @@
 import type { Tag } from '../lib/api'
+import { useTranslation } from 'react-i18next'
 
 const categoryColors: Record<string, { bg: string; text: string; border: string }> = {
   language:      { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
@@ -12,6 +13,7 @@ const categoryColors: Record<string, { bg: string; text: string; border: string 
 }
 
 export default function TagBadge({ tag }: { tag: Tag }) {
+  const { t } = useTranslation()
   const colors = categoryColors[tag.category] ?? categoryColors.other
   const isRequired = tag.requirement === 'required'
   const isPreferred = tag.requirement === 'preferred'
@@ -25,7 +27,7 @@ export default function TagBadge({ tag }: { tag: Tag }) {
                       ? 'bg-orange-50 text-orange-700 border-orange-300'
                       : `${colors.bg} ${colors.text} ${colors.border}`}`}
     >
-      {isRequired && <span className="text-[10px]" title="Required">*</span>}
+      {isRequired && <span className="text-[10px]" title={t('tags.required')}>*</span>}
       {tag.name}
     </span>
   )

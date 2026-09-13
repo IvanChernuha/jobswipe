@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
+import LangToggle from '../components/LangToggle'
 import type { Role } from '../lib/api'
 
 export default function Register() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -35,7 +38,7 @@ export default function Register() {
 
       navigate('/onboarding', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.')
+      setError(err instanceof Error ? err.message : t('register.failed'))
     } finally {
       setLoading(false)
     }
@@ -45,6 +48,7 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-purple-50 px-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8 sm:p-10">
+          <div className="flex justify-end mb-3"><LangToggle /></div>
           {/* Header */}
           <div className="text-center mb-8">
             <Link to="/" className="inline-block mb-4">
@@ -52,8 +56,8 @@ export default function Register() {
                 <span className="text-2xl">💼</span>
               </div>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
-            <p className="text-sm text-gray-500 mt-1">Free forever. No credit card required.</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t('register.title')}</h1>
+            <p className="text-sm text-gray-500 mt-1">{t('register.subtitle')}</p>
           </div>
 
           {error && (
@@ -62,7 +66,7 @@ export default function Register() {
               {/already registered|already exists/i.test(error) && (
                 <>
                   {' '}
-                  <Link to="/login" className="font-semibold underline">Sign in instead</Link>
+                  <Link to="/login" className="font-semibold underline">{t('register.signInInstead')}</Link>
                 </>
               )}
             </div>
@@ -71,7 +75,7 @@ export default function Register() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Role toggle */}
             <div>
-              <p className="label">I am a…</p>
+              <p className="label">{t('register.iAmA')}</p>
               <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
                 {(['worker', 'employer'] as Role[]).map((r) => (
                   <button
@@ -84,7 +88,7 @@ export default function Register() {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    {r === 'worker' ? '👷 Worker' : '🏢 Employer'}
+                    {r === 'worker' ? `👷 ${t('register.worker')}` : `🏢 ${t('register.employer')}`}
                   </button>
                 ))}
               </div>
@@ -92,7 +96,7 @@ export default function Register() {
 
             <div>
               <label htmlFor="email" className="label">
-                Email address
+                {t('common.emailAddress')}
               </label>
               <input
                 id="email"
@@ -108,8 +112,8 @@ export default function Register() {
 
             <div>
               <label htmlFor="password" className="label">
-                Password
-                <span className="ml-1 text-xs font-normal text-gray-400">(min 8 characters)</span>
+                {t('common.password')}
+                <span className="ms-1 text-xs font-normal text-gray-400">{t('register.minChars', { count: 8 })}</span>
               </label>
               <input
                 id="password"
@@ -132,18 +136,18 @@ export default function Register() {
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating account…
+                  {t('register.creatingAccount')}
                 </span>
               ) : (
-                'Create account'
+                t('register.createAccount')
               )}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-500">
-            Already have an account?{' '}
+            {t('landing.haveAccount')}{' '}
             <Link to="/login" className="text-brand-600 font-medium hover:underline">
-              Sign in
+              {t('common.signIn')}
             </Link>
           </p>
         </div>

@@ -56,7 +56,7 @@ Screenshots referenced in the audit live in the session scratchpad (`polish/`).
 - [ ] Desktop job-form modal taller than viewport; header scrolls away on validation.
 - [ ] `net::ERR_ABORTED` on GET /api/bookmarks/{id} after Like-from-Saved (harmless race).
 
-## RTL / Hebrew hazards (for the localisation pass)
+## RTL / Hebrew hazards (for the localisation pass) — ✅ done 2026-09-13 (react-i18next, 357 keys, RTL logical classes, dir=auto on user text). Still English: backend validation/error messages (frontend shows them verbatim).
 - ~8 physical-direction classes (`left-5`/`right-5` LIKE/NOPE overlays, `left-1/2 -translate-x-1/2` toast, `ml-*` in Register/Team) → logical (`start/end`, `ms/me`).
 - Directional glyphs in text: "Next —", "↩ Undo", "▶" expander, "‹" back, sign-out arrow; hard-coded `$…k` salary format; chat bubbles aligned by physical side.
 - No `dir` attribute, no i18n framework, all strings inline. Emoji nav icons are direction-neutral.

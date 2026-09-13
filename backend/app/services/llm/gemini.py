@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
-_SINGLE_PROMPT = """You are a skill extractor for a job platform.
+_SINGLE_PROMPT = """You are a skill extractor for a job platform. The text may be in Hebrew or English; output tag names in English exactly as they appear in the taxonomy.
 
 Given the following text (a CV or job description), extract ONLY the skills, technologies, tools, and soft skills that are explicitly mentioned or clearly implied.
 
@@ -23,7 +23,7 @@ Text to analyze:
 
 Respond with ONLY a JSON array, e.g.: ["Python", "FastAPI", "PostgreSQL"]"""
 
-_CV_PROFILE_PROMPT = """You are a CV parser for a job platform.
+_CV_PROFILE_PROMPT = """You are a CV parser for a job platform. The text may be in Hebrew or English; output tag names in English exactly as they appear in the taxonomy.
 
 Extract the following from the CV text below and return ONLY a JSON object:
 - "name": full name of the person (string or null)
@@ -41,7 +41,7 @@ CV text:
 Respond with ONLY a JSON object, e.g.:
 {{"name": "John Smith", "location": "London, UK", "experience_years": 5, "bio": "Backend developer...", "tags": ["Python", "FastAPI"]}}"""
 
-_JOB_PROFILE_PROMPT = """You are a job posting parser for a job platform.
+_JOB_PROFILE_PROMPT = """You are a job posting parser for a job platform. The text may be in Hebrew or English; output tag names in English exactly as they appear in the taxonomy.
 
 The job description may be in any language. Extract the data and respond ONLY in English.
 

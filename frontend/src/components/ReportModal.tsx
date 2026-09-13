@@ -1,13 +1,15 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { submitReport, blockUser, type ReportReason } from '../lib/api'
 
-const REASONS: { value: ReportReason; label: string }[] = [
-  { value: 'spam', label: 'Spam' },
-  { value: 'inappropriate', label: 'Inappropriate content' },
-  { value: 'fake', label: 'Fake profile / job' },
-  { value: 'harassment', label: 'Harassment' },
-  { value: 'other', label: 'Other' },
-]
+const REASON_VALUES: ReportReason[] = ['spam', 'inappropriate', 'fake', 'harassment', 'other']
+const REASON_LABEL_KEYS: Record<ReportReason, string> = {
+  spam: 'report.reasons.spam',
+  inappropriate: 'report.reasons.inappropriate',
+  fake: 'report.reasons.fake',
+  harassment: 'report.reasons.harassment',
+  other: 'report.reasons.other',
+}
 
 export default function ReportModal({
   targetId,
@@ -23,6 +25,7 @@ export default function ReportModal({
   /** Called once the target user has been blocked (only for targetType 'user'). */
   onBlocked?: () => void
 }) {
+  const { t } = useTranslation()
   const canBlock = targetType === 'user'
   const [reason, setReason] = useState<ReportReason>('spam')
   const [details, setDetails] = useState('')
@@ -46,9 +49,9 @@ export default function ReportModal({
       setDone(true)
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes('409')) {
-        setError('You have already reported this.')
+        setError(t('report.alreadyReported'))
       } else {
-        setError('Failed to submit report. Please try again.')
+        setError(t('report.submitFailed'))
       }
     } finally {
       setSubmitting(false)
@@ -61,18 +64,18 @@ export default function ReportModal({
         {done ? (
           <div className="text-center py-4">
             <p className="text-3xl mb-3">&#10003;</p>
-            <h2 className="text-lg font-bold text-gray-900 mb-2">{blocked ? 'Reported & Blocked' : 'Report Submitted'}</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">{blocked ? t('report.reportedAndBlocked') : t('report.reportSubmitted')}</h2>
             <p className="text-sm text-gray-500 mb-4">
               {blocked
-                ? "Thank you. You won't see each other on JobSwipe anymore."
-                : "Thank you. We'll review this shortly."}
+                ? t('report.blockedThankYou')
+                : t('report.submittedThankYou')}
             </p>
-            <button onClick={onClose} className="btn-primary text-sm py-2 px-6">Done</button>
+            <button onClick={onClose} className="btn-primary text-sm py-2 px-6">{t('common.done')}</button>
           </div>
         ) : (
           <>
             <h2 className="text-lg font-bold text-gray-900 mb-4">
-              Report {targetType === 'job' ? 'Job Posting' : 'User'}
+              {targetType === 'job' ? t('report.reportJobPosting') : t('report.reportUser')}
             </h2>
 
             {error && (
@@ -81,30 +84,30 @@ export default function ReportModal({
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Reason</label>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">{t('report.reason')}</label>
                 <div className="space-y-2">
-                  {REASONS.map((r) => (
-                    <label key={r.value} className="flex items-center gap-2 cursor-pointer">
+                  {REASON_VALUES.map((value) => (
+                    <label key={value} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
                         name="reason"
-                        value={r.value}
-                        checked={reason === r.value}
-                        onChange={() => setReason(r.value)}
+                        value={value}
+                        checked={reason === value}
+                        onChange={() => setReason(value)}
                         className="text-brand-500 focus:ring-brand-300"
                       />
-                      <span className="text-sm text-gray-700">{r.label}</span>
+                      <span className="text-sm text-gray-700">{t(REASON_LABEL_KEYS[value])}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Details (optional)</label>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">{t('report.detailsOptional')}</label>
                 <textarea
                   rows={3}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-brand-300"
-                  placeholder="Tell us more about the issue..."
+                  placeholder={t('report.detailsPlaceholder')}
                   value={details}
                   onChange={(e) => setDetails(e.target.value)}
                 />
@@ -119,18 +122,18 @@ export default function ReportModal({
                     className="mt-0.5 text-brand-500 focus:ring-brand-300"
                   />
                   <span className="text-sm text-gray-700">
-                    Also block this user
-                    <span className="block text-xs text-gray-400">Ends the match and hides you from each other.</span>
+                    {t('report.alsoBlock')}
+                    <span className="block text-xs text-gray-400">{t('report.blockHint')}</span>
                   </span>
                 </label>
               )}
 
               <div className="flex gap-3">
                 <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" disabled={submitting} className="flex-1 btn-primary py-2.5 text-sm bg-red-500 hover:bg-red-600">
-                  {submitting ? 'Submitting...' : canBlock && block ? 'Report & Block' : 'Submit Report'}
+                  {submitting ? t('report.submitting') : canBlock && block ? t('report.reportAndBlock') : t('report.submitReport')}
                 </button>
               </div>
             </form>

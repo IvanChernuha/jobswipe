@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+import LangToggle from '../components/LangToggle'
 import { useAuth } from '../hooks/useAuth'
 import {
   getWorkerProfile,
@@ -30,6 +32,7 @@ function AvatarUploader({
   onUploaded: (url: string) => void
   token: string
 }) {
+  const { t } = useTranslation()
   const [uploading, setUploading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -50,7 +53,7 @@ function AvatarUploader({
       const res = await uploadAvatar(token, file)
       onUploaded(res.url)
     } catch (error) {
-      setErr(error instanceof Error ? error.message : 'Upload failed')
+      setErr(error instanceof Error ? error.message : t('profile.uploadFailed'))
     } finally {
       setUploading(false)
     }
@@ -81,7 +84,7 @@ function AvatarUploader({
           disabled={uploading}
           className="btn-secondary text-sm"
         >
-          {uploading ? 'Uploading…' : 'Change photo'}
+          {uploading ? t('profile.uploadingEllipsis') : t('profile.changePhoto')}
         </button>
         {err && <p className="text-xs text-red-500 mt-1">{err}</p>}
         <input
@@ -101,6 +104,7 @@ function AvatarUploader({
 // ---------------------------------------------------------------------------
 
 function WorkerProfileForm({ token }: { token: string }) {
+  const { t } = useTranslation()
   const [profile, setProfile] = useState<WorkerProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -144,7 +148,7 @@ function WorkerProfileForm({ token }: { token: string }) {
         setResumeUrl(p.resume_url)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load profile.')
+        setError(err instanceof Error ? err.message : t('profile.failedToLoad'))
       })
       .finally(() => setLoading(false))
   }, [token])
@@ -165,7 +169,7 @@ function WorkerProfileForm({ token }: { token: string }) {
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed.')
+      setError(err instanceof Error ? err.message : t('profile.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -188,21 +192,21 @@ function WorkerProfileForm({ token }: { token: string }) {
           if (status.cv_extraction_status === 'done') {
             clearInterval(cvPollRef.current!)
             const n = status.cv_extracted_tag_count
-            try { sessionStorage.setItem('cvFlash', `CV analyzed — ${n} skill${n === 1 ? '' : 's'} added to your profile.`) } catch { /* ignore */ }
+            try { sessionStorage.setItem('cvFlash', t('profile.cvAnalyzed', { count: n })) } catch { /* ignore */ }
             window.location.reload()
           } else if (status.cv_extraction_status === 'error') {
             clearInterval(cvPollRef.current!)
             setCvAnalyzing(false)
-            setResumeErr("We couldn't read your CV, so your profile wasn't changed. Your resume is saved — you can add skills manually.")
+            setResumeErr(t('profile.cvReadError'))
           }
         } catch {
           clearInterval(cvPollRef.current!)
           setCvAnalyzing(false)
-          setResumeErr('Could not check the CV analysis. Your resume is saved.')
+          setResumeErr(t('profile.cvCheckError'))
         }
       }, 2000)
     } catch (err) {
-      setResumeErr(err instanceof Error ? err.message : 'Upload failed')
+      setResumeErr(err instanceof Error ? err.message : t('profile.uploadFailed'))
       setUploadingResume(false)
     }
   }
@@ -214,7 +218,7 @@ function WorkerProfileForm({ token }: { token: string }) {
     <form onSubmit={handleSave} className="space-y-5">
       <AvatarUploader
         currentUrl={avatarUrl}
-        name={name || 'You'}
+        name={name || t('common.you')}
         onUploaded={setAvatarUrl}
         token={token}
       />
@@ -226,17 +230,17 @@ function WorkerProfileForm({ token }: { token: string }) {
       )}
       {success && (
         <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-          Profile saved successfully!
+          {t('profile.savedSuccess')}
         </div>
       )}
 
       <div>
-        <label className="label">Full name</label>
+        <label className="label">{t('onboarding.worker.fullName')}</label>
         <input required className="input" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
 
       <div>
-        <label className="label">Bio</label>
+        <label className="label">{t('profile.bio')}</label>
         <textarea
           required
           rows={3}
@@ -248,7 +252,7 @@ function WorkerProfileForm({ token }: { token: string }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="label">Location</label>
+          <label className="label">{t('common.location')}</label>
           <input
             required
             className="input"
@@ -257,7 +261,7 @@ function WorkerProfileForm({ token }: { token: string }) {
           />
         </div>
         <div>
-          <label className="label">Years of experience</label>
+          <label className="label">{t('onboarding.worker.yearsExperience')}</label>
           <input
             required
             type="number"
@@ -277,7 +281,7 @@ function WorkerProfileForm({ token }: { token: string }) {
 
       {/* Resume */}
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-700 mb-2">Resume</p>
+        <p className="text-sm font-medium text-gray-700 mb-2">{t('profile.resume')}</p>
 
         {cvFlash && (
           <div className="mb-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700" role="status">
@@ -291,7 +295,7 @@ function WorkerProfileForm({ token }: { token: string }) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
-            <span className="text-sm text-gray-500">Analyzing your CV, profile will update shortly…</span>
+            <span className="text-sm text-gray-500">{t('profile.analyzingCv')}</span>
           </div>
         )}
 
@@ -303,7 +307,7 @@ function WorkerProfileForm({ token }: { token: string }) {
               rel="noopener noreferrer"
               className="text-sm text-brand-600 hover:underline truncate"
             >
-              View current resume
+              {t('profile.viewCurrentResume')}
             </a>
             <button
               type="button"
@@ -311,7 +315,7 @@ function WorkerProfileForm({ token }: { token: string }) {
               disabled={uploadingResume}
               className="btn-secondary text-xs py-1 px-2.5"
             >
-              Replace
+              {t('profile.replace')}
             </button>
           </div>
         ) : !cvAnalyzing ? (
@@ -321,7 +325,7 @@ function WorkerProfileForm({ token }: { token: string }) {
             disabled={uploadingResume}
             className="btn-secondary text-sm"
           >
-            {uploadingResume ? 'Uploading…' : 'Upload resume (PDF, DOCX, TXT)'}
+            {uploadingResume ? t('profile.uploadingEllipsis') : t('profile.uploadResume')}
           </button>
         ) : null}
         {resumeErr && <p className="text-xs text-red-500 mt-1">{resumeErr}</p>}
@@ -338,10 +342,10 @@ function WorkerProfileForm({ token }: { token: string }) {
         {saving ? (
           <span className="flex items-center justify-center gap-2">
             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Saving…
+            {t('profile.savingEllipsis')}
           </span>
         ) : (
-          'Save changes'
+          t('profile.saveChanges')
         )}
       </button>
     </form>
@@ -353,6 +357,7 @@ function WorkerProfileForm({ token }: { token: string }) {
 // ---------------------------------------------------------------------------
 
 function EmployerProfileForm({ token }: { token: string }) {
+  const { t } = useTranslation()
   const [profile, setProfile] = useState<EmployerProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -376,7 +381,7 @@ function EmployerProfileForm({ token }: { token: string }) {
         setAvatarUrl(p.avatar_url)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load profile.')
+        setError(err instanceof Error ? err.message : t('profile.failedToLoad'))
       })
       .finally(() => setLoading(false))
   }, [token])
@@ -396,7 +401,7 @@ function EmployerProfileForm({ token }: { token: string }) {
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed.')
+      setError(err instanceof Error ? err.message : t('profile.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -409,7 +414,7 @@ function EmployerProfileForm({ token }: { token: string }) {
     <form onSubmit={handleSave} className="space-y-5">
       <AvatarUploader
         currentUrl={avatarUrl}
-        name={companyName || 'Company'}
+        name={companyName || t('profile.companyFallback')}
         onUploaded={setAvatarUrl}
         token={token}
       />
@@ -421,12 +426,12 @@ function EmployerProfileForm({ token }: { token: string }) {
       )}
       {success && (
         <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-          Profile saved successfully!
+          {t('profile.savedSuccess')}
         </div>
       )}
 
       <div>
-        <label className="label">Company name</label>
+        <label className="label">{t('onboarding.employer.companyName')}</label>
         <input
           required
           className="input"
@@ -436,7 +441,7 @@ function EmployerProfileForm({ token }: { token: string }) {
       </div>
 
       <div>
-        <label className="label">Description</label>
+        <label className="label">{t('common.description')}</label>
         <textarea
           required
           rows={4}
@@ -448,7 +453,7 @@ function EmployerProfileForm({ token }: { token: string }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="label">Industry</label>
+          <label className="label">{t('onboarding.employer.industry')}</label>
           <input
             required
             className="input"
@@ -457,7 +462,7 @@ function EmployerProfileForm({ token }: { token: string }) {
           />
         </div>
         <div>
-          <label className="label">Location</label>
+          <label className="label">{t('common.location')}</label>
           <input
             required
             className="input"
@@ -471,10 +476,10 @@ function EmployerProfileForm({ token }: { token: string }) {
         {saving ? (
           <span className="flex items-center justify-center gap-2">
             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Saving…
+            {t('profile.savingEllipsis')}
           </span>
         ) : (
-          'Save changes'
+          t('profile.saveChanges')
         )}
       </button>
     </form>
@@ -486,6 +491,7 @@ function EmployerProfileForm({ token }: { token: string }) {
 // ---------------------------------------------------------------------------
 
 export default function Profile() {
+  const { t } = useTranslation()
   const { session, role, signOut } = useAuth()
   const token = session?.access_token ?? ''
   const navigate = useNavigate()
@@ -508,8 +514,8 @@ export default function Profile() {
   }
 
   async function handleDelete() {
-    if (!confirm('Are you sure you want to permanently delete your account? This cannot be undone. All your data, matches, messages, and job postings will be permanently deleted.')) return
-    if (!confirm('This is your final confirmation. Type "delete" in the next prompt to proceed.')) return
+    if (!confirm(t('profile.confirmDelete1'))) return
+    if (!confirm(t('profile.confirmDelete2'))) return
     setDeleting(true)
     try {
       await deleteMyAccount(token)
@@ -522,8 +528,10 @@ export default function Profile() {
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col items-center py-10 px-4">
       <div className="w-full max-w-lg">
+        {/* Phones have no room for the toggle in the navbar; offer it here. */}
+        <div className="flex justify-end mb-3 sm:hidden"><LangToggle /></div>
         <h1 className="text-2xl font-bold text-gray-900 mb-6">
-          {role === 'employer' ? 'Company Profile' : 'Your Profile'}
+          {role === 'employer' ? t('profile.companyProfile') : t('profile.yourProfile')}
         </h1>
 
         <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-6 sm:p-8">
@@ -536,30 +544,30 @@ export default function Profile() {
 
         {/* Data & Privacy */}
         <div className="mt-8 bg-white rounded-3xl shadow-xl shadow-gray-100 p-6 sm:p-8">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Data & Privacy</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-4">{t('profile.dataPrivacy')}</h2>
 
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-1">Download your data</h3>
-              <p className="text-xs text-gray-500 mb-2">Get a copy of all your personal data including profile, swipes, matches, messages, and bookmarks.</p>
+              <h3 className="text-sm font-medium text-gray-700 mb-1">{t('profile.downloadYourData')}</h3>
+              <p className="text-xs text-gray-500 mb-2">{t('profile.downloadYourDataHint')}</p>
               <button
                 onClick={handleExport}
                 disabled={exporting}
                 className="text-sm font-medium text-brand-600 hover:text-brand-700 px-4 py-2 rounded-xl border border-brand-200 hover:bg-brand-50 transition-colors disabled:opacity-50"
               >
-                {exporting ? 'Preparing...' : 'Download my data'}
+                {exporting ? t('profile.preparing') : t('profile.downloadMyData')}
               </button>
             </div>
 
             <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-sm font-medium text-red-600 mb-1">Delete account</h3>
-              <p className="text-xs text-gray-500 mb-2">Permanently delete your account and all associated data. This action cannot be undone.</p>
+              <h3 className="text-sm font-medium text-red-600 mb-1">{t('profile.deleteAccount')}</h3>
+              <p className="text-xs text-gray-500 mb-2">{t('profile.deleteAccountHint')}</p>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
                 className="text-sm font-medium text-red-500 hover:text-red-700 px-4 py-2 rounded-xl border border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50"
               >
-                {deleting ? 'Deleting...' : 'Delete my account'}
+                {deleting ? t('profile.deletingEllipsis') : t('profile.deleteMyAccount')}
               </button>
             </div>
           </div>

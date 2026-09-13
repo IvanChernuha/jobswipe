@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface MatchModalProps {
   myName: string
@@ -9,6 +10,7 @@ interface MatchModalProps {
 }
 
 export default function MatchModal({ myName, theirName, matchId, onClose }: MatchModalProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -43,8 +45,8 @@ export default function MatchModal({ myName, theirName, matchId, onClose }: Matc
         <div className="bg-gradient-to-br from-brand-400 via-brand-500 to-purple-500 px-8 pt-10 pb-8 text-center">
           {/* Confetti emoji ring */}
           <div className="text-6xl mb-3 animate-bounce">🎉</div>
-          <h2 className="text-3xl font-extrabold text-white mb-1">It's a Match!</h2>
-          <p className="text-brand-100 text-sm">You and {theirName} both swiped right.</p>
+          <h2 className="text-3xl font-extrabold text-white mb-1">{t('match.itsAMatch')}</h2>
+          <p className="text-brand-100 text-sm">{t('match.bothSwipedRight', { name: theirName })}</p>
         </div>
 
         {/* Body */}
@@ -57,15 +59,15 @@ export default function MatchModal({ myName, theirName, matchId, onClose }: Matc
           </div>
 
           <p className="text-gray-600 text-sm mb-6 leading-relaxed">
-            Start a conversation now or keep swiping.
+            {t('match.startConversation')}
           </p>
 
           <div className="flex flex-col gap-3">
             <button onClick={goToChat} className="btn-primary py-3 text-base w-full">
-              Start Chat
+              {t('match.startChat')}
             </button>
             <button onClick={onClose} className="btn-ghost py-3 text-sm w-full">
-              Keep Swiping
+              {t('match.keepSwiping')}
             </button>
           </div>
         </div>

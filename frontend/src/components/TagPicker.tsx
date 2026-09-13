@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Tag } from '../lib/api'
 import { getTags } from '../lib/api'
 import TagBadge from './TagBadge'
@@ -18,18 +19,20 @@ const POPULAR_TAG_NAMES = [
   'Communication', 'Teamwork', 'Problem Solving', 'Excel',
 ]
 
-const categoryLabels: Record<string, string> = {
-  language: 'Languages',
-  framework: 'Frameworks',
-  tool: 'Tools',
-  database: 'Databases',
-  cloud: 'Cloud & DevOps',
-  soft_skill: 'Soft Skills',
-  certification: 'Certifications',
-  other: 'Other',
+const categoryLabelKeys: Record<string, string> = {
+  language: 'tags.categories.language',
+  framework: 'tags.categories.framework',
+  tool: 'tags.categories.tool',
+  database: 'tags.categories.database',
+  cloud: 'tags.categories.cloud',
+  soft_skill: 'tags.categories.softSkill',
+  certification: 'tags.categories.certification',
+  other: 'tags.categories.other',
 }
 
-export default function TagPicker({ selectedTags, onChange, suggestions = 0, label = 'Skills / Tags' }: TagPickerProps) {
+export default function TagPicker({ selectedTags, onChange, suggestions = 0, label }: TagPickerProps) {
+  const { t } = useTranslation()
+  const resolvedLabel = label ?? t('tags.skillsTags')
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
@@ -95,7 +98,7 @@ export default function TagPicker({ selectedTags, onChange, suggestions = 0, lab
 
   return (
     <div ref={containerRef} className="relative">
-      {label && <label className="label">{label}</label>}
+      {resolvedLabel && <label className="label">{resolvedLabel}</label>}
 
       {/* Selected tags */}
       {selectedTags.length > 0 && (
@@ -117,7 +120,7 @@ export default function TagPicker({ selectedTags, onChange, suggestions = 0, lab
       {/* One-tap suggestions for first-time users (onboarding) */}
       {suggestions > 0 && selectedTags.length < 3 && suggested.length > 0 && (
         <div className="mb-2">
-          <p className="text-xs text-gray-400 mb-1">Popular — tap to add:</p>
+          <p className="text-xs text-gray-400 mb-1">{t('tags.popularTapToAdd')}</p>
           <div className="flex flex-wrap gap-1.5">
             {suggested.map((tag) => (
               <button
@@ -137,7 +140,7 @@ export default function TagPicker({ selectedTags, onChange, suggestions = 0, lab
       <input
         type="text"
         className="input"
-        placeholder="Search skills (e.g. React, Python, AWS)..."
+        placeholder={t('tags.searchPlaceholder')}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         onFocus={() => setOpen(true)}
@@ -150,20 +153,20 @@ export default function TagPicker({ selectedTags, onChange, suggestions = 0, lab
         <div className="absolute z-50 mt-1 w-full max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg">
           {Object.keys(grouped).length === 0 ? (
             <p className="px-4 py-3 text-sm text-gray-400">
-              {search ? 'No matching tags' : 'Start typing to search...'}
+              {search ? t('tags.noMatching') : t('tags.startTyping')}
             </p>
           ) : (
             Object.entries(grouped).map(([category, tags]) => (
               <div key={category}>
                 <p className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  {categoryLabels[category] ?? category}
+                  {categoryLabelKeys[category] ? t(categoryLabelKeys[category]) : category}
                 </p>
                 {tags.slice(0, 10).map((tag) => (
                   <button
                     key={tag.id}
                     type="button"
                     onClick={() => addTag(tag)}
-                    className="w-full text-left px-4 py-1.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
+                    className="w-full text-start px-4 py-1.5 hover:bg-gray-50 text-sm text-gray-700 transition-colors"
                   >
                     {tag.name}
                   </button>

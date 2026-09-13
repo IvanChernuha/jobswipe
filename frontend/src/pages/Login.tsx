@@ -1,8 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
+import LangToggle from '../components/LangToggle'
 
 export default function Login() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -26,7 +29,7 @@ export default function Login() {
 
       navigate('/feed', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
+      setError(err instanceof Error ? err.message : t('login.failed'))
     } finally {
       setLoading(false)
     }
@@ -37,6 +40,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Card */}
         <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8 sm:p-10">
+          <div className="flex justify-end mb-3"><LangToggle /></div>
           {/* Header */}
           <div className="text-center mb-8">
             <Link to="/" className="inline-block mb-4">
@@ -44,8 +48,8 @@ export default function Login() {
                 <span className="text-2xl">💼</span>
               </div>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-            <p className="text-sm text-gray-500 mt-1">Sign in to your JobSwipe account</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t('login.welcomeBack')}</h1>
+            <p className="text-sm text-gray-500 mt-1">{t('login.subtitle')}</p>
           </div>
 
           {/* Error */}
@@ -59,7 +63,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="label">
-                Email address
+                {t('common.emailAddress')}
               </label>
               <input
                 id="email"
@@ -75,7 +79,7 @@ export default function Login() {
 
             <div>
               <label htmlFor="password" className="label">
-                Password
+                {t('common.password')}
               </label>
               <input
                 id="password"
@@ -97,18 +101,18 @@ export default function Login() {
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in…
+                  {t('login.signingIn')}
                 </span>
               ) : (
-                'Sign in'
+                t('common.signIn')
               )}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-500">
-            Don't have an account?{' '}
+            {t('login.noAccount')}{' '}
             <Link to="/register" className="text-brand-600 font-medium hover:underline">
-              Create one free
+              {t('login.createOneFree')}
             </Link>
           </p>
         </div>

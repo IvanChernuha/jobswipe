@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { getMatches, getMatch, getUnreadCounts } from '../lib/api'
 import type { Match, UnreadCount } from '../lib/api'
 import ReportModal from '../components/ReportModal'
 
 export default function Matches() {
+  const { t } = useTranslation()
   const { session, role } = useAuth()
   const token = session?.access_token ?? ''
 
@@ -28,7 +30,7 @@ export default function Matches() {
         setUnread(map)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load matches.')
+        setError(err instanceof Error ? err.message : t('matches.failedToLoadShort'))
       })
       .finally(() => setLoading(false))
   }, [token])
@@ -38,7 +40,7 @@ export default function Matches() {
       <PageShell>
         <div className="flex flex-col items-center gap-3 py-20">
           <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-500 rounded-full animate-spin" />
-          <p className="text-sm text-gray-500">Loading matches…</p>
+          <p className="text-sm text-gray-500">{t('matches.loading')}</p>
         </div>
       </PageShell>
     )
@@ -48,7 +50,7 @@ export default function Matches() {
     return (
       <PageShell>
         <div className="max-w-sm mx-auto bg-red-50 border border-red-200 rounded-2xl p-6 text-center mt-10">
-          <p className="text-red-700 font-medium mb-2">Failed to load matches</p>
+          <p className="text-red-700 font-medium mb-2">{t('matches.failedToLoad')}</p>
           <p className="text-sm text-red-600">{error}</p>
         </div>
       </PageShell>
@@ -61,9 +63,9 @@ export default function Matches() {
         <div className="flex flex-col items-center gap-4 py-20 text-center px-6">
           {notice && <p className="text-sm text-white bg-gray-900 rounded-xl px-4 py-3" role="status">{notice}</p>}
           <span className="text-6xl">💙</span>
-          <h2 className="text-xl font-bold text-gray-800">No matches yet</h2>
+          <h2 className="text-xl font-bold text-gray-800">{t('matches.emptyTitle')}</h2>
           <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
-            Keep swiping — your perfect match is out there!
+            {t('matches.emptyHint')}
           </p>
         </div>
       </PageShell>
@@ -76,11 +78,11 @@ export default function Matches() {
         {notice && (
           <div className="mb-4 flex items-start justify-between gap-3 rounded-xl bg-gray-900 text-white px-4 py-3 text-sm" role="status">
             <span>{notice}</span>
-            <button type="button" onClick={() => setNotice(null)} className="font-bold" aria-label="Dismiss">&times;</button>
+            <button type="button" onClick={() => setNotice(null)} className="font-bold" aria-label={t('common.dismiss')}>&times;</button>
           </div>
         )}
         <h1 className="text-2xl font-bold text-gray-900 mb-6">
-          Your Matches{' '}
+          {t('matches.yourMatches')}{' '}
           <span className="text-brand-500 text-lg font-semibold">({matches.length})</span>
         </h1>
 
@@ -88,8 +90,8 @@ export default function Matches() {
           {matches.map((m) => {
             const otherId = role === 'worker' ? m.employer_id : m.worker_id
             const otherName = role === 'worker'
-              ? m.employer?.company_name ?? 'User'
-              : m.worker?.name ?? 'User'
+              ? m.employer?.company_name ?? t('matches.user')
+              : m.worker?.name ?? t('matches.user')
             return (
               <MatchCard
                 key={m.id}
@@ -113,7 +115,7 @@ export default function Matches() {
             onBlocked={() => {
               const id = reportTarget?.id
               if (id) setMatches((prev) => prev.filter((m) => m.worker_id !== id && m.employer_id !== id))
-              setNotice("Reported and blocked — you won't see each other again.")
+              setNotice(t('feed.reportedAndBlocked'))
             }}
           />
         )}
@@ -141,6 +143,7 @@ function MatchCard({
   onChat: () => void
   onReport: () => void
 }) {
+  const { t, i18n } = useTranslation()
   const [contactEmail, setContactEmail] = useState<string | null>(null)
   const [loadingContact, setLoadingContact] = useState(false)
   const [contactError, setContactError] = useState(false)
@@ -159,15 +162,15 @@ function MatchCard({
   }
   // For a worker, show the employer side; for an employer, show the worker side
   const name = role === 'worker'
-    ? match.employer?.company_name ?? 'Unknown Employer'
-    : match.worker?.name ?? 'Unknown Worker'
+    ? match.employer?.company_name ?? t('matches.unknownEmployer')
+    : match.worker?.name ?? t('matches.unknownWorker')
 
   const avatarUrl = (role === 'worker' ? match.employer : match.worker)?.avatar_url ?? null
   const subtitle =
     role === 'worker'
       ? match.employer?.job_title ?? ''
       : match.worker?.experience_years != null
-        ? `${match.worker.experience_years} yrs exp`
+        ? t('matches.yrsExp', { count: match.worker.experience_years })
         : ''
 
   const initials = name
@@ -177,7 +180,7 @@ function MatchCard({
     .join('')
     .toUpperCase()
 
-  const matchDate = new Date(match.matched_at).toLocaleDateString(undefined, {
+  const matchDate = new Date(match.matched_at).toLocaleDateString(i18n.language, {
     month: 'short',
     day: 'numeric',
   })
@@ -193,7 +196,7 @@ function MatchCard({
           <span className="text-lg font-bold text-white">{initials}</span>
         )}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
+          <span className="absolute -top-1 -end-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -201,9 +204,9 @@ function MatchCard({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-gray-900 truncate">{name}</p>
-        {subtitle && <p className="text-sm text-gray-500 truncate">{subtitle}</p>}
-        <p className="text-xs text-gray-400 mt-0.5">Matched {matchDate}</p>
+        <p dir="auto" className="font-semibold text-gray-900 truncate">{name}</p>
+        {subtitle && <p dir="auto" className="text-sm text-gray-500 truncate">{subtitle}</p>}
+        <p className="text-xs text-gray-400 mt-0.5">{t('matches.matchedOn', { date: matchDate })}</p>
       </div>
 
       {/* Actions */}
@@ -213,7 +216,7 @@ function MatchCard({
           onClick={onChat}
           className="relative w-10 h-10 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center
                      hover:bg-brand-100 transition-colors"
-          aria-label="Chat"
+          aria-label={t('matches.chat')}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -230,14 +233,14 @@ function MatchCard({
             {contactEmail}
           </a>
         ) : contactError ? (
-          <span className="text-xs text-red-500">Error</span>
+          <span className="text-xs text-red-500">{t('matches.error')}</span>
         ) : (
           <button
             onClick={handleReveal}
             disabled={loadingContact}
             className="btn-primary text-xs py-1.5 px-3"
           >
-            {loadingContact ? '...' : 'Email'}
+            {loadingContact ? '...' : t('matches.email')}
           </button>
         )}
 
@@ -245,7 +248,7 @@ function MatchCard({
         <button
           onClick={(e) => { e.stopPropagation(); onReport(); }}
           className="w-8 h-8 rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors"
-          title="Report"
+          title={t('common.report')}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
