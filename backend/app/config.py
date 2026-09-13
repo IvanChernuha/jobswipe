@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     # Comma-separated allowed CORS origins for the browser app. Default "*"
     # preserves current behaviour; set to your real domain(s) in production.
     CORS_ORIGINS: str = "*"
+    # Browser-facing path that proxies to Supabase on the app's own origin
+    # (caddy/Caddyfile: /supabase/* -> Kong). Storage URLs handed to the
+    # frontend are rewritten to this path so they work from anywhere. Set to ""
+    # to return absolute SUPABASE_URL links instead (hosted Supabase).
+    PUBLIC_SUPABASE_PATH: str = "/supabase"
 
     # --- Abuse / cost controls ---
     # Daily LLM extraction budget per account: 1 unit per CV, job description,

@@ -1,5 +1,6 @@
 import base64
 import uuid
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,8 +13,24 @@ from app.db.client import get_supabase_client
 from app.db.session import get_session
 from app.models.tables.worker import WorkerProfile
 from app.models.tables.employer import EmployerProfile
+from app.config import settings
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
+
+
+def _browser_url(url: str) -> str:
+    """Storage URLs come back absolute on SUPABASE_URL (a LAN/internal host).
+
+    The browser reaches Supabase through the app's own origin at
+    PUBLIC_SUPABASE_PATH, so hand out an origin-relative path that works on the
+    LAN, through a tunnel, or on a real domain alike.
+    """
+    if not url or not settings.PUBLIC_SUPABASE_PATH:
+        return url
+    p = urlparse(url)
+    if not p.netloc:
+        return url
+    return f"{settings.PUBLIC_SUPABASE_PATH.rstrip('/')}{p.path}" + (f"?{p.query}" if p.query else "")
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_RESUME_TYPES = {
@@ -60,7 +77,7 @@ async def upload_avatar(
         sb.storage.from_("avatars").upload(path, content, {"content-type": file.content_type, "upsert": "true"})
     except Exception:
         raise HTTPException(500, "Failed to upload image")
-    public_url = sb.storage.from_("avatars").get_public_url(path)
+    public_url = _browser_url(sb.storage.from_("avatars").get_public_url(path))
 
     # SQLModel for DB update
     uid = uuid.UUID(user["id"])
@@ -112,7 +129,7 @@ async def upload_resume(
         raise HTTPException(500, "Failed to upload resume")
 
     signed = sb.storage.from_("resumes").create_signed_url(path, 604800)
-    url = signed.get("signedURL", "")
+    url = _browser_url(signed.get("signedURL", ""))
 
     # SQLModel for DB update
     uid = uuid.UUID(user["id"])

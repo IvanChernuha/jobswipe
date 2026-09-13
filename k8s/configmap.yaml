@@ -21,6 +21,8 @@ data:
   # Demo owner account for now — swap to your real login email before launch.
   ADMIN_EMAILS: "demo_employer@jobswipe.com"
   ADMIN_ALERT_EMAIL: "demo_employer@jobswipe.com"
+  # No /supabase ingress route on GKE yet → keep absolute Supabase links there.
+  PUBLIC_SUPABASE_PATH: ""
   # CORS is still "*" (app default). Set CORS_ORIGINS to the real domain in
   # Block 2 once the production hostname is confirmed, e.g.:
   #   CORS_ORIGINS: "https://app.yourdomain.com"

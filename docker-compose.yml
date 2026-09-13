@@ -23,6 +23,7 @@ services:
       - caddy_config:/config
     networks:
       - jobswipe
+      - supabase_default   # to reach supabase-kong for /supabase/*
     depends_on:
       - backend
       - frontend
@@ -81,6 +82,21 @@ services:
     restart: unless-stopped
     networks:
       - jobswipe
+
+  # ── Public access (optional): Cloudflare quick tunnel ───────
+  # `docker compose --profile tunnel up -d tunnel` → logs print a random
+  # https://<name>.trycloudflare.com URL that reaches Caddy. No account, no
+  # router changes. The URL changes on restart; a stable one needs a domain.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: jobswipe-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://caddy:80
+    depends_on:
+      - caddy
+    networks:
+      - jobswipe
+    profiles: ["tunnel"]
 
   # ── Redis ───────────────────────────────────────────────────
   redis:

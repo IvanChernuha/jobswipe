@@ -1,7 +1,18 @@
-# JobSwipe — Local dev (plain HTTP on :80)
+# JobSwipe — local/dev reverse proxy (plain HTTP on :80; TLS is terminated by
+# whatever sits in front: a Cloudflare tunnel, or a real domain later).
+#
+# Everything the browser needs lives on ONE origin:
+#   /api/*       -> FastAPI backend
+#   /supabase/*  -> Supabase (Kong): auth, storage, rest. Same-origin means no
+#                   CORS and no LAN address baked into the frontend build.
+#   /*           -> React app
 :80 {
     handle /api/* {
         reverse_proxy backend:8000
+    }
+
+    handle_path /supabase/* {
+        reverse_proxy supabase-kong:8000
     }
 
     handle {
