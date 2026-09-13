@@ -160,7 +160,7 @@ export default function Chat() {
           targetType="user"
           token={token}
           onClose={() => setShowReport(false)}
-          onBlocked={() => navigate('/matches')}
+          onBlocked={() => navigate('/matches', { state: { notice: "Reported and blocked — you won't see each other again." } })}
         />
       )}
 
@@ -175,12 +175,18 @@ export default function Chat() {
 
         {messages.map((msg, i) => {
           const prev = messages[i - 1]
-          const showTimestamp = !prev || diffMinutes(prev.created_at, msg.created_at) > 5
+          const newDay = !prev || new Date(prev.created_at).toDateString() !== new Date(msg.created_at).toDateString()
+          const showTimestamp = newDay || diffMinutes(prev.created_at, msg.created_at) > 5
 
           return (
             <div key={msg.id}>
+              {newDay && (
+                <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-gray-400 mt-4 mb-1">
+                  {formatDay(msg.created_at)}
+                </p>
+              )}
               {showTimestamp && (
-                <p className="text-center text-xs text-gray-400 my-3">
+                <p className="text-center text-xs text-gray-400 my-2">
                   {formatTimestamp(msg.created_at)}
                 </p>
               )}
@@ -255,17 +261,17 @@ function diffMinutes(a: string, b: string): number {
   return (new Date(b).getTime() - new Date(a).getTime()) / 60000
 }
 
-function formatTimestamp(iso: string): string {
+function formatDay(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
-  const isToday = d.toDateString() === now.toDateString()
-
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  if (isToday) return time
-
+  if (d.toDateString() === now.toDateString()) return 'Today'
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
-  if (d.toDateString() === yesterday.toDateString()) return `Yesterday ${time}`
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
 
-  return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`
+/** Time only — the day is shown by the separator above. */
+function formatTimestamp(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }

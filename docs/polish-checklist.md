@@ -24,31 +24,32 @@ Screenshots referenced in the audit live in the session scratchpad (`polish/`).
 - [x] "Popular" onboarding chips were alphabetical (Assembly, Bash, C…). Fixed: curated list matched against the taxonomy.
 - [x] Idle TagPicker dropdown ("Type to search…") covered the onboarding submit button. Fixed: dropdown only with a search term; Escape closes.
 - [x] Filter error leaked the field name ("body contains prohibited language"). Fixed: "Your message contains language that isn't allowed on JobSwipe".
-- [ ] Backend validation text is snake_case to the user ("salary_min cannot exceed salary_max") — map to friendly labels. (P3)
+- [x] Backend validation text is snake_case to the user ("salary_min cannot exceed salary_max") — map to friendly labels. (P3)
 - [ ] MatchModal shows the employer's own avatar letter from their email ("D"), not company initials. (P3)
 
 ## P2 — confusing for a first-time user
-- [ ] Onboarding is skippable by accident (full navbar visible during onboarding; tapping Feed exits with an empty profile).
-- [ ] Onboarding "Pick your skills" is a lone search box: add suggested/popular chips, explain it gates the feed, set a minimum.
-- [ ] All onboarding fields required with only native browser bubbles (Bio/Location/Years should be optional or inline-validated).
-- [ ] Keyboard-shortcut strip (X/V/S/B/Z) and "Press the flag button or B" shown on touch devices — hide on touch.
-- [ ] Mobile nav icon-only with unguessable icons (🔍 feed, ⚑ saved, 💙 matches): add labels; unread badge on Matches.
-- [ ] Job card doesn't read as a job (company is the big title, job title small; no salary/description when empty; no tap-to-expand). Employer cards show "5 yrs experience" as the title.
-- [ ] Super like has no distinct feedback and nothing explains it.
-- [ ] Filters panel pushes the deck below the fold on phone — overlay/sheet instead.
-- [ ] Employer post-onboarding lands on worker feed with no "post a job first" prompt; org/Team page unexplained.
-- [ ] Job form jargon: three identical tag pickers (Required/Preferred/Nice), redundant inner labels, salaries default 0, "Listing duration (days)" unexplained, `*` legend missing, two "Create Job" buttons visible.
-- [ ] Saved page "30d left" unexplained; raw "X" locations.
-- [ ] Report & Block gives no confirmation toast after dropping you on Matches.
+- [x] Onboarding is skippable by accident (full navbar visible during onboarding; tapping Feed exits with an empty profile).
+- [x] Onboarding "Pick your skills" is a lone search box: add suggested/popular chips, explain it gates the feed, set a minimum.
+- [x] All onboarding fields required with only native browser bubbles (Bio/Location/Years should be optional or inline-validated).
+- [x] Keyboard-shortcut strip (X/V/S/B/Z) and "Press the flag button or B" shown on touch devices — hide on touch.
+- [x] Mobile nav icon-only with unguessable icons (🔍 feed, ⚑ saved, 💙 matches): add labels; unread badge on Matches.
+- [x] Job card doesn't read as a job (company is the big title, job title small; no salary/description when empty; no tap-to-expand). Employer cards show "5 yrs experience" as the title.
+- [x] Super like has no distinct feedback and nothing explains it.
+- [x] Filters panel pushes the deck below the fold on phone — overlay/sheet instead.
+- [x] Employer post-onboarding lands on worker feed — now lands on /jobs. (Team/org page explanation still open → P3)
+- [x] Job form jargon: three identical tag pickers (Required/Preferred/Nice), redundant inner labels, salaries default 0, "Listing duration (days)" unexplained, `*` legend missing, two "Create Job" buttons visible.
+- [x] Saved page "30d left" unexplained; raw "X" locations.
+- [x] Report & Block gives no confirmation toast after dropping you on Matches.
 - [ ] Dev/junk seed data in the feed ("fdffdg gdgdfg", location "gay", "ExpireCo/Short7") — clean before any demo.
-- [ ] Auth error placement (bare text above Email); no "Sign in instead" on duplicate email.
-- [ ] Chat: no date separators ("Today").
+- [x] Auth error placement (bare text above Email); no "Sign in instead" on duplicate email.
+- [x] Chat: no date separators ("Today").
 
 ## P3 — cosmetic
+- [ ] Team page: explain what an organization is for before "Create Organization".
 - [ ] Tap targets <44px on phone (nav 34x32, Filters/Undo pills 30px, "Report" link 35x16, Matches "Email" 53x28, report flag 32px).
-- [ ] Jobs page phone header wraps ("Your Jobs" + "Upload Job / File").
+- [x] Jobs page phone header wraps ("Your Jobs" + "Upload Job / File").
 - [ ] Job card meta wraps awkwardly on phone ("Tel / Aviv").
-- [ ] Debug `console.log` in Jobs.tsx (~502/518/538) logs full job payloads.
+- [x] Debug `console.log` in Jobs.tsx (~502/518/538) logs full job payloads.
 - [ ] Register label "Password(min 8 characters)" missing space in accessible name.
 - [ ] Avatar "Tap to add a photo" hover overlay never shows on touch.
 - [ ] Matches list truncates titles at 390px; "Email" button over-prominent vs "Chat".

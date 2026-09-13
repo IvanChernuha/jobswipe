@@ -57,8 +57,14 @@ export default function Register() {
           </div>
 
           {error && (
-            <div className="mb-5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            <div className="mb-5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert">
               {error}
+              {/already registered|already exists/i.test(error) && (
+                <>
+                  {' '}
+                  <Link to="/login" className="font-semibold underline">Sign in instead</Link>
+                </>
+              )}
             </div>
           )}
 

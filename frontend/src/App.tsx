@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import Navbar from './components/Navbar'
 import Landing from './pages/Landing'
@@ -37,10 +37,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { session } = useAuth()
+  const { pathname } = useLocation()
+  // No app chrome during onboarding: the only way forward is finishing it.
+  const showNavbar = !!session && pathname !== '/onboarding'
 
   return (
     <div className="min-h-screen flex flex-col">
-      {session && <Navbar />}
+      {showNavbar && <Navbar />}
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<Landing />} />

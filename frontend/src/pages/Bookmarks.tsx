@@ -134,7 +134,7 @@ export default function Bookmarks() {
           <p className="text-5xl mb-3">&#x2691;</p>
           <h2 className="text-xl font-bold text-gray-800 mb-2">No saved profiles yet</h2>
           <p className="text-gray-500 text-sm">
-            Press the flag button or <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">B</kbd> while browsing to save profiles for later.
+            Tap the flag button while browsing to save profiles for later.<span className="hidden [@media(hover:hover)]:inline"> (or press <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">B</kbd>)</span>
           </p>
         </div>
       </Shell>
@@ -227,7 +227,8 @@ function BookmarkCard({
   const now = new Date()
   const daysLeft = Math.max(0, Math.ceil((expiresDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
   const expiryColor = daysLeft <= 3 ? 'text-red-500' : daysLeft <= 7 ? 'text-amber-500' : 'text-gray-400'
-  const expiryLabel = daysLeft === 0 ? 'Expiring today' : `${daysLeft}d left`
+  // Saved profiles expire after 30 days — say so instead of a bare "30d left".
+  const expiryLabel = daysLeft === 0 ? 'Expires today' : `Expires in ${daysLeft}d`
 
   const title = isJob ? bm.job_title || 'Untitled Job' : bm.name || 'Unknown Worker'
   const subtitle = isJob

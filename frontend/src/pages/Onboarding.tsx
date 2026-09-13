@@ -142,9 +142,8 @@ function WorkerOnboarding({
         </div>
 
         <div>
-          <label className="label">Short bio</label>
+          <label className="label">Short bio <span className="text-gray-400 font-normal">(optional)</span></label>
           <textarea
-            required
             rows={3}
             className="input resize-none"
             placeholder="Tell employers about yourself..."
@@ -155,19 +154,17 @@ function WorkerOnboarding({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label">Location</label>
+            <label className="label">Location <span className="text-gray-400 font-normal">(optional)</span></label>
             <input
-              required
               className="input"
-              placeholder="San Francisco, CA"
+              placeholder="Tel Aviv"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
             />
           </div>
           <div>
-            <label className="label">Years of experience</label>
+            <label className="label">Years of experience <span className="text-gray-400 font-normal">(optional)</span></label>
             <input
-              required
               type="number"
               min={0}
               max={50}
@@ -318,9 +315,8 @@ function EmployerOnboarding({
       </div>
 
       <div>
-        <label className="label">Description</label>
+        <label className="label">Description <span className="text-gray-400 font-normal">(optional)</span></label>
         <textarea
-          required
           rows={3}
           className="input resize-none"
           placeholder="What does your company do? What's the culture like?"
@@ -331,9 +327,8 @@ function EmployerOnboarding({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="label">Industry</label>
+          <label className="label">Industry <span className="text-gray-400 font-normal">(optional)</span></label>
           <input
-            required
             className="input"
             placeholder="Technology"
             value={form.industry}
@@ -416,7 +411,8 @@ export default function Onboarding() {
         industry: data.industry,
         location: data.location,
       })
-      navigate('/feed', { replace: true })
+      // Employers start by posting a job — the feed is empty-handed without one.
+      navigate('/jobs', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save profile.')
     } finally {

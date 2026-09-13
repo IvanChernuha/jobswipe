@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getMatches, getMatch, getUnreadCounts } from '../lib/api'
 import type { Match, UnreadCount } from '../lib/api'
@@ -15,6 +15,8 @@ export default function Matches() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reportTarget, setReportTarget] = useState<{ id: string; name: string } | null>(null)
+  const location = useLocation()
+  const [notice, setNotice] = useState<string | null>((location.state as { notice?: string } | null)?.notice ?? null)
   useEffect(() => {
     if (!token) return
     setLoading(true)
@@ -57,6 +59,7 @@ export default function Matches() {
     return (
       <PageShell>
         <div className="flex flex-col items-center gap-4 py-20 text-center px-6">
+          {notice && <p className="text-sm text-white bg-gray-900 rounded-xl px-4 py-3" role="status">{notice}</p>}
           <span className="text-6xl">💙</span>
           <h2 className="text-xl font-bold text-gray-800">No matches yet</h2>
           <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
@@ -70,6 +73,12 @@ export default function Matches() {
   return (
     <PageShell>
       <div className="max-w-2xl w-full px-4 py-8">
+        {notice && (
+          <div className="mb-4 flex items-start justify-between gap-3 rounded-xl bg-gray-900 text-white px-4 py-3 text-sm" role="status">
+            <span>{notice}</span>
+            <button type="button" onClick={() => setNotice(null)} className="font-bold" aria-label="Dismiss">&times;</button>
+          </div>
+        )}
         <h1 className="text-2xl font-bold text-gray-900 mb-6">
           Your Matches{' '}
           <span className="text-brand-500 text-lg font-semibold">({matches.length})</span>
@@ -104,6 +113,7 @@ export default function Matches() {
             onBlocked={() => {
               const id = reportTarget?.id
               if (id) setMatches((prev) => prev.filter((m) => m.worker_id !== id && m.employer_id !== id))
+              setNotice("Reported and blocked — you won't see each other again.")
             }}
           />
         )}

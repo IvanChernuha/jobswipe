@@ -18,6 +18,8 @@ export interface CardData {
   salary?: string | null
   experience_years?: number
   match_score?: MatchScore | null
+  /** Job cards: the job title (shown big); `name` stays the company for avatars/match copy. */
+  headline?: string
 }
 
 export function workerToCard(w: WorkerCard): CardData {
@@ -46,7 +48,8 @@ export function employerToCard(e: EmployerCard): CardData {
     id: e.id,
     name: e.company_name,
     avatar_url: e.avatar_url,
-    title: e.job_title,
+    headline: e.job_title,
+    title: e.industry ? `${e.company_name} · ${e.industry}` : e.company_name,
     bio: e.description,
     location: e.location,
     skills: e.skills_required ?? [],
@@ -60,24 +63,23 @@ export function employerToCard(e: EmployerCard): CardData {
 // Overlay helper
 // ---------------------------------------------------------------------------
 
-type OverlayDir = 'like' | 'pass' | null
+type OverlayDir = 'like' | 'pass' | 'super' | null
 
 function Overlay({ dir }: { dir: OverlayDir }) {
   if (!dir) return null
-  const isLike = dir === 'like'
+  const isLike = dir === 'like' || dir === 'super'
+  const label = dir === 'super' ? 'SUPER LIKE' : dir === 'like' ? 'LIKE' : 'NOPE'
+  const tone = dir === 'super'
+    ? '-rotate-12 text-blue-500 border-blue-500'
+    : isLike ? '-rotate-12 text-green-500 border-green-500' : 'rotate-12 text-red-500 border-red-500'
   return (
     <div
       className={`absolute inset-0 rounded-3xl flex items-start p-6 transition-opacity z-10
-        ${isLike ? 'justify-start bg-green-400/20' : 'justify-end bg-red-400/20'}`}
+        ${dir === 'super' ? 'justify-start bg-blue-400/20' : isLike ? 'justify-start bg-green-400/20' : 'justify-end bg-red-400/20'}`}
     >
-      {/* LIKE sits top-left, NOPE top-right: the stamp stays on-screen while the
-          card is dragged in its own direction (Tinder convention). */}
-      <span
-        className={`text-4xl font-black border-4 px-3 py-1 rounded-lg
-          ${isLike ? '-rotate-12 text-green-500 border-green-500' : 'rotate-12 text-red-500 border-red-500'}`}
-      >
-        {isLike ? 'LIKE' : 'NOPE'}
-      </span>
+      {/* LIKE/SUPER sit top-left, NOPE top-right: the stamp stays on-screen while
+          the card is dragged in its own direction (Tinder convention). */}
+      <span className={`text-4xl font-black border-4 px-3 py-1 rounded-lg ${tone}`}>{label}</span>
     </div>
   )
 }
@@ -152,18 +154,33 @@ export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe 
   // Prefer tags over legacy skills array
   const hasTags = card.tags.length > 0
 
+  // Long bios are clamped; a tap toggles the full text (a tap never moves far
+  // enough to count as a swipe).
+  const [expanded, setExpanded] = useState(false)
+
   // Drag state. Only the top card gets onSwipe, so only it is draggable.
-  const dragStart = useRef<{ x: number; y: number; id: number } | null>(null)
+  const dragStart = useRef<{ x: number; y: number; id: number; captured: boolean } | null>(null)
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null)
+  const DEAD_ZONE_PX = 6
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!onSwipe || e.button !== 0) return
-    dragStart.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
-    e.currentTarget.setPointerCapture(e.pointerId)
+    dragStart.current = { x: e.clientX, y: e.clientY, id: e.pointerId, captured: false }
   }
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragStart.current || e.pointerId !== dragStart.current.id) return
-    setDrag({ dx: e.clientX - dragStart.current.x, dy: e.clientY - dragStart.current.y })
+    const start = dragStart.current
+    if (!start || e.pointerId !== start.id) return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    // Capture the pointer only once this is clearly a drag. Capturing on
+    // pointerdown would redirect plain clicks to the card and break the
+    // tap-to-expand bio (and any other click inside the card).
+    if (!start.captured) {
+      if (Math.abs(dx) < DEAD_ZONE_PX && Math.abs(dy) < DEAD_ZONE_PX) return
+      start.captured = true
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+    setDrag({ dx, dy })
   }
   function handlePointerEnd(e: React.PointerEvent<HTMLDivElement>) {
     if (!dragStart.current || e.pointerId !== dragStart.current.id) return
@@ -210,9 +227,14 @@ export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe 
           <MatchBadge score={card.match_score} />
         )}
 
-        {/* Name + title overlay */}
+        {/* Kind badge: makes a job card read as a job at a glance */}
+        <span className="absolute top-3 right-3 z-10 px-2 py-0.5 rounded-full bg-black/40 text-white text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm">
+          {card.headline ? 'Job' : 'Candidate'}
+        </span>
+
+        {/* Headline (job title) or name, then the secondary line */}
         <div className="absolute bottom-4 left-5 right-5">
-          <p className="text-white text-xl font-bold leading-tight drop-shadow">{card.name}</p>
+          <p className="text-white text-xl font-bold leading-tight drop-shadow">{card.headline ?? card.name}</p>
           <p className="text-white/80 text-sm mt-0.5">{card.title}</p>
         </div>
       </div>
@@ -236,8 +258,18 @@ export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe 
           )}
         </div>
 
-        {/* Bio */}
-        <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">{card.bio}</p>
+        {/* Bio — tap to expand */}
+        {card.bio ? (
+          <p
+            className={`text-sm text-gray-600 leading-relaxed ${expanded ? '' : 'line-clamp-3'}`}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {card.bio}
+            {!expanded && card.bio.length > 140 && <span className="text-brand-600 font-medium"> … more</span>}
+          </p>
+        ) : (
+          <p className="text-sm text-gray-400 italic">No description yet.</p>
+        )}
 
         {/* Tags (color-coded) or legacy skills fallback */}
         {hasTags ? (

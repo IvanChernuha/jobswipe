@@ -133,7 +133,7 @@ export default function Jobs() {
       )}
       <div className="max-w-3xl w-full px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Your Jobs</h1>
             <p className="text-sm text-gray-500 mt-0.5">{jobs.length} posting{jobs.length !== 1 ? 's' : ''}</p>
@@ -401,6 +401,9 @@ function JobCard({
               {job.tags.length > 6 && (
                 <span className="text-xs text-gray-400 self-center">+{job.tags.length - 6} more</span>
               )}
+              {job.tags.some((t) => t.requirement === 'required') && (
+                <span className="text-[11px] text-gray-400 self-center">* must-have</span>
+              )}
             </div>
           )}
         </div>
@@ -590,12 +593,12 @@ function JobFormModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Min salary ($)</label>
-              <input type="number" min={0} className="input" value={form.salary_min} onChange={set('salary_min')} />
+              <label className="label">Min salary ($/yr) <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input type="number" min={0} className="input" value={form.salary_min || ''} onChange={set('salary_min')} placeholder="e.g. 80000" />
             </div>
             <div>
-              <label className="label">Max salary ($)</label>
-              <input type="number" min={0} className="input" value={form.salary_max} onChange={set('salary_max')} />
+              <label className="label">Max salary ($/yr) <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input type="number" min={0} className="input" value={form.salary_max || ''} onChange={set('salary_max')} placeholder="e.g. 120000" />
             </div>
           </div>
 
@@ -605,24 +608,20 @@ function JobFormModal({
               <input type="number" min={0} className="input" value={form.min_experience_years} onChange={set('min_experience_years')} placeholder="Optional" />
             </div>
             <div>
-              <label className="label">Listing duration (days)</label>
+              <label className="label">Listing expires after (days)</label>
               <input type="number" min={1} max={365} className="input" value={form.expires_in_days} onChange={set('expires_in_days')} />
+              <p className="text-[11px] text-gray-400 mt-1">Default 30 — you can extend it later from this page.</p>
             </div>
           </div>
 
-          <div>
-            <label className="label">Required tags (must have ALL)</label>
-            <TagPicker selectedTags={requiredTags} onChange={setRequiredTags} />
-          </div>
-
-          <div>
-            <label className="label">Preferred tags (must have at least 1)</label>
-            <TagPicker selectedTags={preferredTags} onChange={setPreferredTags} />
-          </div>
-
-          <div>
-            <label className="label">Nice-to-have tags</label>
-            <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} />
+          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-3">
+            <p className="text-xs text-gray-500">
+              Skills decide who sees this job. Only <span className="font-medium">must-have</span> skills filter candidates out;
+              the rest just raise the match score.
+            </p>
+            <TagPicker selectedTags={requiredTags} onChange={setRequiredTags} label="Must-have skills — candidates need ALL of these" />
+            <TagPicker selectedTags={preferredTags} onChange={setPreferredTags} label="Preferred skills — at least one" />
+            <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} label="Nice-to-have skills" />
           </div>
 
           {formError && (

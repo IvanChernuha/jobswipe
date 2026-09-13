@@ -175,6 +175,17 @@ export interface UploadResponse {
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
+const FIELD_LABELS: Record<string, string> = {
+  salary_min: 'Min salary', salary_max: 'Max salary', expires_in_days: 'Listing duration',
+  min_experience_years: 'Min experience', experience_years: 'Years of experience',
+  company_name: 'Company name', target_id: 'Target', tag_ids: 'Skills',
+}
+
+/** "salary_min cannot exceed salary_max" → "Min salary cannot exceed Max salary". */
+function friendlyFieldNames(msg: string): string {
+  return msg.replace(/\b[a-z]+(?:_[a-z]+)+\b/g, (f) => FIELD_LABELS[f] ?? f.replace(/_/g, ' '))
+}
+
 /** FastAPI returns validation errors as an array in `detail`; flatten to one readable line. */
 function formatErrorDetail(detail: unknown): string | undefined {
   if (typeof detail === 'string') return detail
@@ -182,6 +193,7 @@ function formatErrorDetail(detail: unknown): string | undefined {
     const msgs = detail
       .map((d) => (d && typeof d === 'object' && 'msg' in d ? String((d as { msg: unknown }).msg) : String(d)))
       .map((m) => m.replace(/^Value error, /, ''))
+      .map(friendlyFieldNames)
     return msgs.length ? msgs.join('; ') : undefined
   }
   return undefined

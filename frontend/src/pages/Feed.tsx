@@ -184,6 +184,8 @@ export default function Feed() {
     if (swipingRef.current || cards.length === 0) return
     swipingRef.current = true
     setSwiping(true)
+    setSuperFlash(true)
+    setTimeout(() => setSuperFlash(false), 1600)
     setAnimDir('like')
 
     const current = cards[0]
@@ -202,8 +204,10 @@ export default function Feed() {
     swipingRef.current = false
   }, [cards, token])
 
-  // Bookmark state
+  // Bookmark / super-like / block notices
   const [bookmarkFlash, setBookmarkFlash] = useState(false)
+  const [superFlash, setSuperFlash] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
 
   // Bookmark handler — saves and auto-swipes to next card
   const handleBookmark = useCallback(async () => {
@@ -314,13 +318,17 @@ export default function Feed() {
           canUndo={!!lastSwiped && !undoing}
         />
         {showFilters && (
-          <FilterPanel
+          <div className="fixed inset-0 z-40 bg-black/30 sm:static sm:bg-transparent sm:z-auto" onClick={() => setShowFilters(false)}>
+            <div className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl sm:static sm:max-h-none sm:rounded-none sm:bg-transparent sm:p-0 sm:shadow-none" onClick={(e) => e.stopPropagation()}>
+              <FilterPanel
             role={role}
             filters={pendingFilters}
             onChange={setPendingFilters}
             onApply={applyFilters}
             onClear={clearFilters}
           />
+            </div>
+          </div>
         )}
         {/* A mutual like on the LAST card must still celebrate — this branch
             renders instead of the main one once the deck is empty. */}
@@ -342,12 +350,24 @@ export default function Feed() {
 
   return (
     <PageShell>
-      {/* Bookmark toast */}
+      {/* Toasts: bookmark / super like / block */}
       {bookmarkFlash && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
           <div className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2">
             <span>&#x2691;</span> Saved for later
           </div>
+        </div>
+      )}
+      {superFlash && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+          <div className="bg-blue-500 text-white px-4 py-2 rounded-xl shadow-lg text-sm font-medium">
+            ⭐ Super like sent — they'll see you first
+          </div>
+        </div>
+      )}
+      {notice && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in" onClick={() => setNotice(null)}>
+          <div className="bg-gray-900 text-white px-4 py-2 rounded-xl shadow-lg text-sm font-medium">{notice}</div>
         </div>
       )}
 
@@ -358,7 +378,11 @@ export default function Feed() {
           targetType={role === 'worker' ? 'job' : 'user'}
           token={token}
           onClose={() => setShowReport(false)}
-          onBlocked={() => setCards((prev) => prev.slice(1))}
+          onBlocked={() => {
+            setCards((prev) => prev.slice(1))
+            setNotice("Reported and blocked — you won't see each other again.")
+            setTimeout(() => setNotice(null), 3000)
+          }}
         />
       )}
 
@@ -383,17 +407,21 @@ export default function Feed() {
 
         {/* Filter panel */}
         {showFilters && (
-          <FilterPanel
+          <div className="fixed inset-0 z-40 bg-black/30 sm:static sm:bg-transparent sm:z-auto" onClick={() => setShowFilters(false)}>
+            <div className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl sm:static sm:max-h-none sm:rounded-none sm:bg-transparent sm:p-0 sm:shadow-none" onClick={(e) => e.stopPropagation()}>
+              <FilterPanel
             role={role}
             filters={pendingFilters}
             onChange={setPendingFilters}
             onApply={applyFilters}
             onClear={clearFilters}
           />
+            </div>
+          </div>
         )}
 
-        {/* Keyboard hint */}
-        <p className="text-xs text-gray-400 flex items-center gap-4 flex-wrap justify-center">
+        {/* Keyboard hint — pointless on touch screens, so only shown where a mouse/keyboard is likely */}
+        <p className="hidden [@media(hover:hover)]:flex text-xs text-gray-400 items-center gap-4 flex-wrap justify-center">
           <span>
             <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">X</kbd>
             &nbsp;pass
@@ -437,7 +465,7 @@ export default function Feed() {
             <SwipeCard
               card={topCard}
               onSwipe={handleSwipe}
-              overlayDir={animDir}
+              overlayDir={superFlash && animDir === 'like' ? 'super' : animDir}
               animClass={
                 animDir === 'like'
                   ? 'animate-slide-right'

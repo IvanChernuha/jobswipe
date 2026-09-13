@@ -95,7 +95,7 @@ export default function TagPicker({ selectedTags, onChange, suggestions = 0, lab
 
   return (
     <div ref={containerRef} className="relative">
-      <label className="label">{label}</label>
+      {label && <label className="label">{label}</label>}
 
       {/* Selected tags */}
       {selectedTags.length > 0 && (

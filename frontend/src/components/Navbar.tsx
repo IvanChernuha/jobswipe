@@ -1,9 +1,26 @@
+import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { getUnreadCounts } from '../lib/api'
 
 export default function Navbar() {
-  const { signOut, role } = useAuth()
+  const { signOut, role, session } = useAuth()
   const navigate = useNavigate()
+  const token = session?.access_token ?? ''
+
+  // Unread chat badge on Matches; polled lightly, never fatal.
+  const [unread, setUnread] = useState(0)
+  useEffect(() => {
+    if (!token) return
+    let stopped = false
+    const load = () =>
+      getUnreadCounts(token)
+        .then((counts) => { if (!stopped) setUnread(counts.reduce((n, c) => n + c.count, 0)) })
+        .catch(() => {})
+    load()
+    const id = setInterval(load, 30000)
+    return () => { stopped = true; clearInterval(id) }
+  }, [token])
 
   async function handleSignOut() {
     await signOut()
@@ -29,7 +46,7 @@ export default function Navbar() {
           {role === 'employer' && <NavItem to="/jobs" label="Jobs" icon="📋" />}
           {role === 'employer' && <NavItem to="/team" label="Team" icon="👥" />}
           <NavItem to="/saved" label="Saved" icon="&#x2691;" />
-          <NavItem to="/matches" label="Matches" icon="💙" />
+          <NavItem to="/matches" label="Matches" icon="💙" badge={unread} />
           <NavItem to="/profile" label="Profile" icon={role === 'employer' ? '🏢' : '👤'} />
         </div>
 
@@ -51,11 +68,11 @@ export default function Navbar() {
   )
 }
 
-function NavItem({ to, label, icon }: { to: string; label: string; icon: string }) {
+function NavItem({ to, label, icon, badge = 0 }: { to: string; label: string; icon: string; badge?: number }) {
   return (
     <NavLink
       to={to}
-      aria-label={label}
+      aria-label={badge > 0 ? `${label}, ${badge} unread` : label}
       className={({ isActive }) =>
         `flex flex-col sm:flex-row items-center justify-center gap-0 sm:gap-1.5
          min-w-[44px] min-h-[44px] px-1.5 sm:px-3 py-0.5 sm:py-1.5 rounded-xl
@@ -66,7 +83,14 @@ function NavItem({ to, label, icon }: { to: string; label: string; icon: string 
          }`
       }
     >
-      <span className="text-base sm:text-sm leading-none">{icon}</span>
+      <span className="relative text-base sm:text-sm leading-none">
+        {icon}
+        {badge > 0 && (
+          <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-4 text-center">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
+      </span>
       <span>{label}</span>
     </NavLink>
   )
