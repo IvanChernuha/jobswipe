@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import type { WorkerCard, EmployerCard, Tag, MatchScore } from '../lib/api'
 import TagBadge from './TagBadge'
 
@@ -66,12 +67,14 @@ function Overlay({ dir }: { dir: OverlayDir }) {
   const isLike = dir === 'like'
   return (
     <div
-      className={`absolute inset-0 rounded-3xl flex items-start justify-end p-6 transition-opacity z-10
-        ${isLike ? 'bg-green-400/20' : 'bg-red-400/20'}`}
+      className={`absolute inset-0 rounded-3xl flex items-start p-6 transition-opacity z-10
+        ${isLike ? 'justify-start bg-green-400/20' : 'justify-end bg-red-400/20'}`}
     >
+      {/* LIKE sits top-left, NOPE top-right: the stamp stays on-screen while the
+          card is dragged in its own direction (Tinder convention). */}
       <span
-        className={`text-4xl font-black rotate-12 border-4 px-3 py-1 rounded-lg
-          ${isLike ? 'text-green-500 border-green-500' : 'text-red-500 border-red-500'}`}
+        className={`text-4xl font-black border-4 px-3 py-1 rounded-lg
+          ${isLike ? '-rotate-12 text-green-500 border-green-500' : 'rotate-12 text-red-500 border-red-500'}`}
       >
         {isLike ? 'LIKE' : 'NOPE'}
       </span>
@@ -138,18 +141,62 @@ interface SwipeCardProps {
   card: CardData
   overlayDir?: OverlayDir
   animClass?: string
+  /** Enables drag-to-swipe (touch + mouse). Called once a drag crosses the commit threshold. */
+  onSwipe?: (dir: 'like' | 'pass') => void
 }
 
-export default function SwipeCard({ card, overlayDir = null, animClass }: SwipeCardProps) {
+const SWIPE_COMMIT_PX = 96   // drag distance that commits a like/pass
+const SWIPE_OVERLAY_PX = 32  // drag distance before LIKE/NOPE shows
+
+export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe }: SwipeCardProps) {
   // Prefer tags over legacy skills array
   const hasTags = card.tags.length > 0
+
+  // Drag state. Only the top card gets onSwipe, so only it is draggable.
+  const dragStart = useRef<{ x: number; y: number; id: number } | null>(null)
+  const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null)
+
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!onSwipe || e.button !== 0) return
+    dragStart.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragStart.current || e.pointerId !== dragStart.current.id) return
+    setDrag({ dx: e.clientX - dragStart.current.x, dy: e.clientY - dragStart.current.y })
+  }
+  function handlePointerEnd(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragStart.current || e.pointerId !== dragStart.current.id) return
+    const dx = e.clientX - dragStart.current.x
+    dragStart.current = null
+    setDrag(null)
+    if (Math.abs(dx) >= SWIPE_COMMIT_PX) onSwipe?.(dx > 0 ? 'like' : 'pass')
+  }
+  // The browser cancels the pointer when it claims the gesture as a vertical
+  // scroll (touch-pan-y). Never commit on cancel — clientX is meaningless then.
+  function handlePointerCancel(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragStart.current || e.pointerId !== dragStart.current.id) return
+    dragStart.current = null
+    setDrag(null)
+  }
+
+  const dragDir: OverlayDir =
+    drag && Math.abs(drag.dx) >= SWIPE_OVERLAY_PX ? (drag.dx > 0 ? 'like' : 'pass') : null
+  const dragStyle: React.CSSProperties = drag
+    ? { transform: `translate(${drag.dx}px, ${drag.dy * 0.3}px) rotate(${drag.dx / 18}deg)`, transition: 'none' }
+    : { transition: 'transform 200ms ease' }
 
   return (
     <div
       className={`relative w-full max-w-sm bg-white rounded-3xl overflow-hidden card-shadow
-                  select-none ${animClass ?? ''}`}
+                  select-none touch-pan-y ${onSwipe ? 'cursor-grab active:cursor-grabbing' : ''} ${animClass ?? ''}`}
+      style={dragStyle}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerCancel}
     >
-      <Overlay dir={overlayDir} />
+      <Overlay dir={overlayDir ?? dragDir} />
 
       {/* Photo / gradient header */}
       <div className="relative h-64 bg-gradient-to-br from-brand-400 to-purple-500 overflow-hidden">

@@ -7,6 +7,7 @@ import {
   type FeedFilters,
 } from '../lib/api'
 import SwipeCard, { workerToCard, employerToCard, type CardData } from '../components/SwipeCard'
+import { Link } from 'react-router-dom'
 import MatchModal from '../components/MatchModal'
 import ReportModal from '../components/ReportModal'
 
@@ -321,6 +322,16 @@ export default function Feed() {
             onClear={clearFilters}
           />
         )}
+        {/* A mutual like on the LAST card must still celebrate — this branch
+            renders instead of the main one once the deck is empty. */}
+        {match && (
+          <MatchModal
+            myName={user?.email ?? 'You'}
+            theirName={match.theirName}
+            matchId={match.matchId}
+            onClose={() => setMatch(null)}
+          />
+        )}
         <EmptyState role={role} hasFilters={hasActiveFilters} onClear={clearFilters} />
       </PageShell>
     )
@@ -425,6 +436,7 @@ export default function Feed() {
           <div className="absolute inset-0" style={{ zIndex: 1 }}>
             <SwipeCard
               card={topCard}
+              onSwipe={handleSwipe}
               overlayDir={animDir}
               animClass={
                 animDir === 'like'
@@ -737,6 +749,12 @@ function EmptyState({ role, hasFilters, onClear }: { role: string | null; hasFil
         <button onClick={onClear} className="btn-primary text-sm">
           Clear filters
         </button>
+      )}
+      {role === 'worker' && (
+        <p className="text-xs text-gray-400 max-w-xs leading-relaxed">
+          Jobs are matched to the skills on your profile — the more you add, the more you'll see.{' '}
+          <Link to="/profile" className="text-brand-600 hover:underline font-medium">Add skills</Link>
+        </p>
       )}
     </div>
   )

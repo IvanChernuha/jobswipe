@@ -76,6 +76,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole(null)
   }, [])
 
+  // api.ts fires this when a request with a token gets a 401 (expired/invalid
+  // session). Sign out and go home instead of leaving stale error screens.
+  useEffect(() => {
+    const onUnauthorized = () => {
+      supabase.auth.signOut().finally(() => window.location.assign('/'))
+    }
+    window.addEventListener('jobswipe:unauthorized', onUnauthorized)
+    return () => window.removeEventListener('jobswipe:unauthorized', onUnauthorized)
+  }, [])
+
   return (
     <AuthContext.Provider value={{ user, session, role, loading, signOut }}>
       {children}

@@ -17,6 +17,7 @@ export default function Chat() {
   const [sending, setSending] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [showReport, setShowReport] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -77,13 +78,15 @@ export default function Chat() {
     if (!body || sending || !matchId) return
 
     setSending(true)
+    setSendError(null)
     try {
       const msg = await sendMessage(token, matchId, body)
       setMessages((prev) => [...prev, msg])
       setDraft('')
       inputRef.current?.focus()
-    } catch {
-      // send failed silently
+    } catch (err) {
+      // e.g. content filter (422) or blocked (403): keep the draft, say why.
+      setSendError(err instanceof Error ? err.message : 'Message not sent')
     } finally {
       setSending(false)
     }
@@ -197,6 +200,13 @@ export default function Chat() {
         })}
         <div ref={bottomRef} />
       </div>
+
+      {/* Send error (content filter, blocked, network) */}
+      {sendError && (
+        <div className="bg-red-50 border-t border-red-200 px-4 py-2 text-xs text-red-700" role="alert">
+          Not sent: {sendError}
+        </div>
+      )}
 
       {/* Input */}
       <form

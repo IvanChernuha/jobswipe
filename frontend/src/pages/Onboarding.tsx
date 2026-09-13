@@ -189,16 +189,20 @@ function WorkerOnboarding({
   return (
     <form onSubmit={handleFinish} className="space-y-5">
       <p className="text-sm text-gray-500">
-        Select the technologies and skills you work with. These help match you with the right jobs.
+        Jobs are matched to your skills — with none selected you'd see almost nothing. Pick at least one now;
+        you can add more any time from your profile.
       </p>
 
-      <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} />
+      <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} suggestions={10} label="Your skills" />
+      {selectedTags.length === 0 && (
+        <p className="text-xs text-amber-600">Pick at least 1 skill to continue.</p>
+      )}
 
       <div className="flex gap-3 mt-2">
         <button type="button" onClick={handleBack} className="flex-1 py-3 text-base font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
           Back
         </button>
-        <button type="submit" disabled={loading} className="flex-1 btn-primary py-3 text-base">
+        <button type="submit" disabled={loading || selectedTags.length === 0} className="flex-1 btn-primary py-3 text-base disabled:opacity-50">
           {loading ? (
             <span className="flex items-center justify-center gap-2">
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

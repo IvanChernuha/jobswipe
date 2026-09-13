@@ -175,6 +175,18 @@ export interface UploadResponse {
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
+/** FastAPI returns validation errors as an array in `detail`; flatten to one readable line. */
+function formatErrorDetail(detail: unknown): string | undefined {
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((d) => (d && typeof d === 'object' && 'msg' in d ? String((d as { msg: unknown }).msg) : String(d)))
+      .map((m) => m.replace(/^Value error, /, ''))
+    return msgs.length ? msgs.join('; ') : undefined
+  }
+  return undefined
+}
+
 async function request<T>(
   path: string,
   options: RequestInit & { token?: string } = {},
@@ -193,10 +205,14 @@ async function request<T>(
   if (!res.ok) {
     let message = `HTTP ${res.status}`
     try {
-      const body = (await res.json()) as { detail?: string; message?: string }
-      message = body.detail ?? body.message ?? message
+      const body = (await res.json()) as { detail?: unknown; message?: string }
+      message = formatErrorDetail(body.detail) ?? body.message ?? message
     } catch {
       // ignore parse errors
+    }
+    if (res.status === 401 && token) {
+      // Expired/invalid session: the auth layer signs out and redirects.
+      window.dispatchEvent(new CustomEvent('jobswipe:unauthorized'))
     }
     throw new Error(message)
   }

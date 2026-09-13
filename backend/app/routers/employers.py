@@ -164,6 +164,9 @@ async def create_job(
         salary_max=body.salary_max,
         location=body.location,
         remote=body.remote,
+        # Explicit: the ORM would otherwise INSERT NULL and bypass the DB default.
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
         expires_at=datetime.now(timezone.utc) + timedelta(days=body.expires_in_days),
     )
     session.add(job)

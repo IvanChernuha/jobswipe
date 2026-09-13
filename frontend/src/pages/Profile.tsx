@@ -120,6 +120,14 @@ function WorkerProfileForm({ token }: { token: string }) {
   const [uploadingResume, setUploadingResume] = useState(false)
   const [resumeErr, setResumeErr] = useState<string | null>(null)
   const [cvAnalyzing, setCvAnalyzing] = useState(false)
+  // One-shot success note written just before the post-extraction reload.
+  const [cvFlash] = useState<string | null>(() => {
+    try {
+      const v = sessionStorage.getItem('cvFlash')
+      if (v) sessionStorage.removeItem('cvFlash')
+      return v
+    } catch { return null }
+  })
   const resumeRef = useRef<HTMLInputElement>(null)
   const cvPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -177,13 +185,20 @@ function WorkerProfileForm({ token }: { token: string }) {
       cvPollRef.current = setInterval(async () => {
         try {
           const status = await getCvStatus(token)
-          if (status.cv_extraction_status === 'done' || status.cv_extraction_status === 'error') {
+          if (status.cv_extraction_status === 'done') {
             clearInterval(cvPollRef.current!)
+            const n = status.cv_extracted_tag_count
+            try { sessionStorage.setItem('cvFlash', `CV analyzed — ${n} skill${n === 1 ? '' : 's'} added to your profile.`) } catch { /* ignore */ }
             window.location.reload()
+          } else if (status.cv_extraction_status === 'error') {
+            clearInterval(cvPollRef.current!)
+            setCvAnalyzing(false)
+            setResumeErr("We couldn't read your CV, so your profile wasn't changed. Your resume is saved — you can add skills manually.")
           }
         } catch {
           clearInterval(cvPollRef.current!)
-          window.location.reload()
+          setCvAnalyzing(false)
+          setResumeErr('Could not check the CV analysis. Your resume is saved.')
         }
       }, 2000)
     } catch (err) {
@@ -263,6 +278,12 @@ function WorkerProfileForm({ token }: { token: string }) {
       {/* Resume */}
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
         <p className="text-sm font-medium text-gray-700 mb-2">Resume</p>
+
+        {cvFlash && (
+          <div className="mb-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700" role="status">
+            {cvFlash}
+          </div>
+        )}
 
         {cvAnalyzing && (
           <div className="flex items-center gap-3 py-2">

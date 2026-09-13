@@ -14,7 +14,7 @@ class MessageCreate(BaseModel):
             raise ValueError("Message body cannot be empty")
         if len(v) > 5000:
             raise ValueError("Message body cannot exceed 5000 characters")
-        assert_clean(v, "body")
+        assert_clean(v, "message")
         return v
 
 

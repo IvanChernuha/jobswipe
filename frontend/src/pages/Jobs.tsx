@@ -15,6 +15,7 @@ export default function Jobs() {
   const [jobs, setJobs] = useState<JobPosting[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [editingJob, setEditingJob] = useState<JobPosting | null>(null)
   const [createModal, setCreateModal] = useState<{ open: boolean; prefilled: ParsedJobFile | null }>({ open: false, prefilled: null })
   const [parsedJobs, setParsedJobs] = useState<ParsedJobFile[] | null>(null)
@@ -34,7 +35,7 @@ export default function Jobs() {
     try {
       const updated = await toggleJobActive(token, jobId)
       setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, active: updated.active } : j)))
-    } catch { /* silent */ }
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'Could not update the job') }
   }
 
   async function handleDelete(jobId: string) {
@@ -42,23 +43,20 @@ export default function Jobs() {
     try {
       await deleteJobPosting(token, jobId)
       setJobs((prev) => prev.filter((j) => j.id !== jobId))
-    } catch { /* silent */ }
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'Could not delete the job') }
   }
 
+  // Create/edit errors propagate to JobFormModal, which shows them inline.
   async function handleSaveEdit(jobId: string, data: Record<string, unknown>) {
-    try {
-      const updated = await updateJobPosting(token, jobId, data)
-      setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, ...updated } : j)))
-      setEditingJob(null)
-    } catch { /* silent */ }
+    const updated = await updateJobPosting(token, jobId, data)
+    setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, ...updated } : j)))
+    setEditingJob(null)
   }
 
   async function handleCreate(data: Record<string, unknown>) {
-    try {
-      const created = await createJobPosting(token, data as any)
-      setJobs((prev) => [{ ...created, swipe_count: 0, like_count: 0, match_count: 0, active: true } as JobPosting, ...prev])
-      setCreateModal({ open: false, prefilled: null })
-    } catch { /* silent */ }
+    const created = await createJobPosting(token, data as any)
+    setJobs((prev) => [{ ...created, swipe_count: 0, like_count: 0, match_count: 0, active: true } as JobPosting, ...prev])
+    setCreateModal({ open: false, prefilled: null })
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -75,7 +73,7 @@ export default function Jobs() {
         // Multiple files → show review list
         setParsedJobs(results)
       }
-    } catch { /* silent */ }
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'Could not parse the file(s)') }
     finally { setParsing(false) }
   }
 
@@ -96,7 +94,7 @@ export default function Jobs() {
       } as any)
       setJobs((prev) => [{ ...created, swipe_count: 0, like_count: 0, match_count: 0, active: true } as JobPosting, ...prev])
       setParsedJobs((prev) => prev?.filter((p) => p.filename !== parsed.filename) ?? null)
-    } catch { /* silent */ }
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'Could not create the job') }
   }
 
   if (loading) {
@@ -127,6 +125,12 @@ export default function Jobs() {
 
   return (
     <Shell>
+      {actionError && (
+        <div className="mx-4 mt-4 flex items-start justify-between gap-3 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert">
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} className="text-red-500 hover:text-red-700 font-bold" aria-label="Dismiss">&times;</button>
+        </div>
+      )}
       <div className="max-w-3xl w-full px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -499,7 +503,6 @@ function JobFormModal({
     min_experience_years: job?.min_experience_years ?? prefilled?.min_experience_years ?? '',
     expires_in_days: defaultDays,
   })
-  console.log('JobFormModal mount, prefilled:', prefilled)
   const [selectedTags, setSelectedTags] = useState<Tag[]>(() => {
     if (job) return job.tags?.filter((t) => !t.requirement || t.requirement === 'nice') ?? []
     if (prefilled) return prefilled.tag_ids.map((id, i) => ({ id, name: prefilled.nice_tags[i] ?? id, category: '' }))
@@ -515,8 +518,13 @@ function JobFormModal({
     if (prefilled) return prefilled.preferred_tag_ids.map((id, i) => ({ id, name: prefilled.preferred_tags[i] ?? id, category: '' }))
     return []
   })
-  console.log('requiredTags initial:', requiredTags, 'preferredTags:', preferredTags, 'selectedTags:', selectedTags)
   const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const formErrorRef = useRef<HTMLDivElement>(null)
+  // The modal body scrolls; make sure a validation error is actually on screen.
+  useEffect(() => {
+    if (formError) formErrorRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [formError])
 
   function set(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -535,9 +543,14 @@ function JobFormModal({
       required_tag_ids: requiredTags.map((t) => t.id),
       preferred_tag_ids: preferredTags.map((t) => t.id),
     }
-    console.log('JobFormModal submit payload:', payload)
-    await onSave(payload)
-    setSaving(false)
+    setFormError(null)
+    try {
+      await onSave(payload)
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Could not save the job')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -611,6 +624,12 @@ function JobFormModal({
             <label className="label">Nice-to-have tags</label>
             <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} />
           </div>
+
+          {formError && (
+            <div ref={formErrorRef} className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert">
+              {formError}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">

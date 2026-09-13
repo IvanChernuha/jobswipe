@@ -174,7 +174,7 @@ async def get_match(
     else:
         contact_email = worker_user.email if worker_user else None
 
-    return {
+    out = {
         "id": str(match.id),
         "worker_id": str(match.worker_id),
         "employer_id": str(match.employer_id),
@@ -183,3 +183,25 @@ async def get_match(
         "status": match.status,
         "contact_email": contact_email,
     }
+
+    # Counterpart profile, same shape as list_matches, so the chat header can
+    # show a real name instead of the "Employer"/"Worker" fallback.
+    job = await session.get(JobPosting, match.job_posting_id) if match.job_posting_id else None
+    if user["role"] == "worker":
+        ep = await session.get(EmployerProfile, match.employer_id)
+        out["employer"] = {
+            "company_name": ep.company_name if ep else "",
+            "industry": ep.industry if ep else "",
+            "avatar_url": ep.logo_url if ep else None,
+            "job_title": job.title if job else "",
+            "location": job.location if job else "",
+        }
+    else:
+        wp = await session.get(WorkerProfile, match.worker_id)
+        out["worker"] = {
+            "name": wp.name if wp else "",
+            "avatar_url": wp.avatar_url if wp else None,
+            "skills": wp.skills if wp else [],
+            "experience_years": wp.experience_years if wp else 0,
+        }
+    return out

@@ -78,7 +78,7 @@ def find_prohibited(text: str | None) -> str | None:
 def assert_clean(text: str | None, field: str = "text") -> str | None:
     """Validator helper for request models: raise ValueError on a hit."""
     if find_prohibited(text):
-        raise ValueError(f"{field} contains prohibited language")
+        raise ValueError(f"Your {field} contains language that isn't allowed on JobSwipe")
     return text
 
 

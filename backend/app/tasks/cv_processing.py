@@ -65,17 +65,18 @@ def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: s
             if profile:
                 profile.cv_extraction_status = "done"
                 profile.cv_extracted_tag_count = len(tag_ids)
-                # Machine-written text goes through the content filter too: a
-                # dirty auto-filled name/bio is dropped, not saved.
+                # Auto-fill only EMPTY fields — never overwrite what the user
+                # typed. Machine-written text goes through the content filter
+                # too: a dirty auto-filled name/bio is dropped, not saved.
                 clean_name = sanitize(cv_profile.name) if cv_profile.name else None
-                if clean_name:
+                if clean_name and not (profile.name or "").strip():
                     profile.name = clean_name
-                if cv_profile.location:
+                if cv_profile.location and not (profile.location or "").strip():
                     profile.location = cv_profile.location
-                if cv_profile.experience_years is not None:
+                if cv_profile.experience_years is not None and not profile.experience_years:
                     profile.experience_years = cv_profile.experience_years
                 clean_bio = sanitize(cv_profile.bio) if cv_profile.bio else None
-                if clean_bio:
+                if clean_bio and not (profile.bio or "").strip():
                     profile.bio = clean_bio
             session.commit()
 
