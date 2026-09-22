@@ -136,3 +136,102 @@ docker logs jobswipe-tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.
 docker exec supabase-db psql -U postgres -d postgres -Atc "SELECT count(*) FROM users WHERE created_at > '2026-09-22' AND email NOT LIKE '%@test.local'"   # any friends yet?
 ```
 Then confirm the `like_received`-for-workers decision (§2) and start §4.2 step 1.
+
+---
+
+## 8. Workflows — how to do what (exact sequences)
+
+All paths relative to `/home/ivan/jobswipe`. There is **no local venv/pip/npm**; everything runs in Docker.
+
+### 8.1 Change backend code (FastAPI)
+```bash
+# 1. edit backend/app/...
+# 2. build the image (installs deps, copies code)
+docker build -q -t jobswipe-backend:test ./backend
+# 3. import smoke + unit tests inside the image (dummy env; no services needed)
+ENV="-e SUPABASE_URL=http://x -e SUPABASE_SERVICE_KEY=x -e SUPABASE_ANON_KEY=x -e SUPABASE_JWT_SECRET=test-secret -e RATELIMIT_STORAGE_URL=memory:// -e SENTRY_DSN= -e GEMINI_API_KEY=x"
+docker run --rm $ENV jobswipe-backend:test sh -c 'python -c "import app.main; print(IMPORT_OK)" ; python -m pytest -q'
+#    (faster iteration without rebuilding: add  -v "$PWD/backend/app":/app/app:ro -v "$PWD/backend/tests":/app/tests:ro )
+# 4. deploy locally (LAN + tunnel use this)
+docker compose up -d --build backend celery
+# 5. sanity
+docker exec jobswipe-backend python -c "import urllib.request;print(urllib.request.urlopen('http://localhost:8000/health').read())"
+```
+Redis-backed checks (rate limits, lockout, quota): start `redis:7-alpine` on a throwaway network and point `RATELIMIT_STORAGE_URL`/`REDIS_URL` at it (see memory recipe).
+
+### 8.2 Change frontend code (React/Vite)
+```bash
+# 1. edit frontend/src/...
+# 2. typecheck + build (tsc + vite run inside the image)
+docker build -q -t jobswipe-frontend:test ./frontend
+# 3. deploy locally
+docker compose up -d --build frontend
+# 4. confirm the new bundle is served
+curl -s http://192.168.2.42/ | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js'
+```
+Strings: every user-visible string goes through `t('key')` with the key in BOTH `frontend/src/locales/en.json` and `he.json` (same structure, same `{{placeholders}}`; Hebrew plurals `_one/_two/_other`). Direction-sensitive Tailwind classes must be logical (`ms-/me-/ps-/pe-/start-/end-/text-start`); user-generated text gets `dir="auto"`.
+
+### 8.3 Add a database migration
+```bash
+# 1. write supabase/migrations/NNN_name.sql — ADDITIVE ONLY, idempotent (IF NOT EXISTS / ADD COLUMN IF NOT EXISTS)
+# 2. back up first
+./scripts/backup_db.sh
+# 3. apply to the live local DB (this IS the data the app uses)
+docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/migrations/NNN_name.sql
+# 4. add/adjust the SQLModel table in backend/app/models/tables/ and register it in tables/__init__.py
+# 5. deploy backend (8.1). Order matters: migration BEFORE code that reads the new columns.
+```
+Never run `alembic revision --autogenerate` (it would emit DROPs against the live schema).
+
+### 8.4 Verify in a real browser (both languages, phone + desktop)
+- Spawn the `playwright-specialist` subagent with: the URL (`http://192.168.2.42` for LAN, the tunnel URL for "outside" behaviour), test accounts to register (`something.<ts>@test.local` / `Test1234!`, auto-confirm), demo creds, the exact checks as a numbered list with PASS/FAIL + evidence, viewports (`390x844` touch, `1280x800`), a time cap, and "rate limits apply".
+- It runs headless Chromium from the Playwright Docker image with `--network host`; its scripts live in the session scratchpad and are recreated each session.
+- Fix → rebuild (8.1/8.2) → re-run only the failed checks → then commit.
+
+### 8.5 Commit and deploy
+```bash
+git status --short                     # confirm only intended files
+git add <paths>                        # never add .env / .env.bak*
+git commit -F - <<'MSG'
+<type>(<scope>): <summary>
+
+<what/why bullets>  … "Verified: …" line …
+
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
+MSG
+git push origin main                   # triggers GitHub Actions → GKE (prod reachability unknown)
+```
+Docs/scripts-only commits: add `[skip ci]` to the message. Then update the memory worktrack with the hash.
+
+### 8.6 Public URL / tunnel
+```bash
+docker logs jobswipe-tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1   # current URL
+docker compose --profile tunnel up -d tunnel     # (re)start the tunnel; URL changes on restart
+docker compose --profile tunnel restart tunnel
+```
+Stable URL (when a domain exists): Cloudflare named tunnel — `cloudflared tunnel login/create/route dns`, replace the `tunnel` service command with `tunnel run <name>` + a credentials volume.
+
+### 8.7 Config / env changes
+- Local stack reads root `.env` (gitignored) — e.g. `SENTRY_DSN`, `LLM_PROVIDER=gemini`, `GEMINI_API_KEY`, `ADMIN_EMAILS`, `IMAGE_MODERATION`. After editing: `docker compose up -d backend celery` (recreates with new env).
+- Prod (GKE) reads `k8s/configmap.yaml` (auto-applied by CI) + the `jobswipe-secrets` Secret (applied manually, not by CI).
+- Supabase stack env: `/home/ivan/supabase-docker/docker/.env` (SMTP/auth settings); after editing: `cd /home/ivan/supabase-docker/docker && docker compose up -d supabase-auth`.
+
+### 8.8 Backup / restore / test-data
+```bash
+./scripts/backup_db.sh                 # → ~/backups/jobswipe/<ts>/ (db.dump, roles.sql, storage.tgz, SHA256SUMS)
+./scripts/restore_drill.sh             # restores newest set into a throwaway container, diffs row counts, PASS/FAIL
+docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < scripts/cleanup_test_data.sql   # DRY RUN (rolls back); edit last line to COMMIT to apply
+```
+Cron lines for nightly backup + monthly drill are installed but commented out (`crontab -e` to enable at release).
+
+### 8.9 Moderation / admin (no UI yet)
+- Swagger at `http://192.168.2.42/api/docs`? — no: FastAPI docs are at `/docs` on the backend; via Caddy use `http://192.168.2.42/api/docs` only if routed; otherwise `docker exec jobswipe-backend` + curl `http://localhost:8000/docs`, or call endpoints with a JWT: `GET /api/admin/moderation/status`, `GET /api/admin/reports?status=pending`, `POST /api/admin/reports/{id}/dismiss|action`, `POST /api/admin/users/{id}/unsuspend`, `POST /api/admin/jobs/{id}/unhide`. Caller's email must be in `ADMIN_EMAILS`.
+- Kill switch for auto-actions: `MODERATION_AUTO_ACTIONS=false`.
+
+### 8.10 Demo data upkeep
+- Jobs expire after 30 days and bookmarks after 30 days → an "empty feed" is usually expiry, not missing data. Revive: `UPDATE job_postings SET active=true, expires_at=now()+interval '180 days'; UPDATE bookmarks SET expires_at=now()+interval '90 days';` (last done 2026-09-13).
+- Browser-audit side effects (probe passes/likes on demo accounts) can be undone by deleting that day's `swipes` rows for the demo user.
+
+### 8.11 Session hygiene
+- Start: `cat docs/NEXT_SESSION_PLAN.md`, then the §7 commands.
+- End: update this file's §1/§3 status + the memory worktrack (hash, decisions), commit `[skip ci]`.
