@@ -1,7 +1,7 @@
 # JobSwipe — Next Session Plan
 
-_Written 2026-09-22. Companion to the Claude memory worktrack; **for "what's next", this file wins.**_
-_Latest commit on `main`: `c750a9f`. Read this file first, then run the commands in §7._
+_Written 2026-09-22, updated same day after notifications shipped. Companion to the Claude memory worktrack; **for "what's next", this file wins.**_
+_Latest commit on `main`: `2f426d9`. Read this file first, then run the commands in §7._
 
 ---
 
