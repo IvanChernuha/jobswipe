@@ -1,0 +1,93 @@
+JOBSWIPE — NEXT SESSION PLAN
+Written 2026-09-22. Companion to the Claude memory worktrack; if in doubt, this file wins for "what's next".
+
+==================================================================
+1. WHERE WE ARE
+==================================================================
+- Everything is committed & pushed on main (latest: a36a2c7 "feat(i18n): Hebrew UI + RTL").
+- Launch-readiness roadmap: Phase 0 (observability, backups) DONE · Phase 1 (rate limits,
+  lockout, LLM cost cap) DONE · Phase 2 (report loop, blocks, content filter, admin API) DONE.
+- Polish audit: 34/44 checklist items done (docs/polish-checklist.md). Remaining = 10 P3 cosmetic items.
+- Hebrew UI + RTL: DONE (react-i18next, 357 keys; frontend/src/locales/{en,he}.json — user should skim he.json).
+- Friends beta: app is public via Cloudflare quick tunnel, https://glucose-nikon-grant-pond.trycloudflare.com
+  (URL changes if the tunnel restarts: `docker logs jobswipe-tunnel | grep trycloudflare`).
+  Local stack: docker compose on this box (192.168.2.42). Zero friend activity as of 2026-09-22.
+- Demo accounts: demo_employer@jobswipe.com / Demo1234! (owner, 168 workers to swipe);
+  alice.chen@demo.com etc. / Demo1234! (workers). 295 of 330 users are automated-test junk (cleanup deferred).
+
+==================================================================
+2. OPEN ITEMS THAT NEED THE USER (not code)
+==================================================================
+- Sentry DSN: create project at sentry.io (free), paste DSN → goes in root .env (SENTRY_DSN=…) and
+  k8s/configmap.yaml; then `docker compose up -d backend celery`. Errors currently only logged.
+- Stable public URL: needs a domain (Cloudflare named tunnel, ~15 min once domain exists).
+- Real admin email: ADMIN_EMAILS / ADMIN_ALERT_EMAIL are demo_employer@jobswipe.com — swap before launch.
+- Email (Resend key + verified domain + real app URL): unblocks email verification, match/digest emails.
+- Get 3–5 friends to actually use the link and report "first moment I was confused".
+
+==================================================================
+3. AGREED ORDER OF WORK
+==================================================================
+ 1) NOTIFICATIONS (in-app, with per-type preferences + team notifications)  ← START HERE
+ 2) REDESIGN / COLORS (design canvas with 3 directions; current brand pink #ec4899 reads "Tinder clone";
+    vision is professional → calmer palette; palette centralized in frontend/tailwind.config.js).
+    P3 cosmetic items ride inside this pass.
+ 3) ADMIN PANEL UI + LIQUIDITY DASHBOARD (one page: reports queue, users/jobs actions, signups/day,
+    employers with live jobs, % new users with ≥1 match, time-to-first-match, matches→first message).
+    Admin API already exists: /api/admin/* (Swagger at /docs), gated by ADMIN_EMAILS.
+ 4) EMPLOYER "PASTE YOUR JOB AD → LIVE IN 2 MIN" onboarding (reuse parse-job-files) + job-expiry
+    reminder email ("expires in 3 days — renew?").
+ 5) PWA (manifest + service worker via vite-plugin-pwa) + web push → then ANDROID via Capacitor
+    (NO native rewrite). Play Store UGC review needs: report/block (done), privacy policy URL,
+    real in-app account deletion (GDPR delete needs Phase-3 cleanup), data-safety form.
+ 6) Feedback-driven items from friends; then seeded public job listings / solo-useful CV value.
+ PARKED (user decisions): junk-data cleanup + realistic seed (scripts/cleanup_test_data.sql, dry-run by
+ default), email verification, in-app feedback button (user talks to friends directly), Phase 4 scale
+ work, monetization, image scanning (IMAGE_MODERATION=off; Gemini scanner dormant).
+
+==================================================================
+4. NOTIFICATIONS — DESIGN (approved direction, build next)
+==================================================================
+Types (each individually on/off per user; defaults ON):
+  - match         both sides       "It's a match with Demo Tech Inc"
+  - like_received employers only   "3 new candidates liked your Frontend job"
+                  (HOLD for workers: revealing who liked you changes the mutual-match dynamic — user to decide)
+  - chat          both             "New message from Alice"
+  - team          org members      "Dana posted 'Junior QA'", "Yossi matched with a candidate", "Noa replied"
+                  Rules: never notify a member about their OWN action; only for things their role can see
+                  (Viewer gets no chat notifications). Org/role system already defines team + permissions.
+  - account/jobs  "Your job expires in 3 days", "CV analyzed — 5 skills added"
+Data:
+  - notifications(id, user_id, type, title, body, link, created_at, read_at)  [+ index user_id, read_at]
+  - notification_prefs(user_id, type, enabled)  (or one row with a JSON/bool per type)
+  - Emit from existing event sites: swipes (match), messages (send), employers (job create/edit),
+    cv_processing (done/error), job-expiry cron.
+  - Delivery channels as a 2nd axis later: in-app (now) → email digest (Resend) → push (PWA/Android).
+    Same table feeds all three.
+UI:
+  - Bell in Navbar with unread count (extend the existing 30s poll), dropdown/page list, "mark all read".
+  - Preferences = toggles on Profile page. Both languages (add keys to en.json + he.json).
+Size: ~1 session (backend + frontend + tests + i18n). Migration = supabase/migrations/012_notifications.sql
+(additive; apply with `docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < file`).
+
+==================================================================
+5. HOW TO WORK (conventions that saved time)
+==================================================================
+- Verify before commit: `docker build ./backend` + pytest inside the image (see memory "Local verification
+  recipe"); `docker build ./frontend` = tsc + vite; then `docker compose up -d --build <svc>` to deploy locally;
+  browser checks via a Playwright subagent (scripts in the session scratchpad get lost — it re-creates them).
+- Push to main = GitHub Actions → GKE deploy (prod reachability unknown; ingress has placeholder domain;
+  frontend build now expects /supabase on its own origin — GKE would need that route or VITE_SUPABASE_URL).
+- Use `[skip ci]` for docs/scripts-only commits.
+- Fable budget: use Sonnet (/model claude-sonnet-5) for mechanical work (P3, string extraction);
+  keep Fable/Opus for design decisions.
+- Migrations are hand-written SQL in supabase/migrations/, applied manually. Do NOT run alembic autogenerate.
+- Backup: scripts/backup_db.sh (cron installed but commented out until release); scripts/restore_drill.sh.
+
+==================================================================
+6. FIRST COMMANDS NEXT SESSION
+==================================================================
+  cat docs/NEXT_SESSION_PLAN.txt
+  git log --oneline -5 && docker ps --format '{{.Names}} {{.Status}}' | grep jobswipe
+  docker logs jobswipe-tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
+Then: start item 3.1 (notifications) — confirm the "like_received for workers" decision first.
