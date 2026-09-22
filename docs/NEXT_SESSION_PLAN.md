@@ -63,7 +63,18 @@ Data caveat: 295 of 330 users are automated-test junk owning 173/180 jobs; clean
 
 **Team rules:** never notify a member of their own action; only for things their role can see (a Viewer gets no `chat` team notifications — use `has_permission(role, "chat")` etc. from `app/models/organization.py`); recipients = `OrgMember` rows of the actor's org minus the actor (`get_org_employer_ids` in `services/org_access.py` has the lookup).
 
-### 4.2 Backend steps
+### 4.2 Backend steps — ✅ DONE (2026-09-22, branch `notifications-backend`)
+
+Implemented as planned, with one schema change: `title`/`body` free-text
+columns became `title_key text` + `params jsonb DEFAULT '{}'` (titles are
+i18n keys rendered client-side; no display text is stored server-side).
+`like_received` confirmed **employers only** (never workers). All 6 router
+endpoints verified end-to-end against the local DB (real swipe → match →
+chat → job-post/toggle flow through demo accounts, notification rows
+inspected then cleaned up — see backend agent's handback for exact response
+shapes). `app/tasks/digest.py` now exists, so the k8s CronJob
+(`k8s/cronjob.yaml`) that was crashing on every run (module didn't exist) is
+fixed. 70/70 backend tests pass (15 new). Not yet done: frontend (§4.3).
 
 1. **Migration** `supabase/migrations/012_notifications.sql` (additive):
    ```sql

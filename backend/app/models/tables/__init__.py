@@ -12,6 +12,7 @@ from app.models.tables.bookmark import Bookmark
 from app.models.tables.organization import Organization, OrgMember, OrgInvite
 from app.models.tables.report import Report
 from app.models.tables.block import BlockedUser
+from app.models.tables.notification import Notification, NotificationPref
 
 __all__ = [
     "User",
@@ -26,4 +27,5 @@ __all__ = [
     "Organization", "OrgMember", "OrgInvite",
     "Report",
     "BlockedUser",
+    "Notification", "NotificationPref",
 ]

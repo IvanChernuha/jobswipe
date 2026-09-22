@@ -13,7 +13,10 @@ from app.models.message import MessageCreate, MessageResponse, UnreadCount
 from app.models.tables.match import Match
 from app.models.tables.message import Message, MessageReadCursor
 from app.models.tables.organization import OrgMember
+from app.models.tables.worker import WorkerProfile
+from app.models.tables.employer import EmployerProfile
 from app.models.organization import has_permission
+from app.services.notifications import notify, notify_team
 from app.services.org_access import get_org_employer_ids
 
 router = APIRouter(prefix="/matches/{match_id}/messages", tags=["messages"])
@@ -131,6 +134,18 @@ async def send_message(
         created_at=datetime.now(timezone.utc),
     )
     session.add(msg)
+    await session.commit()
+
+    # Notify the other participant; teammates of an employer-side sender see it too.
+    worker_profile = await session.get(WorkerProfile, match.worker_id)
+    worker_name = (worker_profile.name if worker_profile else "") or "a candidate"
+    if user.get("role") == "worker":
+        await notify(session, other, "chat", "notif.chat.title", params={"name": worker_name}, actor_id=uid_uuid)
+    else:
+        emp_profile = await session.get(EmployerProfile, match.employer_id)
+        company_name = (emp_profile.company_name if emp_profile else "") or "an employer"
+        await notify(session, other, "chat", "notif.chat.title", params={"name": company_name}, actor_id=uid_uuid)
+        await notify_team(session, uid_uuid, "notif.chat.title", params={"name": worker_name}, permission="chat")
     await session.commit()
 
     return {

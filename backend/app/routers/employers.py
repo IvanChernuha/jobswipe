@@ -20,6 +20,7 @@ from app.models.tables.worker import WorkerProfile, WorkerTag
 from app.models.tables.organization import OrgMember
 from app.models.tables.user import User
 from app.services.blocks import blocked_ids_for
+from app.services.notifications import notify_team
 from app.services.scoring import (
     expand_tags_with_implications_async, batch_expand_implications, compute_match_score,
 )
@@ -172,6 +173,9 @@ async def create_job(
     session.add(job)
     await session.commit()
 
+    await notify_team(session, uuid.UUID(user["id"]), "notif.team.job_posted", params={"title": job.title}, permission="view")
+    await session.commit()
+
     if body.tag_ids or body.required_tag_ids or body.preferred_tag_ids:
         await _sync_job_tags(session, job.id, body.tag_ids, body.required_tag_ids, body.preferred_tag_ids)
 
@@ -263,6 +267,9 @@ async def update_job(
     session.add(job)
     await session.commit()
 
+    await notify_team(session, uuid.UUID(user["id"]), "notif.team.job_updated", params={"title": job.title}, permission="view")
+    await session.commit()
+
     if tag_ids is not None or required_tag_ids is not None or preferred_tag_ids is not None:
         await _sync_job_tags(session, job.id, tag_ids or [], required_tag_ids or [], preferred_tag_ids or [])
 
@@ -280,6 +287,13 @@ async def toggle_job_active(
     job.active = not job.active
     session.add(job)
     await session.commit()
+
+    await notify_team(
+        session, uuid.UUID(user["id"]), "notif.team.job_toggled",
+        params={"title": job.title, "active": job.active}, permission="view",
+    )
+    await session.commit()
+
     await session.refresh(job)
     tags = await _fetch_job_tags(session, job.id)
     return _job_to_dict(job, tags)

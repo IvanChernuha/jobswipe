@@ -15,11 +15,22 @@ from app.models.tables.swipe import Swipe
 from app.models.tables.match import Match
 from app.models.tables.job import JobPosting
 from app.models.tables.worker import WorkerProfile
+from app.models.tables.employer import EmployerProfile
 from app.models.tables.user import User
 from app.models.tables.organization import OrgMember
+from app.services.notifications import notify, notify_team
 from app.tasks.notifications import send_match_email
 
 router = APIRouter(prefix="/swipes", tags=["swipes"])
+
+
+async def _match_display_names(session: AsyncSession, employer_id: uuid.UUID, worker_id: uuid.UUID) -> tuple[str, str]:
+    """(company_name, worker_name) for match notification text."""
+    emp_profile = await session.get(EmployerProfile, employer_id)
+    worker_profile = await session.get(WorkerProfile, worker_id)
+    company = (emp_profile.company_name if emp_profile else "") or "an employer"
+    worker_name = (worker_profile.name if worker_profile else "") or "a candidate"
+    return company, worker_name
 
 
 async def _check_org_permission(session: AsyncSession, user: dict, action: str):
@@ -97,6 +108,18 @@ async def record_swipe(
     if body.direction == "pass":
         return SwipeResponse(matched=False)
 
+    if role == "worker":
+        # A like/super_like on a job notifies the employer (never workers — confirmed decision).
+        await notify(
+            session, job.employer_id, "like_received",
+            "notif.like_received.title", params={"title": job.title or "a job"},
+        )
+        await notify_team(
+            session, job.employer_id, "notif.like_received.title",
+            params={"title": job.title or "a job"}, permission="view",
+        )
+        await session.commit()
+
     # Mutual matching: only create a match when BOTH sides have liked
     matched = False
     match_id = None
@@ -130,6 +153,12 @@ async def record_swipe(
 
                 emp_user = await session.get(User, employer_id)
                 _fire_match_email(user.get("email", ""), emp_user.email if emp_user else "", job.title or "a job")
+
+                company_name, worker_name = await _match_display_names(session, employer_id, uid)
+                await notify(session, uid, "match", "notif.match.title", params={"name": company_name}, actor_id=employer_id)
+                await notify(session, employer_id, "match", "notif.match.title", params={"name": worker_name}, actor_id=uid)
+                await notify_team(session, employer_id, "notif.match.title", params={"name": worker_name}, permission="view")
+                await session.commit()
             except Exception:
                 await session.rollback()
 
@@ -167,6 +196,12 @@ async def record_swipe(
                     job_title = j.title if j else "a job"
                     w_user = await session.get(User, target_uuid)
                     _fire_match_email(w_user.email if w_user else "", user.get("email", ""), job_title)
+
+                    company_name, worker_name = await _match_display_names(session, uid, target_uuid)
+                    await notify(session, target_uuid, "match", "notif.match.title", params={"name": company_name}, actor_id=uid)
+                    await notify(session, uid, "match", "notif.match.title", params={"name": worker_name}, actor_id=target_uuid)
+                    await notify_team(session, uid, "notif.match.title", params={"name": worker_name}, permission="view")
+                    await session.commit()
                 except Exception:
                     await session.rollback()
 

@@ -14,6 +14,7 @@ from app.models.tables.job import JobPostingTag
 from app.services.cv_parser import extract_text
 from app.services.llm.factory import get_llm_provider
 from app.services.llm.batcher import calculate_batches
+from app.services.notifications import notify_sync
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: s
                 clean_bio = sanitize(cv_profile.bio) if cv_profile.bio else None
                 if clean_bio and not (profile.bio or "").strip():
                     profile.bio = clean_bio
+                notify_sync(session, wid, "account", "notif.cv.done.title", params={"tag_count": len(tag_ids)})
             session.commit()
 
     except _RETRYABLE as exc:
@@ -93,6 +95,7 @@ def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: s
             profile = session.get(WorkerProfile, wid)
             if profile:
                 profile.cv_extraction_status = "error"
+                notify_sync(session, wid, "account", "notif.cv.error.title")
                 session.commit()
 
 
