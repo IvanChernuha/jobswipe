@@ -1,7 +1,7 @@
 # JobSwipe — Next Session Plan
 
-_Written 2026-09-22, updated same day after notifications shipped. Companion to the Claude memory worktrack; **for "what's next", this file wins.**_
-_Latest commit on `main`: `2f426d9`. Read this file first, then run the commands in §7._
+_Written 2026-09-22, updated same day after notifications and team-shared bookmarks shipped. Companion to the Claude memory worktrack; **for "what's next", this file wins.**_
+_Latest commit on `main`: `393908c`. Read this file first, then run the commands in §7._
 
 ---
 
@@ -17,6 +17,7 @@ _Latest commit on `main`: `2f426d9`. Read this file first, then run the commands
 | Friends beta | live at **https://glucose-nikon-grant-pond.trycloudflare.com** — **zero activity so far** |
 | Android / PWA | not started (after web, after Hebrew — done) |
 | Notifications (in-app, prefs, team fan-out) | ✅ done (2026-09-22) — see §4. No error boundary yet (pre-existing gap, surfaced during this build) |
+| Saved candidates — team-shared + signed note threads | ✅ done (2026-09-22, `393908c`), ad-hoc mid-session request, not part of the agreed order below. Employer bookmarks now visible org-wide (was 100% private per recruiter); notes are a thread, each signed with author email + date, delete-own-only. Worker saved jobs unchanged. Verified with 2 real accounts in the same org. See memory worktrack for full detail. |
 
 Local stack = `docker compose` on this box (LAN `http://192.168.2.42`). Tunnel URL changes if the tunnel restarts:
 `docker logs jobswipe-tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1`
