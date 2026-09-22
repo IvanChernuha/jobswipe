@@ -180,7 +180,7 @@ function MatchCard({
     .join('')
     .toUpperCase()
 
-  const matchDate = new Date(match.matched_at).toLocaleDateString(i18n.language, {
+  const matchDate = new Date(match.matched_at).toLocaleDateString(i18n.resolvedLanguage ?? 'en', {
     month: 'short',
     day: 'numeric',
   })

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { getUnreadCounts } from '../lib/api'
+import { getUnreadCounts, getUnreadNotificationCount } from '../lib/api'
 import { useTranslation } from 'react-i18next'
 import LangToggle from './LangToggle'
+import NotificationBell from './NotificationBell'
 
 export default function Navbar() {
   const { t } = useTranslation()
@@ -11,14 +12,19 @@ export default function Navbar() {
   const navigate = useNavigate()
   const token = session?.access_token ?? ''
 
-  // Unread chat badge on Matches; polled lightly, never fatal.
+  // Unread chat badge on Matches + unread notification count; one combined poll.
   const [unread, setUnread] = useState(0)
+  const [notifUnread, setNotifUnread] = useState(0)
   useEffect(() => {
     if (!token) return
     let stopped = false
     const load = () =>
-      getUnreadCounts(token)
-        .then((counts) => { if (!stopped) setUnread(counts.reduce((n, c) => n + c.count, 0)) })
+      Promise.all([getUnreadCounts(token), getUnreadNotificationCount(token)])
+        .then(([counts, notif]) => {
+          if (stopped) return
+          setUnread(counts.reduce((n, c) => n + c.count, 0))
+          setNotifUnread(notif.count)
+        })
         .catch(() => {})
     load()
     const id = setInterval(load, 30000)
@@ -55,6 +61,7 @@ export default function Navbar() {
 
         {/* Language + sign out */}
         <div className="flex items-center gap-1 shrink-0">
+        {token && <NotificationBell token={token} unreadCount={notifUnread} onCountChange={setNotifUnread} />}
         <LangToggle className="hidden sm:inline-flex" />
         <button
           onClick={handleSignOut}

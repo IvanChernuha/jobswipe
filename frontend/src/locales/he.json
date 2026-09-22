@@ -416,5 +416,53 @@
     "deleteAccountHint": "מחיקה לצמיתות של החשבון שלך וכל הנתונים המשויכים אליו. לא ניתן לבטל את הפעולה.",
     "deletingEllipsis": "מוחק...",
     "deleteMyAccount": "מחיקת החשבון שלי"
+  },
+  "notif": {
+    "bell": "התראות",
+    "markAllRead": "סימון הכול כנקרא",
+    "empty": "עדיין אין התראות",
+    "match": { "title": "יש התאמה עם {{name}}!" },
+    "like_received": { "title": "מועמד/ת עשה/תה לייק ל-\"{{title}}\"" },
+    "chat": { "title": "הודעה חדשה מ-{{name}}" },
+    "team": {
+      "job_posted": "{{actor}} פרסם/ה את \"{{title}}\"",
+      "job_updated": "{{actor}} עדכן/ה את \"{{title}}\"",
+      "job_toggled_active": "{{actor}} הפעיל/ה מחדש את \"{{title}}\"",
+      "job_toggled_inactive": "{{actor}} השבית/ה את \"{{title}}\""
+    },
+    "cv": {
+      "done": {
+        "title_one": "קורות החיים נותחו — {{count}} כישור נוסף לפרופיל שלך.",
+        "title_two": "קורות החיים נותחו — {{count}} כישורים נוספו לפרופיל שלך.",
+        "title_other": "קורות החיים נותחו — {{count}} כישורים נוספו לפרופיל שלך."
+      },
+      "error": { "title": "לא הצלחנו לקרוא את קורות החיים שלך — כדאי לנסות להעלות שוב" }
+    },
+    "job_expiring": { "title": "\"{{title}}\" פגה בעוד 3 ימים — לחדש?" },
+    "time": {
+      "now": "הרגע",
+      "minutes_one": "לפני {{count}} דקה",
+      "minutes_two": "לפני {{count}} דקות",
+      "minutes_other": "לפני {{count}} דקות",
+      "hours_one": "לפני {{count}} שעה",
+      "hours_two": "לפני {{count}} שעות",
+      "hours_other": "לפני {{count}} שעות",
+      "days_one": "לפני {{count}} יום",
+      "days_two": "לפני {{count}} ימים",
+      "days_other": "לפני {{count}} ימים"
+    },
+    "prefs": {
+      "heading": "התראות",
+      "match": "התאמות",
+      "matchHint": "כשאת/ה ומישהו/י אחר/ת מחליקים ימינה שניכם.",
+      "likeReceived": "לייקים",
+      "likeReceivedHint": "כשמועמד/ת עושה לייק לאחת המשרות שלך.",
+      "chat": "הודעות",
+      "chatHint": "כשמתקבלת הודעת צ'אט חדשה.",
+      "team": "פעילות צוות",
+      "teamHint": "כשחבר/ת צוות מפרסם/ת, עורך/ת או מבצע/ת פעולה במשרה או בהתאמה.",
+      "account": "חשבון",
+      "accountHint": "תוצאות ניתוח קורות חיים ותזכורות לפקיעת תוקף משרות."
+    }
   }
 }

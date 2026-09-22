@@ -139,13 +139,14 @@ async def send_message(
     # Notify the other participant; teammates of an employer-side sender see it too.
     worker_profile = await session.get(WorkerProfile, match.worker_id)
     worker_name = (worker_profile.name if worker_profile else "") or "a candidate"
+    chat_link = f"/chat/{match_id}"
     if user.get("role") == "worker":
-        await notify(session, other, "chat", "notif.chat.title", params={"name": worker_name}, actor_id=uid_uuid)
+        await notify(session, other, "chat", "notif.chat.title", params={"name": worker_name}, actor_id=uid_uuid, link=chat_link)
     else:
         emp_profile = await session.get(EmployerProfile, match.employer_id)
         company_name = (emp_profile.company_name if emp_profile else "") or "an employer"
-        await notify(session, other, "chat", "notif.chat.title", params={"name": company_name}, actor_id=uid_uuid)
-        await notify_team(session, uid_uuid, "notif.chat.title", params={"name": worker_name}, permission="chat")
+        await notify(session, other, "chat", "notif.chat.title", params={"name": company_name}, actor_id=uid_uuid, link=chat_link)
+        await notify_team(session, uid_uuid, "notif.chat.title", params={"name": worker_name}, permission="chat", link=chat_link)
     await session.commit()
 
     return {

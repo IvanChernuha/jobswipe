@@ -12,9 +12,11 @@ import {
   getCvStatus,
   exportMyData,
   deleteMyAccount,
+  getNotificationPrefs,
+  updateNotificationPrefs,
 } from '../lib/api'
 import { useNavigate } from 'react-router-dom'
-import type { WorkerProfile, EmployerProfile, Tag } from '../lib/api'
+import type { WorkerProfile, EmployerProfile, Tag, NotificationType, NotificationPrefs } from '../lib/api'
 import TagPicker from '../components/TagPicker'
 
 // ---------------------------------------------------------------------------
@@ -487,6 +489,76 @@ function EmployerProfileForm({ token }: { token: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Notification preferences
+// ---------------------------------------------------------------------------
+
+const PREF_TYPES: { type: NotificationType; labelKey: string; hintKey: string; employerOnly?: boolean }[] = [
+  { type: 'match', labelKey: 'notif.prefs.match', hintKey: 'notif.prefs.matchHint' },
+  { type: 'like_received', labelKey: 'notif.prefs.likeReceived', hintKey: 'notif.prefs.likeReceivedHint', employerOnly: true },
+  { type: 'chat', labelKey: 'notif.prefs.chat', hintKey: 'notif.prefs.chatHint' },
+  { type: 'team', labelKey: 'notif.prefs.team', hintKey: 'notif.prefs.teamHint', employerOnly: true },
+  { type: 'account', labelKey: 'notif.prefs.account', hintKey: 'notif.prefs.accountHint' },
+]
+
+function NotificationPrefsCard({ token, role }: { token: string; role: 'worker' | 'employer' }) {
+  const { t } = useTranslation()
+  const [prefs, setPrefs] = useState<NotificationPrefs | null>(null)
+  const [saving, setSaving] = useState<NotificationType | null>(null)
+
+  useEffect(() => {
+    getNotificationPrefs(token).then(setPrefs).catch(() => {})
+  }, [token])
+
+  async function toggle(type: NotificationType, enabled: boolean) {
+    setPrefs((prev) => (prev ? { ...prev, [type]: enabled } : prev))
+    setSaving(type)
+    try {
+      await updateNotificationPrefs(token, type, enabled)
+    } catch {
+      setPrefs((prev) => (prev ? { ...prev, [type]: !enabled } : prev))
+    }
+    setSaving(null)
+  }
+
+  if (!prefs) return null
+
+  const visible = PREF_TYPES.filter((p) => !p.employerOnly || role === 'employer')
+
+  return (
+    <div className="mt-8 bg-white rounded-3xl shadow-xl shadow-gray-100 p-6 sm:p-8">
+      <h2 className="text-lg font-bold text-gray-900 mb-4">{t('notif.prefs.heading')}</h2>
+      <div className="space-y-4">
+        {visible.map((p) => (
+          <div key={p.type} className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-medium text-gray-700">{t(p.labelKey)}</h3>
+              <p className="text-xs text-gray-500">{t(p.hintKey)}</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={prefs[p.type]}
+              aria-label={t(p.labelKey)}
+              disabled={saving === p.type}
+              onClick={() => toggle(p.type, !prefs[p.type])}
+              className={`relative shrink-0 w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
+                prefs[p.type] ? 'bg-brand-500' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 start-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                  prefs[p.type] ? 'translate-x-5 rtl:-translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -541,6 +613,8 @@ export default function Profile() {
             <WorkerProfileForm token={token} />
           )}
         </div>
+
+        {(role === 'worker' || role === 'employer') && <NotificationPrefsCard token={token} role={role} />}
 
         {/* Data & Privacy */}
         <div className="mt-8 bg-white rounded-3xl shadow-xl shadow-gray-100 p-6 sm:p-8">

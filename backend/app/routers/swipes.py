@@ -112,11 +112,11 @@ async def record_swipe(
         # A like/super_like on a job notifies the employer (never workers — confirmed decision).
         await notify(
             session, job.employer_id, "like_received",
-            "notif.like_received.title", params={"title": job.title or "a job"},
+            "notif.like_received.title", params={"title": job.title or "a job"}, link="/jobs",
         )
         await notify_team(
             session, job.employer_id, "notif.like_received.title",
-            params={"title": job.title or "a job"}, permission="view",
+            params={"title": job.title or "a job"}, permission="view", link="/jobs",
         )
         await session.commit()
 
@@ -155,9 +155,10 @@ async def record_swipe(
                 _fire_match_email(user.get("email", ""), emp_user.email if emp_user else "", job.title or "a job")
 
                 company_name, worker_name = await _match_display_names(session, employer_id, uid)
-                await notify(session, uid, "match", "notif.match.title", params={"name": company_name}, actor_id=employer_id)
-                await notify(session, employer_id, "match", "notif.match.title", params={"name": worker_name}, actor_id=uid)
-                await notify_team(session, employer_id, "notif.match.title", params={"name": worker_name}, permission="view")
+                chat_link = f"/chat/{match_id}"
+                await notify(session, uid, "match", "notif.match.title", params={"name": company_name}, actor_id=employer_id, link=chat_link)
+                await notify(session, employer_id, "match", "notif.match.title", params={"name": worker_name}, actor_id=uid, link=chat_link)
+                await notify_team(session, employer_id, "notif.match.title", params={"name": worker_name}, permission="view", link=chat_link)
                 await session.commit()
             except Exception:
                 await session.rollback()
@@ -198,9 +199,10 @@ async def record_swipe(
                     _fire_match_email(w_user.email if w_user else "", user.get("email", ""), job_title)
 
                     company_name, worker_name = await _match_display_names(session, uid, target_uuid)
-                    await notify(session, target_uuid, "match", "notif.match.title", params={"name": company_name}, actor_id=uid)
-                    await notify(session, uid, "match", "notif.match.title", params={"name": worker_name}, actor_id=target_uuid)
-                    await notify_team(session, uid, "notif.match.title", params={"name": worker_name}, permission="view")
+                    chat_link = f"/chat/{match_id}"
+                    await notify(session, target_uuid, "match", "notif.match.title", params={"name": company_name}, actor_id=uid, link=chat_link)
+                    await notify(session, uid, "match", "notif.match.title", params={"name": worker_name}, actor_id=target_uuid, link=chat_link)
+                    await notify_team(session, uid, "notif.match.title", params={"name": worker_name}, permission="view", link=chat_link)
                     await session.commit()
                 except Exception:
                     await session.rollback()

@@ -408,5 +408,49 @@
     "deleteAccountHint": "Permanently delete your account and all associated data. This action cannot be undone.",
     "deletingEllipsis": "Deleting...",
     "deleteMyAccount": "Delete my account"
+  },
+  "notif": {
+    "bell": "Notifications",
+    "markAllRead": "Mark all read",
+    "empty": "No notifications yet",
+    "match": { "title": "It's a match with {{name}}!" },
+    "like_received": { "title": "A candidate liked \"{{title}}\"" },
+    "chat": { "title": "New message from {{name}}" },
+    "team": {
+      "job_posted": "{{actor}} posted \"{{title}}\"",
+      "job_updated": "{{actor}} updated \"{{title}}\"",
+      "job_toggled_active": "{{actor}} reactivated \"{{title}}\"",
+      "job_toggled_inactive": "{{actor}} deactivated \"{{title}}\""
+    },
+    "cv": {
+      "done": {
+        "title_one": "CV analyzed — {{count}} skill added",
+        "title_other": "CV analyzed — {{count}} skills added"
+      },
+      "error": { "title": "We couldn't read your CV — try uploading it again" }
+    },
+    "job_expiring": { "title": "\"{{title}}\" expires in 3 days — renew?" },
+    "time": {
+      "now": "just now",
+      "minutes_one": "{{count}}m ago",
+      "minutes_other": "{{count}}m ago",
+      "hours_one": "{{count}}h ago",
+      "hours_other": "{{count}}h ago",
+      "days_one": "{{count}}d ago",
+      "days_other": "{{count}}d ago"
+    },
+    "prefs": {
+      "heading": "Notifications",
+      "match": "Matches",
+      "matchHint": "When you and someone else both swipe right.",
+      "likeReceived": "Likes",
+      "likeReceivedHint": "When a candidate likes one of your jobs.",
+      "chat": "Messages",
+      "chatHint": "When you get a new chat message.",
+      "team": "Team activity",
+      "teamHint": "When a teammate posts, edits, or acts on a job or match.",
+      "account": "Account",
+      "accountHint": "CV analysis results and job-expiry reminders."
+    }
   }
 }

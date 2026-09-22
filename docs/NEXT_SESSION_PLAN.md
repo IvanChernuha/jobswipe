@@ -16,6 +16,7 @@ _Latest commit on `main`: `c750a9f`. Read this file first, then run the commands
 | Hebrew UI + RTL | ✅ done (`react-i18next`, 357 keys) — user should skim `frontend/src/locales/he.json` |
 | Friends beta | live at **https://glucose-nikon-grant-pond.trycloudflare.com** — **zero activity so far** |
 | Android / PWA | not started (after web, after Hebrew — done) |
+| Notifications (in-app, prefs, team fan-out) | ✅ done (2026-09-22) — see §4. No error boundary yet (pre-existing gap, surfaced during this build) |
 
 Local stack = `docker compose` on this box (LAN `http://192.168.2.42`). Tunnel URL changes if the tunnel restarts:
 `docker logs jobswipe-tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1`
@@ -32,18 +33,20 @@ Data caveat: 295 of 330 users are automated-test junk owning 173/180 jobs; clean
 - [ ] **Real admin email** — `ADMIN_EMAILS` / `ADMIN_ALERT_EMAIL` are `demo_employer@jobswipe.com`; swap before launch.
 - [ ] **Email** (Resend key + verified domain + real app URL) — unblocks email verification, match/digest emails.
 - [ ] **Get 3–5 friends onto the link**; collect "first moment I was confused".
-- [ ] **Decision needed for notifications:** should *workers* get "an employer liked you" before the match? (Tinder hides it; LinkedIn shows it.) Recommendation: employers only for now.
+- [x] ~~Decision needed for notifications: should *workers* get "an employer liked you" before the match?~~ — confirmed 2026-09-22: **employers only**, shipped.
 
 ---
 
 ## 3. Agreed order of work
 
-1. **Notifications** — in-app, per-type preferences, team notifications. ← **START HERE** (§4)
-2. **Redesign / colors** — design canvas with 3 directions; current pink `#ec4899` reads "Tinder clone", vision is professional → calmer palette. Palette lives in `frontend/tailwind.config.js`. Fold the 10 P3 cosmetic items into this pass.
+1. ~~**Notifications**~~ — ✅ done (2026-09-22), see §4.
+2. **Redesign / colors** ← **START HERE NEXT** — design canvas with 3 directions; current pink `#ec4899` reads "Tinder clone", vision is professional → calmer palette. Palette lives in `frontend/tailwind.config.js`. Fold the 10 P3 cosmetic items into this pass.
 3. **Admin panel UI + liquidity dashboard** — one page: reports queue, suspend/unsuspend, hide/unhide, plus signups/day, employers with live jobs, % new users with ≥1 match, time-to-first-match, matches→first message. Admin API exists at `/api/admin/*` (Swagger `/docs`), gated by `ADMIN_EMAILS`.
-4. **Employer "paste your job ad → live in 2 minutes"** (reuse `/api/cv/parse-job-files`) + job-expiry reminder ("expires in 3 days — renew?").
+4. **Employer "paste your job ad → live in 2 minutes"** (reuse `/api/cv/parse-job-files`) + job-expiry reminder ("expires in 3 days — renew?" — the backend half now exists, see §4).
 5. **PWA** (`vite-plugin-pwa`: manifest + service worker) + web push → **Android via Capacitor** (same React code; NO native rewrite). Play Store UGC review needs: report/block ✅, privacy policy URL, real in-app account deletion (GDPR delete needs the Phase-3 cleanup), data-safety form.
 6. Feedback-driven fixes → seeded public job listings → solo-useful CV value (skill gap analysis).
+
+**Small standing item, not scheduled:** add a top-level React error boundary — the app currently has none, so any uncaught render error blanks the whole UI (found while building notifications; worked around at the specific call sites, not fixed structurally).
 
 **Parked by user decision:** junk-data cleanup + realistic seed, email verification, in-app feedback button, Phase 4 scale work, monetization, image scanning (`IMAGE_MODERATION=off`, Gemini scanner dormant), org-level blocks, backend error messages in Hebrew (need error codes).
 
@@ -107,19 +110,43 @@ fixed. 70/70 backend tests pass (15 new). Not yet done: frontend (§4.3).
    - Register in `main.py`.
 5. **Tests** `tests/test_notifications.py`: prefs default/disable logic, team fan-out excludes actor + respects role, `notify` never raises. Run: `docker build ./backend` then pytest in the image (dummy env; see memory recipe). Extend the e2e harness if time.
 
-### 4.3 Frontend steps
+### 4.3 Frontend steps — ✅ DONE (2026-09-22)
 
-1. `lib/api.ts`: `getNotifications`, `getUnreadNotificationCount`, `markNotificationRead`, `markAllNotificationsRead`, `getNotificationPrefs`, `updateNotificationPrefs`; `Notification` type with `title_key/params`.
-2. **Bell** in `components/Navbar.tsx`: reuse the existing 30 s poll (`getUnreadCounts` → also fetch unread notification count; one combined interval). Badge on the bell; click → dropdown on desktop / full page `/notifications` on phones. Row = icon per type, `t(title_key, params)`, relative time, link; clicking marks read + navigates.
-3. **Preferences** on `pages/Profile.tsx`: "Notifications" card with 5 toggles (label + one-line description each); `team` toggle only shown for org members; `like_received` only for employers (until the worker decision).
-4. **i18n**: add `notif.*` keys to `en.json` and `he.json` (titles per type + prefs labels/descriptions + "Mark all read", "No notifications yet"). Keep key parity (there's a parity check pattern from the Hebrew session).
-5. Verify: `docker build ./frontend` (tsc), `docker compose up -d --build frontend backend celery`, then a Playwright subagent run: match → both bells; chat → recipient bell; team: manager posts a job → owner notified, manager not; prefs off → no row; phone + desktop; Hebrew titles render.
+Built as planned with one simplification: a single responsive dropdown
+(`components/NotificationBell.tsx`) instead of a separate `/notifications`
+mobile page — `fixed inset-x-4` sheet below the navbar under the `sm:`
+breakpoint, `absolute end-0` anchored dropdown above it. `like_received`/
+`team` prefs toggles hidden for workers (employer-only, per the confirmed
+decision); `Profile.tsx` gates on `role` rather than actual org membership
+(matches the existing looseness of the Navbar's Team link). One real backend
+gap found and fixed while wiring this up: no emit point set `link`, so a
+click had nowhere to navigate — added `link` (chat/jobs/profile paths) to
+every `notify()`/`notify_team()` call, and added the acting employer's email
+as `actor` param to the three team job-notifications (schema has no
+per-person name for employer accounts, only `company_name` — email is this
+app's existing convention for identifying org members, see Team page).
 
-### 4.4 Acceptance
-- A worker and an employer who match both see it in the bell within 30 s; opening it marks it read and goes to the chat.
-- An org owner sees "X posted a job" when a manager posts; the manager does not; a viewer never gets `chat` team items.
-- Turning a type off in Profile stops new rows of that type (existing rows stay).
-- All in both languages; no console errors; 390 px no overflow; tests green; migration applied.
+Playwright-verified end-to-end (two passes) against demo accounts: match →
+both bells within 30s, opens to `/chat/{id}`, marks read; chat → recipient
+bell; prefs list correct per role, toggle persists; Hebrew fully translated,
+RTL, no raw keys. Team fan-out **not** verified (demo org has only 1 member
+— no second account to test with; logic is unit-tested in
+`test_notifications.py`). Two bugs found by the first pass and fixed +
+re-verified: (1) dropdown overflowed ~16px off-screen at 390px width — was
+anchored to the bell, which isn't the navbar's rightmost item; (2) an
+unrelated **pre-existing, app-wide** bug the new code also copied:
+`toLocaleDateString(i18n.language, ...)` throws an uncaught `RangeError` in
+environments reporting a malformed locale tag (seen here: `en-US@posix`) —
+`Chat.tsx` (×2) and `Matches.tsx` (×1) had this too; all four sites now use
+`i18n.resolvedLanguage ?? 'en'`. **Follow-up not done:** the app still has
+no top-level React error boundary, so *any* uncaught render error still
+blanks the whole UI — worth adding one regardless of this specific fix.
+
+### 4.4 Acceptance — met (see verification notes in §4.3)
+- A worker and an employer who match both see it in the bell within 30 s; opening it marks it read and goes to the chat. ✅
+- An org owner sees "X posted a job" when a manager posts; the manager does not; a viewer never gets `chat` team items. ⚠️ Logic implemented + unit-tested (`_filter_team_recipients`), **not** browser-verified (no second org member available in the demo data).
+- Turning a type off in Profile stops new rows of that type (existing rows stay). ✅
+- All in both languages; no console errors; 390 px no overflow; tests green; migration applied. ✅
 
 ---
 
@@ -146,7 +173,7 @@ git log --oneline -5 && docker ps --format '{{.Names}} {{.Status}}' | grep jobsw
 docker logs jobswipe-tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
 docker exec supabase-db psql -U postgres -d postgres -Atc "SELECT count(*) FROM users WHERE created_at > '2026-09-22' AND email NOT LIKE '%@test.local'"   # any friends yet?
 ```
-Then confirm the `like_received`-for-workers decision (§2) and start §4.2 step 1.
+Notifications (§4) are done. Start §5 (redesign) next.
 
 ---
 

@@ -689,3 +689,61 @@ export function exportMyData(token: string): Promise<Record<string, unknown>> {
 export function deleteMyAccount(token: string): Promise<{ deleted: boolean }> {
   return request<{ deleted: boolean }>('/account/delete', { method: 'DELETE', token })
 }
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+export type NotificationType = 'match' | 'like_received' | 'chat' | 'team' | 'account'
+
+export interface AppNotification {
+  id: string
+  type: NotificationType
+  title_key: string
+  params: Record<string, unknown>
+  link: string
+  actor_id: string | null
+  created_at: string | null
+  read_at: string | null
+}
+
+export type NotificationPrefs = Record<NotificationType, boolean>
+
+export function getNotifications(
+  token: string,
+  opts?: { unreadOnly?: boolean; limit?: number },
+): Promise<AppNotification[]> {
+  const params = new URLSearchParams()
+  if (opts?.unreadOnly) params.set('unread_only', 'true')
+  if (opts?.limit) params.set('limit', String(opts.limit))
+  const qs = params.toString()
+  return request<AppNotification[]>(`/notifications${qs ? `?${qs}` : ''}`, { token })
+}
+
+export function getUnreadNotificationCount(token: string): Promise<{ count: number }> {
+  return request<{ count: number }>('/notifications/unread-count', { token })
+}
+
+export function markNotificationRead(token: string, id: string): Promise<AppNotification> {
+  return request<AppNotification>(`/notifications/${id}/read`, { method: 'POST', token })
+}
+
+export function markAllNotificationsRead(token: string): Promise<{ marked: number }> {
+  return request<{ marked: number }>('/notifications/read-all', { method: 'POST', token })
+}
+
+export function getNotificationPrefs(token: string): Promise<NotificationPrefs> {
+  return request<NotificationPrefs>('/notifications/prefs', { token })
+}
+
+export function updateNotificationPrefs(
+  token: string,
+  type: NotificationType,
+  enabled: boolean,
+): Promise<{ type: string; enabled: boolean }> {
+  return request<{ type: string; enabled: boolean }>('/notifications/prefs', {
+    method: 'PUT',
+    token,
+    body: JSON.stringify({ type, enabled }),
+  })
+}

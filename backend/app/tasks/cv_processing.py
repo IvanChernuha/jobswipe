@@ -79,7 +79,7 @@ def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: s
                 clean_bio = sanitize(cv_profile.bio) if cv_profile.bio else None
                 if clean_bio and not (profile.bio or "").strip():
                     profile.bio = clean_bio
-                notify_sync(session, wid, "account", "notif.cv.done.title", params={"tag_count": len(tag_ids)})
+                notify_sync(session, wid, "account", "notif.cv.done.title", params={"tag_count": len(tag_ids)}, link="/profile")
             session.commit()
 
     except _RETRYABLE as exc:
@@ -95,7 +95,7 @@ def extract_cv_tags(self, worker_id: str, file_content_b64: str, content_type: s
             profile = session.get(WorkerProfile, wid)
             if profile:
                 profile.cv_extraction_status = "error"
-                notify_sync(session, wid, "account", "notif.cv.error.title")
+                notify_sync(session, wid, "account", "notif.cv.error.title", link="/profile")
                 session.commit()
 
 

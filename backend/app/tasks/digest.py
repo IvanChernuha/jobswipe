@@ -37,7 +37,7 @@ def main() -> None:
         for job in jobs:
             notify_sync(
                 session, job.employer_id, "account",
-                "notif.job_expiring.title", params={"title": job.title},
+                "notif.job_expiring.title", params={"title": job.title}, link="/jobs",
             )
         session.commit()
 

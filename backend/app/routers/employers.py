@@ -173,7 +173,10 @@ async def create_job(
     session.add(job)
     await session.commit()
 
-    await notify_team(session, uuid.UUID(user["id"]), "notif.team.job_posted", params={"title": job.title}, permission="view")
+    await notify_team(
+        session, uuid.UUID(user["id"]), "notif.team.job_posted",
+        params={"title": job.title, "actor": user.get("email", "")}, permission="view", link="/jobs",
+    )
     await session.commit()
 
     if body.tag_ids or body.required_tag_ids or body.preferred_tag_ids:
@@ -267,7 +270,10 @@ async def update_job(
     session.add(job)
     await session.commit()
 
-    await notify_team(session, uuid.UUID(user["id"]), "notif.team.job_updated", params={"title": job.title}, permission="view")
+    await notify_team(
+        session, uuid.UUID(user["id"]), "notif.team.job_updated",
+        params={"title": job.title, "actor": user.get("email", "")}, permission="view", link="/jobs",
+    )
     await session.commit()
 
     if tag_ids is not None or required_tag_ids is not None or preferred_tag_ids is not None:
@@ -290,7 +296,7 @@ async def toggle_job_active(
 
     await notify_team(
         session, uuid.UUID(user["id"]), "notif.team.job_toggled",
-        params={"title": job.title, "active": job.active}, permission="view",
+        params={"title": job.title, "active": job.active, "actor": user.get("email", "")}, permission="view", link="/jobs",
     )
     await session.commit()
 

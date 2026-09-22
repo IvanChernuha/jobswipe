@@ -143,7 +143,7 @@ export default function Chat() {
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-gray-900 text-sm truncate">{otherName}</p>
           <p className="text-xs text-gray-400">
-            {matchInfo ? t('chat.matchedOn', { date: new Date(matchInfo.matched_at).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }) }) : ''}
+            {matchInfo ? t('chat.matchedOn', { date: new Date(matchInfo.matched_at).toLocaleDateString(i18n.resolvedLanguage ?? 'en', { month: 'short', day: 'numeric' }) }) : ''}
           </p>
         </div>
         <button
@@ -272,10 +272,10 @@ function formatDay(iso: string): string {
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
   if (d.toDateString() === yesterday.toDateString()) return i18n.t('chat.yesterday')
-  return d.toLocaleDateString(i18n.language, { weekday: 'short', month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(i18n.resolvedLanguage ?? 'en', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 /** Time only — the day is shown by the separator above. */
 function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString(i18n.resolvedLanguage ?? 'en', { hour: '2-digit', minute: '2-digit' })
 }
