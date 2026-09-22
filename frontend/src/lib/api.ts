@@ -628,6 +628,27 @@ export function updateBookmarkNote(token: string, targetId: string, note: string
   })
 }
 
+export interface BookmarkNote {
+  id: string
+  author_id: string
+  author_email: string
+  body: string
+  created_at: string | null
+  is_mine: boolean
+}
+
+export function addBookmarkNote(token: string, targetId: string, note: string): Promise<BookmarkNote> {
+  return request<BookmarkNote>(`/bookmarks/${targetId}/notes`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ note }),
+  })
+}
+
+export function deleteBookmarkNote(token: string, targetId: string, noteId: string): Promise<void> {
+  return request<void>(`/bookmarks/${targetId}/notes/${noteId}`, { method: 'DELETE', token })
+}
+
 export function removeBookmark(token: string, targetId: string): Promise<void> {
   return request<void>(`/bookmarks/${targetId}`, { method: 'DELETE', token })
 }

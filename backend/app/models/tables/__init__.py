@@ -9,6 +9,7 @@ from app.models.tables.swipe import Swipe
 from app.models.tables.match import Match
 from app.models.tables.message import Message, MessageReadCursor
 from app.models.tables.bookmark import Bookmark
+from app.models.tables.bookmark_note import BookmarkNote
 from app.models.tables.organization import Organization, OrgMember, OrgInvite
 from app.models.tables.report import Report
 from app.models.tables.block import BlockedUser
@@ -24,6 +25,7 @@ __all__ = [
     "Match",
     "Message", "MessageReadCursor",
     "Bookmark",
+    "BookmarkNote",
     "Organization", "OrgMember", "OrgInvite",
     "Report",
     "BlockedUser",

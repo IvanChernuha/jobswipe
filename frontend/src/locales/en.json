@@ -224,6 +224,9 @@
     "move": "Move",
     "editNote": "Edit note",
     "addNote": "Add note",
+    "notesCount": "Notes ({{count}})",
+    "noteSignedBy": "— {{name}}, {{date}}",
+    "postNote": "Post",
     "remove": "Remove"
   },
   "matches": {

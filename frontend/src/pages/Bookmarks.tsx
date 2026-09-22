@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import {
   getBookmarks, removeBookmark, postSwipe, moveBookmark, updateBookmarkNote,
+  addBookmarkNote, deleteBookmarkNote,
   getJobPostings, getMyMembership,
-  type Tag, type JobPosting,
+  type Tag, type JobPosting, type BookmarkNote,
 } from '../lib/api'
 import TagBadge from '../components/TagBadge'
 
@@ -28,6 +29,7 @@ interface EnrichedBookmark {
   salary_max?: number | null
   remote?: boolean | null
   tags?: Tag[]
+  notes?: BookmarkNote[]
 }
 
 interface EnrichedGroup {
@@ -108,6 +110,32 @@ export default function Bookmarks() {
     } catch { /* silent */ }
   }
 
+  async function handleAddNote(targetId: string, note: string) {
+    try {
+      const created = await addBookmarkNote(token, targetId, note)
+      setGroups((prev) =>
+        prev.map((g) => ({
+          ...g,
+          bookmarks: g.bookmarks.map((b) =>
+            b.target_id === targetId ? { ...b, notes: [...(b.notes ?? []), created] } : b,
+          ),
+        })),
+      )
+    } catch { /* silent */ }
+  }
+
+  async function handleDeleteNote(targetId: string, noteId: string) {
+    setGroups((prev) =>
+      prev.map((g) => ({
+        ...g,
+        bookmarks: g.bookmarks.map((b) =>
+          b.target_id === targetId ? { ...b, notes: (b.notes ?? []).filter((n) => n.id !== noteId) } : b,
+        ),
+      })),
+    )
+    await deleteBookmarkNote(token, targetId, noteId).catch(() => {})
+  }
+
   function toggleCollapse(key: string) {
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -185,6 +213,8 @@ export default function Bookmarks() {
                         canLike={canLike}
                         onMove={isEmployer ? handleMove : undefined}
                         onNote={handleNote}
+                        onAddNote={isEmployer ? handleAddNote : undefined}
+                        onDeleteNote={isEmployer ? handleDeleteNote : undefined}
                       />
                     ))}
                   </div>
@@ -206,6 +236,8 @@ function BookmarkCard({
   onSwipe,
   onMove,
   onNote,
+  onAddNote,
+  onDeleteNote,
   canLike = true,
 }: {
   bookmark: EnrichedBookmark
@@ -216,13 +248,18 @@ function BookmarkCard({
   onMove?: (id: string, jobId: string | null) => void
   canLike?: boolean
   onNote: (id: string, note: string) => void
+  onAddNote?: (id: string, note: string) => void
+  onDeleteNote?: (id: string, noteId: string) => void
 }) {
   const { t, i18n } = useTranslation()
+  const lang = i18n.resolvedLanguage ?? 'en'
   const [editingNote, setEditingNote] = useState(false)
   const [noteText, setNoteText] = useState(bm.note || '')
   const [showMove, setShowMove] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
+  const [newNoteText, setNewNoteText] = useState('')
 
-  const saved = new Date(bm.created_at).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })
+  const saved = new Date(bm.created_at).toLocaleDateString(lang, { month: 'short', day: 'numeric' })
   const isJob = role === 'worker'
 
   // Expiry
@@ -304,39 +341,97 @@ function BookmarkCard({
         </div>
       )}
 
-      {/* Note */}
-      {editingNote ? (
-        <div className="mt-3 flex gap-2">
-          <input
-            autoFocus
-            className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300"
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder={t('bookmarks.addNotePlaceholder')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                onNote(bm.target_id, noteText)
-                setEditingNote(false)
-              }
-              if (e.key === 'Escape') setEditingNote(false)
-            }}
-          />
+      {/* Note — private, worker's own saved jobs only */}
+      {isJob && (
+        editingNote ? (
+          <div className="mt-3 flex gap-2">
+            <input
+              autoFocus
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300"
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder={t('bookmarks.addNotePlaceholder')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onNote(bm.target_id, noteText)
+                  setEditingNote(false)
+                }
+                if (e.key === 'Escape') setEditingNote(false)
+              }}
+            />
+            <button
+              onClick={() => { onNote(bm.target_id, noteText); setEditingNote(false) }}
+              className="text-xs font-medium text-brand-600 px-2 py-1 rounded-lg hover:bg-brand-50"
+            >
+              {t('common.save')}
+            </button>
+          </div>
+        ) : bm.note ? (
           <button
-            onClick={() => { onNote(bm.target_id, noteText); setEditingNote(false) }}
-            className="text-xs font-medium text-brand-600 px-2 py-1 rounded-lg hover:bg-brand-50"
+            onClick={() => setEditingNote(true)}
+            className="mt-3 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
           >
-            {t('common.save')}
+            <span className="text-xs">&#9998;</span>
+            <span className="italic">{bm.note}</span>
           </button>
+        ) : null
+      )}
+
+      {/* Notes thread — team-shared, signed. Employer side only. */}
+      {!isJob && showNotes && onAddNote && (
+        <div className="mt-3 bg-gray-50 rounded-xl p-3 space-y-2">
+          {bm.notes && bm.notes.length > 0 && (
+            <ul className="space-y-2">
+              {bm.notes.map((n) => (
+                <li key={n.id} className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p dir="auto" className="text-sm text-gray-700">{n.body}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {t('bookmarks.noteSignedBy', {
+                        name: n.author_email,
+                        date: n.created_at ? new Date(n.created_at).toLocaleDateString(lang, { month: 'short', day: 'numeric' }) : '',
+                      })}
+                    </p>
+                  </div>
+                  {n.is_mine && onDeleteNote && (
+                    <button
+                      onClick={() => onDeleteNote(bm.target_id, n.id)}
+                      aria-label={t('common.delete')}
+                      className="text-xs text-gray-300 hover:text-red-500 transition-colors shrink-0 px-1"
+                    >
+                      &#10005;
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            <input
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300 bg-white"
+              value={newNoteText}
+              onChange={(e) => setNewNoteText(e.target.value)}
+              placeholder={t('bookmarks.addNotePlaceholder')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newNoteText.trim()) {
+                  onAddNote(bm.target_id, newNoteText.trim())
+                  setNewNoteText('')
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (newNoteText.trim()) onAddNote(bm.target_id, newNoteText.trim())
+                setNewNoteText('')
+              }}
+              disabled={!newNoteText.trim()}
+              className="text-xs font-medium text-brand-600 px-2 py-1 rounded-lg hover:bg-brand-50 disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              {t('bookmarks.postNote')}
+            </button>
+          </div>
         </div>
-      ) : bm.note ? (
-        <button
-          onClick={() => setEditingNote(true)}
-          className="mt-3 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          <span className="text-xs">&#9998;</span>
-          <span className="italic">{bm.note}</span>
-        </button>
-      ) : null}
+      )}
 
       {/* Move dropdown */}
       {showMove && onMove && (
@@ -392,12 +487,21 @@ function BookmarkCard({
             {t('bookmarks.move')}
           </button>
         )}
-        <button
-          onClick={() => { setEditingNote(true); setNoteText(bm.note || '') }}
-          className="text-xs font-medium text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-        >
-          {bm.note ? t('bookmarks.editNote') : t('bookmarks.addNote')}
-        </button>
+        {isJob ? (
+          <button
+            onClick={() => { setEditingNote(true); setNoteText(bm.note || '') }}
+            className="text-xs font-medium text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            {bm.note ? t('bookmarks.editNote') : t('bookmarks.addNote')}
+          </button>
+        ) : onAddNote && (
+          <button
+            onClick={() => setShowNotes(!showNotes)}
+            className="text-xs font-medium text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            {bm.notes && bm.notes.length > 0 ? t('bookmarks.notesCount', { count: bm.notes.length }) : t('bookmarks.addNote')}
+          </button>
+        )}
         <div className="flex-1" />
         <button
           onClick={() => onRemove(bm.target_id)}

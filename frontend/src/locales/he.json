@@ -229,6 +229,9 @@
     "move": "העברה",
     "editNote": "עריכת הערה",
     "addNote": "הוספת הערה",
+    "notesCount": "הערות ({{count}})",
+    "noteSignedBy": "— {{name}}, {{date}}",
+    "postNote": "פרסום",
     "remove": "הסרה"
   },
   "matches": {

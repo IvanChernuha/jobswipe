@@ -10,13 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import get_current_user
 from app.db.session import get_session
 from app.services.content_filter import assert_clean
+from app.services.org_access import get_org_employer_ids
 from app.models.tag import Tag as TagResponse
 from app.models.tables.bookmark import Bookmark
+from app.models.tables.bookmark_note import BookmarkNote
 from app.models.tables.job import JobPosting, JobPostingTag
 from app.models.tables.tag import Tag
 from app.models.tables.worker import WorkerProfile, WorkerTag
 from app.models.tables.employer import EmployerProfile
 from app.models.tables.organization import OrgMember
+from app.models.tables.user import User
 from app.services.scoring import (
     expand_tags_with_implications_async, batch_expand_implications, compute_match_score,
 )
@@ -54,6 +57,16 @@ class BookmarkNoteRequest(BaseModel):
         return _clean_note(v)
 
 
+class BookmarkNoteOut(BaseModel):
+    id: str
+    author_id: str
+    author_email: str = ""
+    body: str
+    created_at: Optional[str] = None
+    is_mine: bool = False
+    model_config = {"extra": "ignore"}
+
+
 class BookmarkTarget(BaseModel):
     id: str
     user_id: str
@@ -62,6 +75,7 @@ class BookmarkTarget(BaseModel):
     expires_at: Optional[str] = None
     job_posting_id: Optional[str] = None
     note: str = ""
+    notes: list[BookmarkNoteOut] = []
     name: Optional[str] = None
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
@@ -105,9 +119,46 @@ def _bm_to_basic(bm: Bookmark) -> dict:
     }
 
 
-async def _auto_assign_job(session: AsyncSession, employer_id: str, worker_target_id: str) -> Optional[uuid.UUID]:
+async def _bookmark_owner_scope(session: AsyncSession, user: dict) -> list[uuid.UUID]:
+    """user_ids whose bookmarks the caller can see/act on. Employers share a
+    team-wide list (any org member); workers only ever see their own."""
+    uid = uuid.UUID(user["id"])
+    if user["role"] != "employer":
+        return [uid]
+    ids = await get_org_employer_ids(session, user["id"])
+    return [uuid.UUID(i) for i in ids]
+
+
+async def _notes_for_bookmarks(
+    session: AsyncSession, bookmark_ids: list[uuid.UUID], current_uid: uuid.UUID,
+) -> dict[uuid.UUID, list[dict]]:
+    """Batch-load the note thread (with author email) for a set of bookmarks."""
+    if not bookmark_ids:
+        return {}
+    result = await session.execute(
+        select(BookmarkNote).where(BookmarkNote.bookmark_id.in_(bookmark_ids)).order_by(BookmarkNote.created_at)
+    )
+    notes = result.scalars().all()
+    if not notes:
+        return {}
+
+    author_ids = list({n.author_id for n in notes})
+    ur = await session.execute(select(User.id, User.email).where(User.id.in_(author_ids)))
+    email_by_id = {r.id: r.email for r in ur.all()}
+
+    out: dict[uuid.UUID, list[dict]] = {}
+    for n in notes:
+        out.setdefault(n.bookmark_id, []).append({
+            "id": str(n.id), "author_id": str(n.author_id),
+            "author_email": email_by_id.get(n.author_id, ""),
+            "body": n.body, "created_at": str(n.created_at) if n.created_at else None,
+            "is_mine": n.author_id == current_uid,
+        })
+    return out
+
+
+async def _auto_assign_job(session: AsyncSession, employer_scope: list[uuid.UUID], worker_target_id: str) -> Optional[uuid.UUID]:
     uid = uuid.UUID(worker_target_id)
-    eid = uuid.UUID(employer_id)
 
     wt_result = await session.execute(select(WorkerTag.tag_id).where(WorkerTag.worker_id == uid))
     worker_tag_ids = {str(r.tag_id) for r in wt_result.all()}
@@ -116,7 +167,9 @@ async def _auto_assign_job(session: AsyncSession, employer_id: str, worker_targe
 
     worker_expanded = await expand_tags_with_implications_async(session, worker_tag_ids)
 
-    jr = await session.execute(select(JobPosting.id).where(JobPosting.employer_id == eid, JobPosting.active == True))
+    jr = await session.execute(
+        select(JobPosting.id).where(JobPosting.employer_id.in_(employer_scope), JobPosting.active == True)
+    )
     job_ids = [r.id for r in jr.all()]
     if not job_ids:
         return None
@@ -155,10 +208,11 @@ async def list_bookmarks_grouped(
     uid = uuid.UUID(user["id"])
     role = user["role"]
     now = datetime.now(timezone.utc)
+    scope = await _bookmark_owner_scope(session, user)
 
     result = await session.execute(
         select(Bookmark)
-        .where(Bookmark.user_id == uid, Bookmark.expires_at >= now)
+        .where(Bookmark.user_id.in_(scope), Bookmark.expires_at >= now)
         .order_by(Bookmark.created_at.desc())
     )
     bookmarks = result.scalars().all()
@@ -229,6 +283,8 @@ async def list_bookmarks_grouped(
             jtr2 = await session.execute(select(JobPosting.id, JobPosting.title).where(JobPosting.id.in_(jp_ids)))
             job_titles = {r.id: r.title for r in jtr2.all()}
 
+        notes_by_bookmark = await _notes_for_bookmarks(session, [bm.id for bm in bookmarks], uid)
+
         groups_map: dict[Optional[uuid.UUID], list[dict]] = {}
         for bm in bookmarks:
             wp = wp_by_id.get(bm.target_id)
@@ -241,6 +297,7 @@ async def list_bookmarks_grouped(
                 "experience_years": wp.experience_years if wp else None,
                 "skills": wp.skills if wp else None,
                 "tags": tags_by_worker.get(bm.target_id, []),
+                "notes": notes_by_bookmark.get(bm.id, []),
             }
             groups_map.setdefault(bm.job_posting_id, []).append(enriched_bm)
 
@@ -264,16 +321,17 @@ async def add_bookmark(
 ):
     uid = uuid.UUID(user["id"])
     target = uuid.UUID(body.target_id)
+    scope = await _bookmark_owner_scope(session, user)
 
     existing = await session.execute(
-        select(Bookmark.id).where(Bookmark.user_id == uid, Bookmark.target_id == target)
+        select(Bookmark.id).where(Bookmark.user_id.in_(scope), Bookmark.target_id == target)
     )
     if existing.first():
         raise HTTPException(409, "Already bookmarked")
 
     job_posting_id = None
     if user["role"] == "employer":
-        job_posting_id = await _auto_assign_job(session, user["id"], body.target_id)
+        job_posting_id = await _auto_assign_job(session, scope, body.target_id)
 
     bm = Bookmark(
         id=uuid.uuid4(), user_id=uid, target_id=target,
@@ -291,9 +349,9 @@ async def move_bookmark(
     target_id: str, body: BookmarkMoveRequest, user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    uid = uuid.UUID(user["id"])
+    scope = await _bookmark_owner_scope(session, user)
     result = await session.execute(
-        select(Bookmark).where(Bookmark.user_id == uid, Bookmark.target_id == uuid.UUID(target_id))
+        select(Bookmark).where(Bookmark.user_id.in_(scope), Bookmark.target_id == uuid.UUID(target_id))
     )
     bm = result.scalars().first()
     if not bm:
@@ -334,12 +392,54 @@ async def remove_bookmark(
     target_id: str, user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    uid = uuid.UUID(user["id"])
+    scope = await _bookmark_owner_scope(session, user)
     result = await session.execute(
-        select(Bookmark).where(Bookmark.user_id == uid, Bookmark.target_id == uuid.UUID(target_id))
+        select(Bookmark).where(Bookmark.user_id.in_(scope), Bookmark.target_id == uuid.UUID(target_id))
     )
     bm = result.scalars().first()
     if not bm:
         raise HTTPException(404, "Bookmark not found")
     await session.delete(bm)
+    await session.commit()
+
+
+@router.post("/{target_id}/notes", response_model=BookmarkNoteOut, status_code=201)
+async def add_note(
+    target_id: str, body: BookmarkNoteRequest, user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Add a signed note to the thread. Team-shared for employers — every org
+    member can add one, always attributed to its author."""
+    uid = uuid.UUID(user["id"])
+    scope = await _bookmark_owner_scope(session, user)
+    result = await session.execute(
+        select(Bookmark).where(Bookmark.user_id.in_(scope), Bookmark.target_id == uuid.UUID(target_id))
+    )
+    bm = result.scalars().first()
+    if not bm:
+        raise HTTPException(404, "Bookmark not found")
+
+    note = BookmarkNote(bookmark_id=bm.id, author_id=uid, body=body.note, created_at=datetime.now(timezone.utc))
+    session.add(note)
+    await session.commit()
+    await session.refresh(note)
+
+    return {
+        "id": str(note.id), "author_id": str(uid), "author_email": user.get("email", ""),
+        "body": note.body, "created_at": str(note.created_at) if note.created_at else None,
+        "is_mine": True,
+    }
+
+
+@router.delete("/{target_id}/notes/{note_id}", status_code=204)
+async def delete_note(
+    target_id: str, note_id: str, user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Delete a note — only its own author may remove it."""
+    uid = uuid.UUID(user["id"])
+    note = await session.get(BookmarkNote, uuid.UUID(note_id))
+    if not note or note.author_id != uid:
+        raise HTTPException(404, "Note not found")
+    await session.delete(note)
     await session.commit()
