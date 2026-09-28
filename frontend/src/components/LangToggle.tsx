@@ -13,7 +13,7 @@ export default function LangToggle({ className = 'inline-flex' }: { className?: 
       <select
         value={current}
         onChange={(e) => i18n.changeLanguage(e.target.value)}
-        className="h-9 ps-8 pe-7 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-700
+        className="h-11 ps-8 pe-7 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-700
                    appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400"
       >
         {LANGUAGES.map((l) => (

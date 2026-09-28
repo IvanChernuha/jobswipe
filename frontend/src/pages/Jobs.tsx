@@ -565,10 +565,10 @@ function JobFormModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={onClose}>
       <div
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 sm:p-8 animate-pop-in"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto px-6 pb-6 sm:px-8 sm:pb-8 animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="sticky top-0 z-10 -mx-6 -mt-6 sm:-mx-8 sm:-mt-8 px-6 pt-6 sm:px-8 sm:pt-8 pb-3 mb-3 bg-white border-b border-gray-100 text-xl font-bold text-gray-900">{title}</h2>
+        <h2 className="sticky top-0 z-10 -mx-6 sm:-mx-8 px-6 pt-6 sm:px-8 sm:pt-8 pb-3 mb-3 bg-white border-b border-gray-100 text-xl font-bold text-gray-900">{title}</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
