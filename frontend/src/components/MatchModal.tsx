@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import Icon from './Icon'
 
 interface MatchModalProps {
   myName: string
@@ -42,9 +43,10 @@ export default function MatchModal({ myName, theirName, matchId, onClose }: Matc
       <div className="relative w-full max-w-sm mx-4 bg-white rounded-3xl overflow-hidden
                       card-shadow animate-pop-in">
         {/* Gradient header */}
-        <div className="bg-gradient-to-br from-brand-400 via-brand-500 to-purple-500 px-8 pt-10 pb-8 text-center">
-          {/* Confetti emoji ring */}
-          <div className="text-6xl mb-3 animate-bounce">🎉</div>
+        <div className="bg-brand-600 px-8 pt-10 pb-8 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/15 text-white flex items-center justify-center animate-bounce">
+            <Icon name="sparkles" className="w-8 h-8" />
+          </div>
           <h2 className="text-3xl font-extrabold text-white mb-1">{t('match.itsAMatch')}</h2>
           <p className="text-brand-100 text-sm">{t('match.bothSwipedRight', { name: theirName })}</p>
         </div>
@@ -54,8 +56,8 @@ export default function MatchModal({ myName, theirName, matchId, onClose }: Matc
           {/* Avatar pair */}
           <div className="flex items-center justify-center gap-3 mb-5">
             <AvatarCircle label={myName} gradient="from-brand-300 to-brand-500" />
-            <div className="text-2xl">💙</div>
-            <AvatarCircle label={theirName} gradient="from-purple-300 to-purple-500" />
+            <Icon name="heart" className="w-7 h-7 text-brand-500" />
+            <AvatarCircle label={theirName} gradient="from-brand-500 to-brand-700" />
           </div>
 
           <p className="text-gray-600 text-sm mb-6 leading-relaxed">

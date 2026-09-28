@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import Icon from '../components/Icon'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import { useSwipe } from '../hooks/useSwipe'
 import {
   getWorkerFeed, getEmployerFeed, postSwipe, undoLastSwipe, addBookmark, removeBookmark,
-  getMyMembership,
+  getMyMembership, getEmployerProfile, getWorkerProfile,
   type FeedFilters,
 } from '../lib/api'
 import SwipeCard, { workerToCard, employerToCard, type CardData } from '../components/SwipeCard'
@@ -26,6 +27,17 @@ let cachedFilters: string = '{}'
 export default function Feed() {
   const { t } = useTranslation()
   const { session, role, user } = useAuth()
+
+  // Display name for the match modal (company name / worker name, not the login email).
+  const [myName, setMyName] = useState<string | null>(null)
+  useEffect(() => {
+    const tk = session?.access_token
+    if (!tk || !role) return
+    const load = role === 'employer'
+      ? getEmployerProfile(tk).then((p) => p.company_name)
+      : getWorkerProfile(tk).then((p) => p.name)
+    load.then((n) => { if (n) setMyName(n) }).catch(() => {})
+  }, [session?.access_token, role])
   const token = session?.access_token ?? ''
 
   const [cards, setCards] = useState<CardData[]>(cachedCards ?? [])
@@ -336,7 +348,7 @@ export default function Feed() {
             renders instead of the main one once the deck is empty. */}
         {match && (
           <MatchModal
-            myName={user?.email ?? t('common.you')}
+            myName={myName ?? user?.email ?? t('common.you')}
             theirName={match.theirName}
             matchId={match.matchId}
             onClose={() => setMatch(null)}
@@ -356,7 +368,7 @@ export default function Feed() {
       {bookmarkFlash && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
           <div className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2">
-            <span>&#x2691;</span> {t('feed.savedForLater')}
+            <Icon name="bookmark" className="w-4 h-4" /> {t('feed.savedForLater')}
           </div>
         </div>
       )}
@@ -391,14 +403,14 @@ export default function Feed() {
       {/* Match modal */}
       {match && (
         <MatchModal
-          myName={user?.email ?? t('common.you')}
+          myName={myName ?? user?.email ?? t('common.you')}
           theirName={match.theirName}
           matchId={match.matchId}
           onClose={() => setMatch(null)}
         />
       )}
 
-      <div className="flex flex-col items-center gap-6 py-8 px-4 w-full">
+      <div className="flex flex-col items-center gap-4 py-4 sm:gap-6 sm:py-8 px-4 w-full">
         {/* Toolbar: filters + undo */}
         <FeedToolbar
           hasActiveFilters={hasActiveFilters}
@@ -490,7 +502,7 @@ export default function Feed() {
           </p>
           <button
             onClick={() => setShowReport(true)}
-            className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+            className="inline-flex items-center min-h-[44px] px-2 text-xs text-gray-400 hover:text-red-500 transition-colors"
             title={t('feed.reportThisProfile')}
           >
             {t('common.report')}
@@ -520,7 +532,7 @@ export default function Feed() {
                          : 'bg-white text-blue-500 border-blue-300 hover:bg-blue-50 shadow-blue-100 hover:shadow-blue-200'
                        }`}
           >
-            &#x2691;
+            <Icon name="bookmark" className="w-5 h-5" />
           </button>
 
           {/* Undo button — always visible */}
@@ -571,7 +583,7 @@ export default function Feed() {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col items-center justify-center">
+    <div className="min-h-[calc(100vh-3.5rem-4rem)] sm:min-h-[calc(100vh-3.5rem)] flex flex-col items-center justify-center">
       {children}
     </div>
   )
@@ -593,7 +605,7 @@ function FeedToolbar({
     <div className="flex items-center gap-3 w-full max-w-sm px-4">
       <button
         onClick={onToggleFilters}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all
+        className={`flex items-center gap-1.5 min-h-[44px] px-4 rounded-full text-sm font-medium border transition-all
           ${hasActiveFilters
             ? 'bg-brand-50 text-brand-700 border-brand-300'
             : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
@@ -612,11 +624,11 @@ function FeedToolbar({
       <button
         onClick={onUndo}
         disabled={!canUndo}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border
+        className="flex items-center gap-1.5 min-h-[44px] px-4 rounded-full text-sm font-medium border
                    bg-white text-gray-600 border-gray-200 hover:border-amber-300 hover:text-amber-600
                    transition-all disabled:opacity-30 disabled:cursor-not-allowed"
       >
-        ↩ {t('common.undo')}
+        <Icon name="undo" className="w-4 h-4 rtl:-scale-x-100" /> {t('common.undo')}
       </button>
     </div>
   )
@@ -759,7 +771,7 @@ function SwipeButton({
                     : 'bg-white text-red-400 border-2 border-red-300 hover:bg-red-50 shadow-red-100 hover:shadow-red-200'
                   }`}
     >
-      {isLike ? '✓' : '✗'}
+      <Icon name={isLike ? 'check' : 'x'} className="w-7 h-7" strokeWidth={2.5} />
     </button>
   )
 }
@@ -768,7 +780,7 @@ function EmptyState({ role, hasFilters, onClear }: { role: string | null; hasFil
   const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center gap-4 py-16 px-6 text-center">
-      <div className="text-6xl">{hasFilters ? '🔍' : '🌟'}</div>
+      <Icon name={hasFilters ? 'search' : 'sparkles'} className="w-14 h-14 text-brand-300" />
       <h2 className="text-xl font-bold text-gray-800">
         {hasFilters ? t('feed.emptyNoMatches') : t('feed.emptyAllCaughtUp')}
       </h2>

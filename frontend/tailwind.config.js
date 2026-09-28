@@ -6,18 +6,37 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"IBM Plex Sans"', '"IBM Plex Sans Hebrew"', 'system-ui', 'sans-serif'],
+        display: ['Fraunces', '"Frank Ruhl Libre"', 'Georgia', 'serif'],
+      },
       colors: {
+        // Teal accent ("Harbor" direction).
         brand: {
-          50:  '#fdf2f8',
-          100: '#fce7f3',
-          200: '#fbcfe8',
-          300: '#f9a8d4',
-          400: '#f472b6',
-          500: '#ec4899',
-          600: '#db2777',
-          700: '#be185d',
-          800: '#9d174d',
-          900: '#831843',
+          50:  '#EAF4F3',
+          100: '#D3E9E8',
+          200: '#A8D3D2',
+          300: '#74B8B7',
+          400: '#3E9C9B',
+          500: '#0E7C7B',
+          600: '#0B6665',
+          700: '#095251',
+          800: '#073F3E',
+          900: '#052D2C',
+        },
+        // Warm neutrals with navy ink: overrides Tailwind's cool gray so the
+        // existing gray-* classes across the app pick up the new ground/ink.
+        gray: {
+          50:  '#F5F1EA',
+          100: '#ECE6DB',
+          200: '#E3DCD0',
+          300: '#D5CDBF',
+          400: '#737A8C',
+          500: '#5B6373',
+          600: '#3B4358',
+          700: '#2B3448',
+          800: '#1E2A44',
+          900: '#14213D',
         },
       },
       keyframes: {

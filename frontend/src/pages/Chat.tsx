@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import Icon from '../components/Icon'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
@@ -148,8 +149,9 @@ export default function Chat() {
         </div>
         <button
           onClick={() => setShowReport(true)}
-          className="text-gray-400 hover:text-red-500 transition-colors p-1"
+          className="w-11 h-11 -me-2 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
           title={t('report.reportUser')}
+          aria-label={t('report.reportUser')}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
@@ -171,7 +173,7 @@ export default function Chat() {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
         {messages.length === 0 && (
           <div className="text-center py-16">
-            <p className="text-4xl mb-3">👋</p>
+            <Icon name="smile" className="w-12 h-12 mx-auto mb-3 text-brand-400" />
             <p className="text-gray-500 text-sm">{t('chat.sayHello', { name: otherName })}</p>
           </div>
         )}

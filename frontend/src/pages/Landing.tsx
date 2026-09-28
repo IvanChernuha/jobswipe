@@ -1,97 +1,79 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import LangToggle from '../components/LangToggle'
+import Icon, { type IconName } from '../components/Icon'
 
 export default function Landing() {
   const { t } = useTranslation()
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-brand-50 via-white to-purple-50">
-      {/* Hero */}
-      <header className="relative flex-1 flex flex-col items-center justify-center px-6 py-20 text-center">
-        <div className="absolute end-4 top-4"><LangToggle /></div>
-        {/* Logo mark */}
-        <div className="mb-6 w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-200">
-          <span className="text-4xl">💼</span>
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <header className="flex items-center justify-between px-5 sm:px-10 h-16">
+        <div className="flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-lg bg-brand-500 text-white flex items-center justify-center">
+            <Icon name="briefcase" className="w-4 h-4" />
+          </span>
+          <span className="font-display text-xl font-semibold text-gray-900 tracking-tight">JobSwipe</span>
         </div>
+        <div className="flex items-center gap-4">
+          <LangToggle />
+          <Link to="/login" className="hidden sm:inline text-sm font-semibold text-gray-900 hover:text-brand-600">
+            {t('common.signIn')}
+          </Link>
+        </div>
+      </header>
 
-        <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-gray-900 mb-4">
-          Job<span className="text-brand-500">Swipe</span>
-        </h1>
-
-        <p className="max-w-xl text-lg sm:text-xl text-gray-600 mb-10 leading-relaxed">
+      {/* Hero */}
+      <section className="flex-1 flex flex-col items-center justify-center px-6 py-14 text-center">
+        <h1 className="max-w-3xl text-4xl sm:text-6xl font-semibold text-gray-900 leading-[1.08] mb-5">
           {t('landing.tagline1')}
-          <br />
+        </h1>
+        <p className="max-w-xl text-lg sm:text-xl text-gray-500 mb-10 leading-relaxed">
           {t('landing.tagline2')}
         </p>
 
-        {/* CTAs */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm sm:max-w-none sm:w-auto">
-          <Link
-            to="/register?role=worker"
-            className="btn-primary text-base px-8 py-3 rounded-2xl shadow-md shadow-brand-200
-                       hover:shadow-lg hover:shadow-brand-300 transition-shadow"
-          >
+        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm sm:max-w-none sm:w-auto">
+          <Link to="/register?role=worker" className="btn-primary text-base px-8 py-3.5">
             {t('landing.ctaWorker')}
           </Link>
-          <Link
-            to="/register?role=employer"
-            className="btn-secondary text-base px-8 py-3 rounded-2xl
-                       hover:border-brand-300 hover:text-brand-600 transition-colors"
-          >
+          <Link to="/register?role=employer" className="btn-secondary text-base px-8 py-3.5">
             {t('landing.ctaEmployer')}
           </Link>
         </div>
 
         <p className="mt-6 text-sm text-gray-500">
           {t('landing.haveAccount')}{' '}
-          <Link to="/login" className="text-brand-600 font-medium hover:underline">
+          <Link to="/login" className="text-brand-600 font-semibold hover:underline">
             {t('common.signIn')}
           </Link>
         </p>
-      </header>
+      </section>
 
       {/* Feature strip */}
-      <section className="border-t border-gray-100 bg-white/70 backdrop-blur py-12 px-6">
-        <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
-          <Feature
-            emoji="⚡"
-            title={t('landing.feature1Title')}
-            desc={t('landing.feature1Desc')}
-          />
-          <Feature
-            emoji="🎯"
-            title={t('landing.feature2Title')}
-            desc={t('landing.feature2Desc')}
-          />
-          <Feature
-            emoji="🔑"
-            title={t('landing.feature3Title')}
-            desc={t('landing.feature3Desc')}
-          />
+      <section className="border-t border-gray-200 bg-white py-10 px-6">
+        <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8">
+          <Feature icon="zap" title={t('landing.feature1Title')} desc={t('landing.feature1Desc')} />
+          <Feature icon="target" title={t('landing.feature2Title')} desc={t('landing.feature2Desc')} />
+          <Feature icon="key" title={t('landing.feature3Title')} desc={t('landing.feature3Desc')} />
         </div>
       </section>
 
-      <footer className="py-6 text-center text-xs text-gray-400">
+      <footer className="bg-white border-t border-gray-200 py-5 text-center text-xs text-gray-500">
         {t('landing.footer', { year: new Date().getFullYear() })}
       </footer>
     </div>
   )
 }
 
-function Feature({
-  emoji,
-  title,
-  desc,
-}: {
-  emoji: string
-  title: string
-  desc: string
-}) {
+function Feature({ icon, title, desc }: { icon: IconName; title: string; desc: string }) {
   return (
-    <div className="flex flex-col items-center gap-2">
-      <span className="text-3xl">{emoji}</span>
-      <h3 className="font-semibold text-gray-800">{title}</h3>
-      <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+    <div className="flex items-start gap-4 text-start">
+      <span className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+        <Icon name={icon} className="w-5 h-5" />
+      </span>
+      <div>
+        <h3 className="font-semibold text-gray-900">{title}</h3>
+        <p className="text-sm text-gray-500 leading-relaxed mt-0.5">{desc}</p>
+      </div>
     </div>
   )
 }

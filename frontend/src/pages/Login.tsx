@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import Icon from '../components/Icon'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
@@ -36,7 +37,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-purple-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
         {/* Card */}
         <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8 sm:p-10">
@@ -44,8 +45,8 @@ export default function Login() {
           {/* Header */}
           <div className="text-center mb-8">
             <Link to="/" className="inline-block mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mx-auto shadow-md shadow-brand-200">
-                <span className="text-2xl">💼</span>
+              <div className="w-12 h-12 rounded-xl bg-brand-500 text-white flex items-center justify-center mx-auto">
+                <Icon name="briefcase" className="w-6 h-6" />
               </div>
             </Link>
             <h1 className="text-2xl font-bold text-gray-900">{t('login.welcomeBack')}</h1>

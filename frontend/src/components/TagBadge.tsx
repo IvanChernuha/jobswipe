@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 const categoryColors: Record<string, { bg: string; text: string; border: string }> = {
   language:      { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200' },
-  framework:     { bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200' },
+  framework:     { bg: 'bg-indigo-50',  text: 'text-indigo-700',  border: 'border-indigo-200' },
   tool:          { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200' },
   database:      { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200' },
   cloud:         { bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200' },

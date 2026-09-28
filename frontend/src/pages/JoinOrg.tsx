@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Icon from '../components/Icon'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
@@ -42,7 +43,7 @@ export default function JoinOrg() {
   }, [inviteToken, session, token, role])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-purple-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="bg-white rounded-3xl shadow-xl p-8 sm:p-10 max-w-md w-full text-center">
         {status === 'loading' && (
           <>
@@ -53,7 +54,7 @@ export default function JoinOrg() {
 
         {status === 'success' && (
           <>
-            <div className="text-5xl mb-4">🎉</div>
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center"><Icon name="sparkles" className="w-7 h-7" /></div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('joinOrg.youreIn')}</h1>
             <p className="text-gray-500 mb-6">{t('joinOrg.joinedSuccess')}</p>
             <button onClick={() => navigate('/team')} className="btn-primary px-6 py-2.5">
@@ -64,7 +65,7 @@ export default function JoinOrg() {
 
         {status === 'needsLogin' && (
           <>
-            <div className="text-5xl mb-4">🔑</div>
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center"><Icon name="key" className="w-7 h-7" /></div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('joinOrg.signInToJoin')}</h1>
             <p className="text-gray-500 mb-6">
               {t('joinOrg.signInHint')}
@@ -88,7 +89,7 @@ export default function JoinOrg() {
 
         {status === 'needsEmployer' && (
           <>
-            <div className="text-5xl mb-4">🏢</div>
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center"><Icon name="building" className="w-7 h-7" /></div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('joinOrg.employerRequired')}</h1>
             <p className="text-gray-500 mb-6">
               {t('joinOrg.employerRequiredHint')}
@@ -101,7 +102,7 @@ export default function JoinOrg() {
 
         {status === 'error' && (
           <>
-            <div className="text-5xl mb-4">😕</div>
+            <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-red-50 text-red-600 flex items-center justify-center"><Icon name="alertCircle" className="w-7 h-7" /></div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('joinOrg.couldNotJoin')}</h1>
             <p className="text-red-600 mb-6">{error}</p>
             <button onClick={() => navigate('/team')} className="btn-primary px-6 py-2.5">

@@ -25,7 +25,7 @@ Screenshots referenced in the audit live in the session scratchpad (`polish/`).
 - [x] Idle TagPicker dropdown ("Type to search…") covered the onboarding submit button. Fixed: dropdown only with a search term; Escape closes.
 - [x] Filter error leaked the field name ("body contains prohibited language"). Fixed: "Your message contains language that isn't allowed on JobSwipe".
 - [x] Backend validation text is snake_case to the user ("salary_min cannot exceed salary_max") — map to friendly labels. (P3)
-- [ ] MatchModal shows the employer's own avatar letter from their email ("D"), not company initials. (P3)
+- [x] MatchModal shows the employer's own avatar letter from their email ("D"), not company initials. (P3) (redesign pass 2026-09-28)
 
 ## P2 — confusing for a first-time user
 - [x] Onboarding is skippable by accident (full navbar visible during onboarding; tapping Feed exits with an empty profile).
@@ -45,16 +45,16 @@ Screenshots referenced in the audit live in the session scratchpad (`polish/`).
 - [x] Chat: no date separators ("Today").
 
 ## P3 — cosmetic
-- [ ] Team page: explain what an organization is for before "Create Organization".
-- [ ] Tap targets <44px on phone (nav 34x32, Filters/Undo pills 30px, "Report" link 35x16, Matches "Email" 53x28, report flag 32px).
+- [x] Team page: explain what an organization is for before "Create Organization". (redesign pass 2026-09-28)
+- [x] Tap targets <44px on phone (nav 34x32, Filters/Undo pills 30px, "Report" link 35x16, Matches "Email" 53x28, report flag 32px). (redesign pass 2026-09-28)
 - [x] Jobs page phone header wraps ("Your Jobs" + "Upload Job / File").
-- [ ] Job card meta wraps awkwardly on phone ("Tel / Aviv").
+- [x] Job card meta wraps awkwardly on phone ("Tel / Aviv"). (redesign pass 2026-09-28)
 - [x] Debug `console.log` in Jobs.tsx (~502/518/538) logs full job payloads.
-- [ ] Register label "Password(min 8 characters)" missing space in accessible name.
-- [ ] Avatar "Tap to add a photo" hover overlay never shows on touch.
-- [ ] Matches list truncates titles at 390px; "Email" button over-prominent vs "Chat".
-- [ ] Desktop job-form modal taller than viewport; header scrolls away on validation.
-- [ ] `net::ERR_ABORTED` on GET /api/bookmarks/{id} after Like-from-Saved (harmless race).
+- [x] Register label "Password(min 8 characters)" missing space in accessible name. (redesign pass 2026-09-28)
+- [x] Avatar "Tap to add a photo" hover overlay never shows on touch. (redesign pass 2026-09-28)
+- [x] Matches list truncates titles at 390px; "Email" button over-prominent vs "Chat". (redesign pass 2026-09-28)
+- [x] Desktop job-form modal taller than viewport; header scrolls away on validation. (redesign pass 2026-09-28)
+- [x] `net::ERR_ABORTED` on GET /api/bookmarks/{id} after Like-from-Saved (harmless race). — won't fix, harmless.
 
 ## RTL / Hebrew hazards (for the localisation pass) — ✅ done 2026-09-13 (react-i18next, 357 keys, RTL logical classes, dir=auto on user text). Still English: backend validation/error messages (frontend shows them verbatim).
 - ~8 physical-direction classes (`left-5`/`right-5` LIKE/NOPE overlays, `left-1/2 -translate-x-1/2` toast, `ml-*` in Register/Team) → logical (`start/end`, `ms/me`).

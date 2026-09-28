@@ -4,9 +4,11 @@ import LanguageDetector from 'i18next-browser-languagedetector'
 import en from './locales/en.json'
 import he from './locales/he.json'
 
+// Add a language here (plus its locales/<code>.json and the `resources`
+// entry below) and it appears in the language dropdown everywhere.
 export const LANGUAGES = [
-  { code: 'en', label: 'EN', dir: 'ltr' },
-  { code: 'he', label: 'עב', dir: 'rtl' },
+  { code: 'en', label: 'EN', name: 'English', dir: 'ltr' },
+  { code: 'he', label: 'עב', name: 'עברית', dir: 'rtl' },
 ] as const
 export type LangCode = (typeof LANGUAGES)[number]['code']
 

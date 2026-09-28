@@ -222,7 +222,7 @@ export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe 
       <Overlay dir={overlayDir ?? dragDir} />
 
       {/* Photo / gradient header */}
-      <div className="relative h-64 bg-gradient-to-br from-brand-400 to-purple-500 overflow-hidden">
+      <div className="relative h-64 bg-gradient-to-br from-brand-500 to-brand-700 overflow-hidden">
         <Avatar url={card.avatar_url} name={card.name} />
 
         {/* Bottom fade for text legibility */}
@@ -240,7 +240,7 @@ export default function SwipeCard({ card, overlayDir = null, animClass, onSwipe 
 
         {/* Headline (job title) or name, then the secondary line */}
         <div className="absolute bottom-4 start-5 end-5">
-          <p dir="auto" className="text-white text-xl font-bold leading-tight drop-shadow">{card.headline ?? card.name}</p>
+          <p dir="auto" className="text-white font-display text-2xl font-semibold leading-tight drop-shadow">{card.headline ?? card.name}</p>
           <p dir="auto" className="text-white/80 text-sm mt-0.5">{card.title}</p>
         </div>
       </div>

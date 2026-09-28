@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import Icon from '../components/Icon'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -238,7 +239,7 @@ export default function Jobs() {
         {/* Empty state */}
         {jobs.length === 0 && (
           <div className="text-center py-16">
-            <p className="text-5xl mb-3">📋</p>
+            <Icon name="clipboard" className="w-14 h-14 mx-auto mb-3 text-brand-300" />
             <h2 className="text-xl font-bold text-gray-800 mb-2">{t('jobs.emptyTitle')}</h2>
             <p className="text-gray-500 text-sm mb-4">{t('jobs.emptyHint')}</p>
             <button onClick={() => setCreateModal({ open: true, prefilled: null })} className="btn-primary text-sm">
@@ -385,11 +386,11 @@ function JobCard({
             )}
           </div>
 
-          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-            {job.location && <span>{job.location}</span>}
-            {salary && <span>{salary}</span>}
-            <span>{t('jobs.posted', { date: posted })}</span>
-            <span className={expiryColor}>{expiryLabel}</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-500">
+            {job.location && <span className="whitespace-nowrap">{job.location}</span>}
+            {salary && <span className="whitespace-nowrap">{salary}</span>}
+            <span className="whitespace-nowrap">{t('jobs.posted', { date: posted })}</span>
+            <span className={`whitespace-nowrap ${expiryColor}`}>{expiryLabel}</span>
           </div>
 
           {job.description && (
@@ -567,7 +568,7 @@ function JobFormModal({
         className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 sm:p-8 animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-xl font-bold text-gray-900 mb-5">{title}</h2>
+        <h2 className="sticky top-0 z-10 -mx-6 -mt-6 sm:-mx-8 sm:-mt-8 px-6 pt-6 sm:px-8 sm:pt-8 pb-3 mb-3 bg-white border-b border-gray-100 text-xl font-bold text-gray-900">{title}</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

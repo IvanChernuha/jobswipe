@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Icon from '../components/Icon'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -229,7 +230,7 @@ export default function Team() {
                   </div>
                 ) : (
                   <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                    m.role === 'owner' ? 'bg-purple-50 text-purple-600' :
+                    m.role === 'owner' ? 'bg-brand-50 text-brand-700' :
                     m.role === 'admin' ? 'bg-blue-50 text-blue-600' :
                     m.role === 'manager' ? 'bg-green-50 text-green-600' :
                     'bg-gray-50 text-gray-600'
@@ -345,10 +346,13 @@ function NoOrgView({
       <div className="max-w-md w-full px-4 py-16">
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">👥</span>
+            <Icon name="users" className="w-7 h-7 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">{t('nav.team')}</h1>
           <p className="text-gray-500 text-sm mt-1">{t('team.collaborateHint')}</p>
+          <p className="text-gray-600 text-sm mt-4 leading-relaxed bg-white border border-gray-200 rounded-xl px-4 py-3 text-start">
+            {t('team.whatIsOrg')}
+          </p>
         </div>
 
         {error && <ErrorBanner message={error} onDismiss={onDismissError} />}

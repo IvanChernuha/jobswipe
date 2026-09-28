@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import Icon from '../components/Icon'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
@@ -45,15 +46,15 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-50 via-white to-purple-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-3xl shadow-xl shadow-gray-100 p-8 sm:p-10">
           <div className="flex justify-end mb-3"><LangToggle /></div>
           {/* Header */}
           <div className="text-center mb-8">
             <Link to="/" className="inline-block mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mx-auto shadow-md shadow-brand-200">
-                <span className="text-2xl">💼</span>
+              <div className="w-12 h-12 rounded-xl bg-brand-500 text-white flex items-center justify-center mx-auto">
+                <Icon name="briefcase" className="w-6 h-6" />
               </div>
             </Link>
             <h1 className="text-2xl font-bold text-gray-900">{t('register.title')}</h1>
@@ -88,7 +89,10 @@ export default function Register() {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    {r === 'worker' ? `👷 ${t('register.worker')}` : `🏢 ${t('register.employer')}`}
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      <Icon name={r === 'worker' ? 'user' : 'building'} className="w-4 h-4" />
+                      {r === 'worker' ? t('register.worker') : t('register.employer')}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -112,8 +116,8 @@ export default function Register() {
 
             <div>
               <label htmlFor="password" className="label">
-                {t('common.password')}
-                <span className="ms-1 text-xs font-normal text-gray-400">{t('register.minChars', { count: 8 })}</span>
+                {t('common.password')}{' '}
+                <span className="text-xs font-normal text-gray-400">{t('register.minChars', { count: 8 })}</span>
               </label>
               <input
                 id="password"

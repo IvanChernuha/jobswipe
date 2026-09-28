@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Icon from '../components/Icon'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
@@ -62,7 +63,7 @@ export default function Matches() {
       <PageShell>
         <div className="flex flex-col items-center gap-4 py-20 text-center px-6">
           {notice && <p className="text-sm text-white bg-gray-900 rounded-xl px-4 py-3" role="status">{notice}</p>}
-          <span className="text-6xl">💙</span>
+          <Icon name="message" className="w-14 h-14 text-brand-300" />
           <h2 className="text-xl font-bold text-gray-800">{t('matches.emptyTitle')}</h2>
           <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
             {t('matches.emptyHint')}
@@ -186,8 +187,9 @@ function MatchCard({
   })
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4
                     hover:shadow-md transition-shadow">
+     <div className="flex items-center gap-4 min-w-0 flex-1">
       {/* Avatar */}
       <div className="relative w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-brand-300 to-brand-500 flex items-center justify-center">
         {avatarUrl ? (
@@ -204,24 +206,21 @@ function MatchCard({
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p dir="auto" className="font-semibold text-gray-900 truncate">{name}</p>
+        <p dir="auto" className="font-semibold text-gray-900 break-words">{name}</p>
         {subtitle && <p dir="auto" className="text-sm text-gray-500 truncate">{subtitle}</p>}
         <p className="text-xs text-gray-400 mt-0.5">{t('matches.matchedOn', { date: matchDate })}</p>
       </div>
+     </div>
 
       {/* Actions */}
-      <div className="flex-shrink-0 flex items-center gap-2">
-        {/* Chat button */}
+      <div className="flex items-center gap-2 sm:shrink-0">
         <button
           onClick={onChat}
-          className="relative w-10 h-10 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center
-                     hover:bg-brand-100 transition-colors"
-          aria-label={t('matches.chat')}
+          className="h-11 px-4 rounded-full bg-brand-500 text-white text-sm font-semibold flex items-center gap-2
+                     hover:bg-brand-600 transition-colors"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
+          <Icon name="message" className="w-4 h-4" />
+          {t('matches.chat')}
         </button>
 
         {/* Contact reveal */}
@@ -238,7 +237,7 @@ function MatchCard({
           <button
             onClick={handleReveal}
             disabled={loadingContact}
-            className="btn-primary text-xs py-1.5 px-3"
+            className="btn-secondary text-xs min-h-[44px] px-3"
           >
             {loadingContact ? '...' : t('matches.email')}
           </button>
@@ -247,12 +246,11 @@ function MatchCard({
         {/* Report */}
         <button
           onClick={(e) => { e.stopPropagation(); onReport(); }}
-          className="w-8 h-8 rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors"
+          className="w-11 h-11 ms-auto sm:ms-0 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors"
           title={t('common.report')}
+          aria-label={t('common.report')}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
-          </svg>
+          <Icon name="flag" className="w-4 h-4" />
         </button>
       </div>
     </div>

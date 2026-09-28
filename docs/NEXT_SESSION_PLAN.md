@@ -17,6 +17,7 @@ _Latest commit on `main`: `393908c`. Read this file first, then run the commands
 | Friends beta | live at **https://glucose-nikon-grant-pond.trycloudflare.com** — **zero activity so far** |
 | Android / PWA | not started (after web, after Hebrew — done) |
 | Notifications (in-app, prefs, team fan-out) | ✅ done (2026-09-22) — see §4. No error boundary yet (pre-existing gap, surfaced during this build) |
+| Redesign — direction A "Harbor" (teal/navy/ivory, Fraunces + IBM Plex Sans, real icons, phone tab bar, language dropdown) | ✅ done (2026-09-28). Polish checklist P3 items all closed. Canvas with the 3 directions: https://claude.ai/artifact/UicW9xc2Pw93ExdL1u5MgT |
 | Saved candidates — team-shared + signed note threads | ✅ done (2026-09-22, `393908c`), ad-hoc mid-session request, not part of the agreed order below. Employer bookmarks now visible org-wide (was 100% private per recruiter); notes are a thread, each signed with author email + date, delete-own-only. Worker saved jobs unchanged. Verified with 2 real accounts in the same org. See memory worktrack for full detail. |
 
 Local stack = `docker compose` on this box (LAN `http://192.168.2.42`). Tunnel URL changes if the tunnel restarts:
@@ -41,8 +42,8 @@ Data caveat: 295 of 330 users are automated-test junk owning 173/180 jobs; clean
 ## 3. Agreed order of work
 
 1. ~~**Notifications**~~ — ✅ done (2026-09-22), see §4.
-2. **Redesign / colors** ← **START HERE NEXT** — design canvas with 3 directions; current pink `#ec4899` reads "Tinder clone", vision is professional → calmer palette. Palette lives in `frontend/tailwind.config.js`. Fold the 10 P3 cosmetic items into this pass.
-3. **Admin panel UI + liquidity dashboard** — one page: reports queue, suspend/unsuspend, hide/unhide, plus signups/day, employers with live jobs, % new users with ≥1 match, time-to-first-match, matches→first message. Admin API exists at `/api/admin/*` (Swagger `/docs`), gated by `ADMIN_EMAILS`.
+2. ~~**Redesign / colors**~~ — ✅ done (2026-09-28): user picked direction A "Harbor". Applied via `tailwind.config.js` (`brand` = teal scale, `gray` overridden with warm/navy-tinted neutrals so every existing `gray-*` class picked up the new look), fonts in `index.html` + `fontFamily` (`font-display` = Fraunces → Frank Ruhl Libre for Hebrew; body IBM Plex Sans → IBM Plex Sans Hebrew), `components/Icon.tsx` replaced every emoji, `LangToggle` is now a `<select>` fed by `LANGUAGES` in `i18n.ts` (add a language = one entry + one locale file), phones got a bottom tab bar (`Navbar.tsx`, hidden on `/chat/*`; `App.tsx` pads `main` for it). All P3 cosmetic items closed in the same pass.
+3. **Admin panel UI + liquidity dashboard** ← **START HERE NEXT** — one page: reports queue, suspend/unsuspend, hide/unhide, plus signups/day, employers with live jobs, % new users with ≥1 match, time-to-first-match, matches→first message. Admin API exists at `/api/admin/*` (Swagger `/docs`), gated by `ADMIN_EMAILS`.
 4. **Employer "paste your job ad → live in 2 minutes"** (reuse `/api/cv/parse-job-files`) + job-expiry reminder ("expires in 3 days — renew?" — the backend half now exists, see §4).
 5. **PWA** (`vite-plugin-pwa`: manifest + service worker) + web push → **Android via Capacitor** (same React code; NO native rewrite). Play Store UGC review needs: report/block ✅, privacy policy URL, real in-app account deletion (GDPR delete needs the Phase-3 cleanup), data-safety form.
 6. Feedback-driven fixes → seeded public job listings → solo-useful CV value (skill gap analysis).
@@ -174,7 +175,7 @@ git log --oneline -5 && docker ps --format '{{.Names}} {{.Status}}' | grep jobsw
 docker logs jobswipe-tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
 docker exec supabase-db psql -U postgres -d postgres -Atc "SELECT count(*) FROM users WHERE created_at > '2026-09-22' AND email NOT LIKE '%@test.local'"   # any friends yet?
 ```
-Notifications (§4) are done. Start §5 (redesign) next.
+Notifications (§4) and the redesign (§5) are done. Start §3 item 3 (admin panel UI + liquidity dashboard) next.
 
 ---
 

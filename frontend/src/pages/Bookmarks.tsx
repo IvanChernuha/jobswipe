@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Icon from '../components/Icon'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -161,7 +162,7 @@ export default function Bookmarks() {
     return (
       <Shell>
         <div className="text-center py-16">
-          <p className="text-5xl mb-3">&#x2691;</p>
+          <Icon name="bookmark" className="w-14 h-14 mx-auto mb-3 text-brand-300" />
           <h2 className="text-xl font-bold text-gray-800 mb-2">{t('bookmarks.emptyTitle')}</h2>
           <p className="text-gray-500 text-sm">
             {t('bookmarks.emptyHint')}<span className="hidden [@media(hover:hover)]:inline"> ({t('bookmarks.emptyHintOrPress')} <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-500 font-mono text-xs">B</kbd>)</span>

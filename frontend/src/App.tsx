@@ -40,11 +40,13 @@ export default function App() {
   const { pathname } = useLocation()
   // No app chrome during onboarding: the only way forward is finishing it.
   const showNavbar = !!session && pathname !== '/onboarding'
+  // Phones get a bottom tab bar (see Navbar); leave room for it except in chat.
+  const tabBarPad = showNavbar && !pathname.startsWith('/chat/') ? 'pb-16 sm:pb-0' : ''
 
   return (
     <div className="min-h-screen flex flex-col">
       {showNavbar && <Navbar />}
-      <main className="flex-1">
+      <main className={`flex-1 ${tabBarPad}`}>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />

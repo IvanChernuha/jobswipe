@@ -7,13 +7,14 @@ import {
   markAllNotificationsRead,
 } from '../lib/api'
 import type { AppNotification, NotificationType } from '../lib/api'
+import Icon, { type IconName } from './Icon'
 
-const TYPE_ICON: Record<NotificationType, string> = {
-  match: '💙',
-  like_received: '❤️',
-  chat: '💬',
-  team: '👥',
-  account: '🔔',
+const TYPE_ICON: Record<NotificationType, IconName> = {
+  match: 'sparkles',
+  like_received: 'heart',
+  chat: 'message',
+  team: 'users',
+  account: 'bell',
 }
 
 /** Maps a notification's server-chosen title_key/params to a translated string. */
@@ -108,8 +109,8 @@ export default function NotificationBell({
         aria-label={unreadCount > 0 ? t('nav.unread', { label: t('notif.bell'), count: unreadCount }) : t('notif.bell')}
         aria-expanded={open}
       >
-        <span className="relative text-base sm:text-lg leading-none">
-          🔔
+        <span className="relative">
+          <Icon name="bell" className="w-5 h-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-1.5 -end-2.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-4 text-center">
               {unreadCount > 99 ? '99+' : unreadCount}
@@ -150,7 +151,9 @@ export default function NotificationBell({
                       n.read_at ? '' : 'bg-brand-50/50'
                     }`}
                   >
-                    <span className="text-lg leading-none shrink-0">{TYPE_ICON[n.type]}</span>
+                    <span className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                      <Icon name={TYPE_ICON[n.type]} className="w-4 h-4" />
+                    </span>
                     <span className="flex-1 min-w-0">
                       <span className={`block text-sm ${n.read_at ? 'text-gray-600' : 'text-gray-900 font-medium'}`} dir="auto">
                         {notifText(t, n)}
