@@ -780,6 +780,7 @@ export interface ModerationStatus {
   pending_reports: number
   suspended_users: number
   hidden_jobs: number
+  free_live_jobs: number
 }
 
 export type AdminReportStatus = 'pending' | 'actioned' | 'dismissed'
@@ -869,4 +870,70 @@ export function getLiquidity(token: string, days: number, includeTest: boolean):
 
 export function amIAdmin(token: string): Promise<{ admin: boolean }> {
   return request<{ admin: boolean }>('/admin/am-i', { token })
+}
+
+// ---------------------------------------------------------------------------
+// Plans
+// ---------------------------------------------------------------------------
+
+export interface PlanSummary {
+  plan: 'free' | 'pro'
+  pro_until: string | null
+  shared_with_team: boolean
+  can_redeem: boolean
+  live_jobs: number
+  free_live_jobs: number
+}
+
+export function getPlan(token: string): Promise<PlanSummary> {
+  return request<PlanSummary>('/plan', { token })
+}
+
+export function redeemCode(token: string, code: string): Promise<PlanSummary> {
+  return request<PlanSummary>('/plan/redeem', { method: 'POST', token, body: JSON.stringify({ code }) })
+}
+
+export interface PromoCode {
+  id: string
+  code: string
+  duration_days: number | null
+  max_uses: number
+  uses: number
+  redeem_by: string | null
+  note: string
+  active: boolean
+  created_at: string | null
+}
+
+export interface ProAccount {
+  id: string
+  account: string
+  account_type: 'org' | 'user'
+  redeemed_by: string
+  code: string
+  source: string
+  ends_at: string | null
+}
+
+export function getPromoCodes(token: string): Promise<PromoCode[]> {
+  return request<PromoCode[]>('/admin/promo-codes', { token })
+}
+
+export function createPromoCode(
+  token: string,
+  body: { code: string; duration_days: number | null; max_uses: number; redeem_by_days: number | null; note: string },
+): Promise<PromoCode> {
+  return request<PromoCode>('/admin/promo-codes', { method: 'POST', token, body: JSON.stringify(body) })
+}
+
+export function deactivatePromoCode(token: string, id: string): Promise<PromoCode> {
+  return request<PromoCode>(`/admin/promo-codes/${id}/deactivate`, { method: 'POST', token })
+}
+
+export function getProAccounts(token: string): Promise<ProAccount[]> {
+  return request<ProAccount[]>('/admin/pro-accounts', { token })
+}
+
+export function revokeProGrant(token: string, id: string): Promise<unknown> {
+  return request(`/admin/pro-grants/${id}/revoke`, { method: 'POST', token })
 }

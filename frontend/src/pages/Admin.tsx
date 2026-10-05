@@ -4,8 +4,9 @@ import { useAuth } from '../hooks/useAuth'
 import {
   amIAdmin, getModerationStatus, getAdminReports, dismissReport, actionReport,
   getSuspendedUsers, unsuspendUser, getHiddenJobs, unhideJob, getLiquidity,
+  getPromoCodes, createPromoCode, deactivatePromoCode, getProAccounts, revokeProGrant,
   type ModerationStatus, type AdminReport, type AdminReportStatus, type SuspendedUser,
-  type HiddenJob, type Liquidity,
+  type HiddenJob, type Liquidity, type PromoCode, type ProAccount,
 } from '../lib/api'
 import ColumnChart from '../components/ColumnChart'
 import Icon from '../components/Icon'
@@ -14,7 +15,7 @@ import Icon from '../components/Icon'
 const WORKER_COLOR = '#00908D'
 const EMPLOYER_COLOR = '#D07A0A'
 
-type Tab = 'liquidity' | 'moderation'
+type Tab = 'liquidity' | 'moderation' | 'plans'
 
 export default function Admin() {
   const { t } = useTranslation()
@@ -45,7 +46,7 @@ export default function Admin() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">{t('admin.title')}</h1>
         <div className="flex rounded-xl bg-gray-100 p-1" role="tablist">
-          {(['liquidity', 'moderation'] as Tab[]).map((k) => (
+          {(['liquidity', 'moderation', 'plans'] as Tab[]).map((k) => (
             <button
               key={k}
               role="tab"
@@ -60,7 +61,9 @@ export default function Admin() {
           ))}
         </div>
       </div>
-      {tab === 'liquidity' ? <LiquidityTab token={token} /> : <ModerationTab token={token} />}
+      {tab === 'liquidity' && <LiquidityTab token={token} />}
+      {tab === 'moderation' && <ModerationTab token={token} />}
+      {tab === 'plans' && <PlansTab token={token} />}
     </Shell>
   )
 }
@@ -407,6 +410,176 @@ function ModerationTab({ token }: { token: string }) {
                 </div>
                 <button disabled={busy === j.id} onClick={() => run(j.id, () => unhideJob(token, j.id))} className="btn-secondary text-sm min-h-[44px] px-4">
                   {t('admin.mod.unhide')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Plans: promo codes
+// ---------------------------------------------------------------------------
+
+const DURATIONS: { days: number | null; key: string }[] = [
+  { days: 30, key: 'd30' }, { days: 90, key: 'd90' }, { days: 180, key: 'd180' },
+  { days: 365, key: 'd365' }, { days: null, key: 'forever' },
+]
+
+function PlansTab({ token }: { token: string }) {
+  const { t, i18n } = useTranslation()
+  const lang = i18n.resolvedLanguage ?? 'en'
+  const [codes, setCodes] = useState<PromoCode[] | null>(null)
+  const [accounts, setAccounts] = useState<ProAccount[]>([])
+  const [code, setCode] = useState('')
+  const [duration, setDuration] = useState<string>('90')
+  const [maxUses, setMaxUses] = useState('20')
+  const [redeemByDays, setRedeemByDays] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [created, setCreated] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+  const [freeLimit, setFreeLimit] = useState<number | null>(null)
+  useEffect(() => { getModerationStatus(token).then((s) => setFreeLimit(s.free_live_jobs)).catch(() => {}) }, [token])
+
+  const reload = useCallback(() => {
+    getPromoCodes(token).then(setCodes).catch(() => setCodes([]))
+    getProAccounts(token).then(setAccounts).catch(() => {})
+  }, [token])
+  useEffect(() => { reload() }, [reload])
+
+  const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+  const durationLabel = (d: number | null) => t(`admin.plans.dur.${DURATIONS.find((x) => x.days === d)?.key ?? 'custom'}`, { count: d ?? 0 })
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true); setError(null); setCreated(null)
+    try {
+      const c = await createPromoCode(token, {
+        code: code.trim(),
+        duration_days: duration === 'forever' ? null : Number(duration),
+        max_uses: Math.max(1, Number(maxUses) || 1),
+        redeem_by_days: redeemByDays ? Number(redeemByDays) : null,
+        note: note.trim(),
+      })
+      setCreated(c.code); setCode(''); setNote('')
+      reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'error')
+    }
+    setBusy(false)
+  }
+
+  async function copy(text: string) {
+    try { await navigator.clipboard.writeText(text); setCopied(text); setTimeout(() => setCopied(null), 1500) } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="space-y-8">
+      <p className="text-sm text-gray-600 leading-relaxed max-w-2xl">{freeLimit !== null && t('admin.plans.intro', { limit: freeLimit })}</p>
+
+      <section className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('admin.plans.newCode')}</h2>
+        <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="pc-code" className="label">{t('admin.plans.code')}</label>
+            <input id="pc-code" dir="ltr" value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('admin.plans.codePlaceholder')} className="input uppercase placeholder:normal-case" />
+          </div>
+          <div>
+            <label htmlFor="pc-dur" className="label">{t('admin.plans.duration')}</label>
+            <select id="pc-dur" value={duration} onChange={(e) => setDuration(e.target.value)} className="input">
+              {DURATIONS.map((d) => <option key={d.key} value={d.days ?? 'forever'}>{t(`admin.plans.dur.${d.key}`)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="pc-uses" className="label">{t('admin.plans.maxUses')}</label>
+            <input id="pc-uses" type="number" min={1} value={maxUses} onChange={(e) => setMaxUses(e.target.value)} className="input" />
+            <p className="text-xs text-gray-500 mt-1">{t('admin.plans.maxUsesHint')}</p>
+          </div>
+          <div>
+            <label htmlFor="pc-by" className="label">{t('admin.plans.redeemBy')}</label>
+            <input id="pc-by" type="number" min={1} value={redeemByDays} onChange={(e) => setRedeemByDays(e.target.value)} placeholder={t('admin.plans.redeemByPlaceholder')} className="input" />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="pc-note" className="label">{t('admin.plans.note')}</label>
+            <input id="pc-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('admin.plans.notePlaceholder')} className="input" />
+          </div>
+          <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
+            <button type="submit" disabled={busy} className="btn-primary text-sm px-5 min-h-[44px]">{t('admin.plans.create')}</button>
+            {created && (
+              <span className="text-sm text-brand-800" role="status">
+                {t('admin.plans.created')} <strong dir="ltr" className="font-mono">{created}</strong>
+              </span>
+            )}
+            {error && <span className="text-sm text-red-600" role="alert">{error}</span>}
+          </div>
+        </form>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('admin.plans.codes')}</h2>
+        {codes === null ? <Spinner /> : codes.length === 0 ? <Empty text={t('admin.plans.noCodes')} /> : (
+          <ul className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100">
+            {codes.map((c) => {
+              const expired = !!c.redeem_by && new Date(c.redeem_by) < new Date()
+              const full = c.uses >= c.max_uses
+              const state = !c.active ? 'off' : expired ? 'expired' : full ? 'full' : 'live'
+              return (
+                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button onClick={() => copy(c.code)} dir="ltr" className="font-mono font-semibold text-gray-900 hover:text-brand-600" title={t('admin.plans.copy')}>
+                        {c.code}
+                      </button>
+                      {copied === c.code && <span className="text-xs text-brand-700">{t('admin.plans.copied')}</span>}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        state === 'live' ? 'bg-brand-50 text-brand-700' : 'bg-gray-100 text-gray-600'
+                      }`}>{t(`admin.plans.state.${state}`)}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {durationLabel(c.duration_days)} · {t('admin.plans.uses', { used: c.uses, max: c.max_uses })}
+                      {c.redeem_by ? ` · ${t('admin.plans.redeemUntil', { date: fmt(c.redeem_by) })}` : ''}
+                      {c.note ? ` · ${c.note}` : ''}
+                    </p>
+                  </div>
+                  {c.active && (
+                    <button
+                      onClick={async () => { if (confirm(t('admin.plans.confirmDeactivate'))) { await deactivatePromoCode(token, c.id).catch(() => {}); reload() } }}
+                      className="btn-secondary text-sm min-h-[44px] px-4"
+                    >
+                      {t('admin.plans.deactivate')}
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('admin.plans.proAccounts')}</h2>
+        {accounts.length === 0 ? <Empty text={t('admin.plans.noPro')} /> : (
+          <ul className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100">
+            {accounts.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p dir="auto" className="font-medium text-gray-900 break-all">{a.account}</p>
+                  <p className="text-xs text-gray-500 break-all">
+                    {a.ends_at ? t('admin.plans.proUntil', { date: fmt(a.ends_at) }) : t('plan.forever')}
+                    {a.code ? ` · ${a.code}` : ''}
+                    {a.redeemed_by && a.redeemed_by !== a.account ? ` · ${a.redeemed_by}` : ''}
+                  </p>
+                </div>
+                <button
+                  onClick={async () => { if (confirm(t('admin.plans.confirmRevoke'))) { await revokeProGrant(token, a.id).catch(() => {}); reload() } }}
+                  className="btn-secondary text-sm min-h-[44px] px-4"
+                >
+                  {t('admin.plans.revoke')}
                 </button>
               </li>
             ))}

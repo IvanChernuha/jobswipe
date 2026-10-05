@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     REPORT_AUTO_ACTION_THRESHOLD: int = 3
     # Comma-separated emails allowed to call /admin/* (deny-all when empty).
     ADMIN_EMAILS: str = ""
+    # --- Plans ---
+    # Live (active, unexpired) jobs an employer/org may have without Pro.
+    # Set to 0 once billing exists to make posting a paid feature.
+    FREE_LIVE_JOBS: int = 1
     # SQL LIKE patterns for test/demo accounts left out of the admin liquidity
     # dashboard (unless the admin ticks "include test accounts").
     ANALYTICS_EXCLUDE_EMAILS: str = (

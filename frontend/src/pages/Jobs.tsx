@@ -8,6 +8,8 @@ import {
   type JobPosting, type Tag, type ParsedJobFile,
 } from '../lib/api'
 import TagPicker from '../components/TagPicker'
+import { RedeemForm, planUntilLabel } from '../components/PlanCard'
+import { getPlan, type PlanSummary } from '../lib/api'
 import TagBadge from '../components/TagBadge'
 
 export default function Jobs() {
@@ -24,6 +26,21 @@ export default function Jobs() {
   const [parsedJobs, setParsedJobs] = useState<ParsedJobFile[] | null>(null)
   const [parsing, setParsing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [plan, setPlan] = useState<PlanSummary | null>(null)
+  const [showRedeem, setShowRedeem] = useState(false)
+  const refreshPlan = () => { getPlan(token).then(setPlan).catch(() => {}) }
+
+  useEffect(() => {
+    if (!token) return
+    refreshPlan()
+  }, [token])
+
+  const atLimit = !!plan && plan.plan === 'free' && plan.live_jobs >= plan.free_live_jobs
+  // At the Free limit, "post" actions open the code box instead of a form that would fail.
+  function guardPost(action: () => void) {
+    if (atLimit) { setShowRedeem(true); return }
+    action()
+  }
 
   useEffect(() => {
     if (!token) return
@@ -38,6 +55,7 @@ export default function Jobs() {
     try {
       const updated = await toggleJobActive(token, jobId)
       setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, active: updated.active } : j)))
+      refreshPlan()
     } catch (err) { setActionError(err instanceof Error ? err.message : t('jobs.couldNotUpdate')) }
   }
 
@@ -46,6 +64,7 @@ export default function Jobs() {
     try {
       await deleteJobPosting(token, jobId)
       setJobs((prev) => prev.filter((j) => j.id !== jobId))
+      refreshPlan()
     } catch (err) { setActionError(err instanceof Error ? err.message : t('jobs.couldNotDelete')) }
   }
 
@@ -60,6 +79,7 @@ export default function Jobs() {
     const created = await createJobPosting(token, data as any)
     setJobs((prev) => [{ ...created, swipe_count: 0, like_count: 0, match_count: 0, active: true } as JobPosting, ...prev])
     setCreateModal({ open: false, prefilled: null })
+    refreshPlan()
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -97,6 +117,7 @@ export default function Jobs() {
       } as any)
       setJobs((prev) => [{ ...created, swipe_count: 0, like_count: 0, match_count: 0, active: true } as JobPosting, ...prev])
       setParsedJobs((prev) => prev?.filter((p) => p.filename !== parsed.filename) ?? null)
+      refreshPlan()
     } catch (err) { setActionError(err instanceof Error ? err.message : t('jobs.couldNotCreate')) }
   }
 
@@ -143,7 +164,7 @@ export default function Jobs() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => guardPost(() => fileInputRef.current?.click())}
               disabled={parsing}
               className="btn-secondary text-sm py-2 px-4 flex items-center gap-1.5"
             >
@@ -168,7 +189,7 @@ export default function Jobs() {
               onChange={handleFileUpload}
             />
             <button
-              onClick={() => setCreateModal({ open: true, prefilled: null })}
+              onClick={() => guardPost(() => setCreateModal({ open: true, prefilled: null }))}
               className="btn-primary text-sm py-2 px-4 flex items-center gap-1.5"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -178,6 +199,17 @@ export default function Jobs() {
             </button>
           </div>
         </div>
+
+        {plan && (
+          <PlanBanner
+            plan={plan}
+            atLimit={atLimit}
+            open={showRedeem}
+            onToggle={() => setShowRedeem(!showRedeem)}
+            token={token}
+            onRedeemed={(p) => { setPlan(p); setShowRedeem(false) }}
+          />
+        )}
 
         {/* Bulk review list */}
         {parsedJobs && parsedJobs.length > 0 && (
@@ -242,7 +274,7 @@ export default function Jobs() {
             <Icon name="clipboard" className="w-14 h-14 mx-auto mb-3 text-brand-300" />
             <h2 className="text-xl font-bold text-gray-800 mb-2">{t('jobs.emptyTitle')}</h2>
             <p className="text-gray-500 text-sm mb-4">{t('jobs.emptyHint')}</p>
-            <button onClick={() => setCreateModal({ open: true, prefilled: null })} className="btn-primary text-sm">
+            <button onClick={() => guardPost(() => setCreateModal({ open: true, prefilled: null }))} className="btn-primary text-sm">
               {t('jobs.createJob')}
             </button>
           </div>
@@ -725,6 +757,40 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col items-center">
       {children}
+    </div>
+  )
+}
+
+function PlanBanner({
+  plan, atLimit, open, onToggle, token, onRedeemed,
+}: {
+  plan: PlanSummary; atLimit: boolean; open: boolean; onToggle: () => void
+  token: string; onRedeemed: (p: PlanSummary) => void
+}) {
+  const { t, i18n } = useTranslation()
+  if (plan.plan === 'pro') {
+    return (
+      <div className="mb-6 flex items-center gap-2 text-sm text-brand-800 bg-brand-50 rounded-xl px-4 py-2.5">
+        <Icon name="sparkles" className="w-4 h-4 shrink-0" />
+        <span><strong>{t('plan.pro')}</strong> · {planUntilLabel(t, plan, i18n.resolvedLanguage ?? 'en')}</span>
+      </div>
+    )
+  }
+  return (
+    <div className={`mb-6 rounded-2xl border px-4 py-3 ${atLimit ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-gray-700">
+          <strong>{t('plan.free')}</strong> · {t('plan.liveJobsOf', { used: plan.live_jobs, limit: plan.free_live_jobs })}
+          {atLimit && <span className="block text-amber-800 mt-0.5">{t('plan.limitReached')}</span>}
+        </p>
+        {plan.can_redeem && (
+          <button onClick={onToggle} className="text-sm font-semibold text-brand-600 hover:text-brand-700 min-h-[44px]">
+            {t('plan.haveCodeShort')}
+          </button>
+        )}
+      </div>
+      {open && plan.can_redeem && <div className="mt-3"><RedeemForm token={token} onRedeemed={onRedeemed} /></div>}
+      {open && !plan.can_redeem && <p className="mt-2 text-sm text-gray-500">{t('plan.askOwner')}</p>}
     </div>
   )
 }

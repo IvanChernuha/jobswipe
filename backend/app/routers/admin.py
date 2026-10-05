@@ -4,10 +4,11 @@ Gated by ADMIN_EMAILS. Moderation exists so a false positive from the
 automated report loop is a one-click undo, not a database session.
 """
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,10 +17,13 @@ from app.deps import get_current_user, require_admin, _admin_emails
 from app.db.session import get_session
 from app.models.tables.employer import EmployerProfile
 from app.models.tables.job import JobPosting
+from app.models.tables.organization import Organization
+from app.models.tables.plan import PromoCode, ProGrant
 from app.models.tables.report import Report
 from app.models.tables.user import User
 from app.models.tables.worker import WorkerProfile
 from app.services.moderation import apply_action
+from app.services.plans import generate_code, normalize_code
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -71,6 +75,7 @@ async def moderation_status(user: dict = Depends(require_admin), session: AsyncS
         "pending_reports": pending or 0,
         "suspended_users": suspended or 0,
         "hidden_jobs": hidden or 0,
+        "free_live_jobs": settings.FREE_LIVE_JOBS,
     }
 
 
@@ -311,3 +316,121 @@ async def unhide_job(job_id: str, user: dict = Depends(require_admin), session: 
     session.add(job)
     await session.commit()
     return {"id": job_id, "active": True}
+
+
+# ---------------------------------------------------------------------------
+# Plans: promo codes + Pro accounts
+# ---------------------------------------------------------------------------
+
+class PromoCodeCreate(BaseModel):
+    code: str = ""                 # blank = generate one
+    duration_days: Optional[int] = None  # None = Pro forever
+    max_uses: int = 1
+    redeem_by_days: Optional[int] = None  # code expires N days from now; None = never
+    note: str = ""
+
+    @field_validator("code")
+    @classmethod
+    def code_shape(cls, v: str) -> str:
+        v = normalize_code(v)
+        if v and not (4 <= len(v) <= 40 and v.replace("-", "").replace("_", "").isalnum()):
+            raise ValueError("Code must be 4–40 letters/digits (dashes allowed)")
+        return v
+
+    @field_validator("duration_days", "redeem_by_days")
+    @classmethod
+    def positive_days(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and not 1 <= v <= 3650:
+            raise ValueError("Days must be between 1 and 3650")
+        return v
+
+    @field_validator("max_uses")
+    @classmethod
+    def positive_uses(cls, v: int) -> int:
+        if not 1 <= v <= 100000:
+            raise ValueError("Max uses must be at least 1")
+        return v
+
+
+def _code_row(c: PromoCode) -> dict:
+    return {
+        "id": str(c.id), "code": c.code, "duration_days": c.duration_days,
+        "max_uses": c.max_uses, "uses": c.uses,
+        "redeem_by": c.redeem_by.isoformat() if c.redeem_by else None,
+        "note": c.note, "active": c.active,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    }
+
+
+@router.get("/promo-codes")
+async def list_promo_codes(user: dict = Depends(require_admin), session: AsyncSession = Depends(get_session)):
+    rows = (await session.execute(select(PromoCode).order_by(PromoCode.created_at.desc()))).scalars().all()
+    return [_code_row(c) for c in rows]
+
+
+@router.post("/promo-codes", status_code=201)
+async def create_promo_code(body: PromoCodeCreate, user: dict = Depends(require_admin), session: AsyncSession = Depends(get_session)):
+    now = datetime.now(timezone.utc)
+    code = body.code or generate_code()
+    if await session.scalar(select(func.count()).select_from(PromoCode).where(PromoCode.code == code)):
+        raise HTTPException(409, "That code already exists")
+    promo = PromoCode(
+        code=code, duration_days=body.duration_days, max_uses=body.max_uses,
+        redeem_by=now + timedelta(days=body.redeem_by_days) if body.redeem_by_days else None,
+        note=body.note.strip()[:200], active=True, created_by=uuid.UUID(user["id"]), created_at=now,
+    )
+    session.add(promo)
+    await session.commit()
+    return _code_row(promo)
+
+
+@router.post("/promo-codes/{code_id}/deactivate")
+async def deactivate_promo_code(code_id: str, user: dict = Depends(require_admin), session: AsyncSession = Depends(get_session)):
+    promo = await session.get(PromoCode, _uuid(code_id))
+    if not promo:
+        raise HTTPException(404, "Code not found")
+    promo.active = False
+    session.add(promo)
+    await session.commit()
+    return _code_row(promo)
+
+
+@router.get("/pro-accounts")
+async def list_pro_accounts(user: dict = Depends(require_admin), session: AsyncSession = Depends(get_session)):
+    """Grants that are active now — who has Pro, until when, and from which code."""
+    now = datetime.now(timezone.utc)
+    rows = (await session.execute(
+        select(ProGrant, PromoCode.code)
+        .outerjoin(PromoCode, PromoCode.id == ProGrant.promo_code_id)
+        .where(ProGrant.starts_at <= now, (ProGrant.ends_at.is_(None)) | (ProGrant.ends_at > now))
+        .order_by(ProGrant.created_at.desc())
+    )).all()
+    org_ids = {g.subject_id for g, _ in rows if g.subject_type == "org"}
+    user_ids = {g.subject_id for g, _ in rows if g.subject_type == "user"} | {g.redeemed_by for g, _ in rows if g.redeemed_by}
+    orgs = {o.id: o.name for o in (await session.execute(select(Organization.id, Organization.name).where(Organization.id.in_(org_ids)))).all()} if org_ids else {}
+    emails = {u.id: u.email for u in (await session.execute(select(User.id, User.email).where(User.id.in_(user_ids)))).all()} if user_ids else {}
+    companies = {e.user_id: e.company_name for e in (await session.execute(
+        select(EmployerProfile.user_id, EmployerProfile.company_name).where(EmployerProfile.user_id.in_(user_ids)))).all()} if user_ids else {}
+    return [
+        {
+            "id": str(g.id),
+            "account": orgs.get(g.subject_id) if g.subject_type == "org" else (companies.get(g.subject_id) or emails.get(g.subject_id, "")),
+            "account_type": g.subject_type,
+            "redeemed_by": emails.get(g.redeemed_by, "") if g.redeemed_by else "",
+            "code": code or "",
+            "source": g.source,
+            "ends_at": g.ends_at.isoformat() if g.ends_at else None,
+        }
+        for g, code in rows
+    ]
+
+
+@router.post("/pro-grants/{grant_id}/revoke")
+async def revoke_pro_grant(grant_id: str, user: dict = Depends(require_admin), session: AsyncSession = Depends(get_session)):
+    grant = await session.get(ProGrant, _uuid(grant_id))
+    if not grant:
+        raise HTTPException(404, "Grant not found")
+    grant.ends_at = datetime.now(timezone.utc)
+    session.add(grant)
+    await session.commit()
+    return {"id": grant_id, "revoked": True}

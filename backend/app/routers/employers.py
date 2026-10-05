@@ -21,6 +21,7 @@ from app.models.tables.organization import OrgMember
 from app.models.tables.user import User
 from app.services.blocks import blocked_ids_for
 from app.services.notifications import notify_team
+from app.services.plans import assert_can_go_live
 from app.services.scoring import (
     expand_tags_with_implications_async, batch_expand_implications, compute_match_score,
 )
@@ -155,6 +156,7 @@ async def create_job(
     body: JobPostingCreate, user: dict = Depends(require_employer_with_permission("create_job")),
     session: AsyncSession = Depends(get_session),
 ):
+    await assert_can_go_live(session, user["id"])
     job = JobPosting(
         id=uuid.uuid4(),
         employer_id=uuid.UUID(user["id"]),
@@ -257,7 +259,10 @@ async def update_job(
     expires_in_days = updates.pop("expires_in_days", None)
 
     if expires_in_days is not None:
-        updates["expires_at"] = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+        now = datetime.now(timezone.utc)
+        if job.active and job.expires_at <= now:  # extending an expired job puts it live again
+            await assert_can_go_live(session, user["id"])
+        updates["expires_at"] = now + timedelta(days=expires_in_days)
 
     if "salary_min" in updates or "salary_max" in updates:
         s_min = updates.get("salary_min", job.salary_min)
@@ -290,6 +295,8 @@ async def toggle_job_active(
     session: AsyncSession = Depends(get_session),
 ):
     job = await _verify_job_access(session, job_id, user)
+    if not job.active and job.expires_at > datetime.now(timezone.utc):
+        await assert_can_go_live(session, user["id"])
     job.active = not job.active
     session.add(job)
     await session.commit()

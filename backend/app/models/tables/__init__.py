@@ -14,6 +14,7 @@ from app.models.tables.organization import Organization, OrgMember, OrgInvite
 from app.models.tables.report import Report
 from app.models.tables.block import BlockedUser
 from app.models.tables.notification import Notification, NotificationPref
+from app.models.tables.plan import PromoCode, ProGrant
 
 __all__ = [
     "User",
@@ -30,4 +31,5 @@ __all__ = [
     "Report",
     "BlockedUser",
     "Notification", "NotificationPref",
+    "PromoCode", "ProGrant",
 ]

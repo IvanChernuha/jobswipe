@@ -473,7 +473,8 @@
     "notAllowed": "This page is only for JobSwipe admins.",
     "tab": {
       "liquidity": "Liquidity",
-      "moderation": "Moderation"
+      "moderation": "Moderation",
+      "plans": "Plans"
     },
     "liq": {
       "intro": "Is the marketplace working? These numbers show whether workers and employers are actually finding each other — signups, live jobs, how quickly new people get a first match, and whether matches turn into conversations. Test and demo accounts are left out unless you include them.",
@@ -548,6 +549,69 @@
       "hiddenJobs": "Hidden jobs",
       "noHidden": "No jobs are hidden.",
       "unhide": "Unhide"
+    },
+    "plans": {
+      "intro": "Give Pro away with promo codes. Each code grants Pro for a set time; one code can be shared (e.g. in a WhatsApp group) up to its max number of companies. Free accounts can have {{limit}} live job.",
+      "newCode": "New code",
+      "code": "Code",
+      "codePlaceholder": "Leave empty to generate one",
+      "duration": "Pro lasts",
+      "maxUses": "Max companies",
+      "maxUsesHint": "How many companies can redeem this code.",
+      "redeemBy": "Code expires after (days)",
+      "redeemByPlaceholder": "Never",
+      "note": "Note (only you see this)",
+      "notePlaceholder": "e.g. Tel Aviv dev meetup, Oct",
+      "create": "Create code",
+      "created": "Created:",
+      "codes": "Codes",
+      "noCodes": "No codes yet.",
+      "dur": {
+        "d30": "1 month",
+        "d90": "3 months",
+        "d180": "6 months",
+        "d365": "1 year",
+        "forever": "Forever",
+        "custom_one": "{{count}} day",
+        "custom_other": "{{count}} days"
+      },
+      "uses": "{{used}}/{{max}} used",
+      "redeemUntil": "redeem by {{date}}",
+      "state": {
+        "live": "Active",
+        "full": "Fully used",
+        "expired": "Expired",
+        "off": "Deactivated"
+      },
+      "copy": "Copy code",
+      "copied": "Copied",
+      "deactivate": "Deactivate",
+      "confirmDeactivate": "Deactivate this code? Companies that already redeemed it keep Pro.",
+      "proAccounts": "Accounts on Pro",
+      "noPro": "No one is on Pro yet.",
+      "proUntil": "until {{date}}",
+      "revoke": "Revoke",
+      "confirmRevoke": "End this account's Pro now? Their live jobs stay up until they expire."
     }
+  },
+  "plan": {
+    "title": "Plan",
+    "free": "Free",
+    "pro": "Pro",
+    "forever": "Pro forever",
+    "until": "Pro until {{date}}",
+    "validity": "Valid",
+    "liveJobs": "Live jobs",
+    "liveJobsOf": "{{used}} of {{limit}} live jobs",
+    "liveJobsUnlimited": "{{count}} live · unlimited",
+    "sharedWithTeam": "Your whole team shares this plan.",
+    "proPitch": "Pro lets you keep as many jobs live as you need. Got a code from the JobSwipe team? Enter it below.",
+    "haveCode": "Promo code",
+    "haveCodeShort": "Have a Pro code?",
+    "redeem": "Redeem",
+    "redeemFailed": "That code didn't work.",
+    "redeemedOk": "Code applied — you're on Pro.",
+    "askOwner": "Ask your organization's owner or an admin to enter a Pro code.",
+    "limitReached": "You've reached the Free plan's limit. Deactivate a job or redeem a Pro code to post another."
   }
 }

@@ -50,6 +50,8 @@ Data caveat: 295 of 330 users are automated-test junk owning 173/180 jobs; clean
 
 **Small standing item, not scheduled:** add a top-level React error boundary — the app currently has none, so any uncaught render error blanks the whole UI (found while building notifications; worked around at the specific call sites, not fixed structurally).
 
+**Plans + promo codes (2026-10-05, done):** user's model = employers pay to post via a plan (rough price ₪100–300/month, TBD), Pro given away early via shareable promo codes. Free = `FREE_LIVE_JOBS` (default 1) live jobs, Pro = unlimited; plan belongs to the org (shared by the team) or the solo employer. Codes: admin → Plans tab (duration per code: 1/3/6/12 months or forever; max companies; optional expiry). Redeem: Profile → Plan, or the banner on Jobs. No billing yet — when it comes it writes `pro_grants` rows with `source='billing'`; set `FREE_LIVE_JOBS=0` then if posting should be paid-only. **Migration `014_plans.sql` must be applied to prod before deploying.**
+
 **Parked by user decision:** junk-data cleanup + realistic seed, email verification, in-app feedback button, Phase 4 scale work, monetization, image scanning (`IMAGE_MODERATION=off`, Gemini scanner dormant), org-level blocks, backend error messages in Hebrew (need error codes).
 
 ---

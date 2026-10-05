@@ -18,6 +18,8 @@ import {
 import { useNavigate } from 'react-router-dom'
 import type { WorkerProfile, EmployerProfile, Tag, NotificationType, NotificationPrefs } from '../lib/api'
 import TagPicker from '../components/TagPicker'
+import PlanCard from '../components/PlanCard'
+import { getPlan, type PlanSummary } from '../lib/api'
 
 // ---------------------------------------------------------------------------
 // Avatar upload widget
@@ -488,6 +490,12 @@ function EmployerProfileForm({ token }: { token: string }) {
   )
 }
 
+function EmployerPlan({ token }: { token: string }) {
+  const [plan, setPlan] = useState<PlanSummary | null>(null)
+  useEffect(() => { getPlan(token).then(setPlan).catch(() => {}) }, [token])
+  return plan ? <PlanCard token={token} plan={plan} onChange={setPlan} /> : null
+}
+
 // ---------------------------------------------------------------------------
 // Notification preferences
 // ---------------------------------------------------------------------------
@@ -613,6 +621,8 @@ export default function Profile() {
             <WorkerProfileForm token={token} />
           )}
         </div>
+
+        {role === 'employer' && <EmployerPlan token={token} />}
 
         {(role === 'worker' || role === 'employer') && <NotificationPrefsCard token={token} role={role} />}
 
