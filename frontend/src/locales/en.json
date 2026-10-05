@@ -10,7 +10,8 @@
     "matches": "Matches",
     "profile": "Profile",
     "signOut": "Sign out",
-    "unread": "{{label}}, {{count}} unread"
+    "unread": "{{label}}, {{count}} unread",
+    "admin": "Admin"
   },
   "common": {
     "signIn": "Sign in",
@@ -417,9 +418,15 @@
     "bell": "Notifications",
     "markAllRead": "Mark all read",
     "empty": "No notifications yet",
-    "match": { "title": "It's a match with {{name}}!" },
-    "like_received": { "title": "A candidate liked \"{{title}}\"" },
-    "chat": { "title": "New message from {{name}}" },
+    "match": {
+      "title": "It's a match with {{name}}!"
+    },
+    "like_received": {
+      "title": "A candidate liked \"{{title}}\""
+    },
+    "chat": {
+      "title": "New message from {{name}}"
+    },
     "team": {
       "job_posted": "{{actor}} posted \"{{title}}\"",
       "job_updated": "{{actor}} updated \"{{title}}\"",
@@ -431,9 +438,13 @@
         "title_one": "CV analyzed — {{count}} skill added",
         "title_other": "CV analyzed — {{count}} skills added"
       },
-      "error": { "title": "We couldn't read your CV — try uploading it again" }
+      "error": {
+        "title": "We couldn't read your CV — try uploading it again"
+      }
     },
-    "job_expiring": { "title": "\"{{title}}\" expires in 3 days — renew?" },
+    "job_expiring": {
+      "title": "\"{{title}}\" expires in 3 days — renew?"
+    },
     "time": {
       "now": "just now",
       "minutes_one": "{{count}}m ago",
@@ -455,6 +466,88 @@
       "teamHint": "When a teammate posts, edits, or acts on a job or match.",
       "account": "Account",
       "accountHint": "CV analysis results and job-expiry reminders."
+    }
+  },
+  "admin": {
+    "title": "Admin",
+    "notAllowed": "This page is only for JobSwipe admins.",
+    "tab": {
+      "liquidity": "Liquidity",
+      "moderation": "Moderation"
+    },
+    "liq": {
+      "intro": "Is the marketplace working? These numbers show whether workers and employers are actually finding each other — signups, live jobs, how quickly new people get a first match, and whether matches turn into conversations. Test and demo accounts are left out unless you include them.",
+      "range": "Period",
+      "lastDays_one": "Last {{count}} day",
+      "lastDays_other": "Last {{count}} days",
+      "includeTest": "Include test & demo accounts",
+      "supply": "Supply",
+      "supplyHint": "Who's on the platform, and is there anything to swipe on?",
+      "workers": "Workers",
+      "employers": "Employers",
+      "employersLive": "Employers with live jobs",
+      "liveJobs_one": "{{count}} live job",
+      "liveJobs_other": "{{count}} live jobs",
+      "newUsers_one": "New users (last {{count}} day)",
+      "newUsers_other": "New users (last {{count}} days)",
+      "activation": "Activation",
+      "activationHint": "Do new users reach the core moment — a match — quickly?",
+      "matched7d": "New users matched within 7 days",
+      "timeToMatch": "Time to first match",
+      "median": "median",
+      "conversations": "Conversations",
+      "conversationsHint": "Do matches turn into real conversations?",
+      "firstMessage": "Matches with a first message",
+      "twoWay": "Matches where both sides replied",
+      "xOfY": "{{x}} of {{y}}",
+      "signupsChart": "Signups per day",
+      "matchesChart": "Matches per day",
+      "matches": "Matches",
+      "total": "Total",
+      "day": "Day",
+      "showTable": "Show table",
+      "showChart": "Show chart",
+      "minutes_one": "{{count}} min",
+      "minutes_other": "{{count}} min",
+      "hours_one": "{{count}} hour",
+      "hours_other": "{{count}} hours",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days"
+    },
+    "mod": {
+      "pending": "Pending reports",
+      "suspended": "Suspended users",
+      "hidden": "Hidden jobs",
+      "autoActions": "Automatic actions",
+      "on": "On",
+      "off": "Off",
+      "threshold_one": "after {{count}} reporter",
+      "threshold_other": "after {{count}} reporters",
+      "reports": "Reports",
+      "status": {
+        "pending": "Pending",
+        "actioned": "Actioned",
+        "dismissed": "Dismissed"
+      },
+      "type": {
+        "user": "User",
+        "job": "Job"
+      },
+      "reportCount_one": "{{count}} report",
+      "reportCount_other": "{{count}} reports on this",
+      "reportedBy": "Reported by {{email}}",
+      "dismiss": "Dismiss",
+      "hideJob": "Hide job",
+      "suspendUser": "Suspend user",
+      "confirmHide": "Hide this job from every feed?",
+      "confirmSuspend": "Suspend this account? They will be signed out of everything.",
+      "noReports": "No reports here.",
+      "suspendedUsers": "Suspended users",
+      "noSuspended": "No one is suspended.",
+      "unsuspend": "Unsuspend",
+      "hiddenJobs": "Hidden jobs",
+      "noHidden": "No jobs are hidden.",
+      "unhide": "Unhide"
     }
   }
 }

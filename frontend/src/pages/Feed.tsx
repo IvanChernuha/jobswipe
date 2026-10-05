@@ -583,7 +583,7 @@ export default function Feed() {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-[calc(100vh-3.5rem-4rem)] sm:min-h-[calc(100vh-3.5rem)] flex flex-col items-center justify-center">
+    <div className="min-h-[calc(100vh-3.5rem-4rem)] lg:min-h-[calc(100vh-3.5rem)] flex flex-col items-center justify-center">
       {children}
     </div>
   )

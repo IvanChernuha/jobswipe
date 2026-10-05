@@ -10,7 +10,8 @@
     "matches": "התאמות",
     "profile": "פרופיל",
     "signOut": "התנתקות",
-    "unread": "{{label}}, {{count}} שלא נקראו"
+    "unread": "{{label}}, {{count}} שלא נקראו",
+    "admin": "ניהול"
   },
   "common": {
     "signIn": "התחברות",
@@ -425,9 +426,15 @@
     "bell": "התראות",
     "markAllRead": "סימון הכול כנקרא",
     "empty": "עדיין אין התראות",
-    "match": { "title": "יש התאמה עם {{name}}!" },
-    "like_received": { "title": "מועמד/ת עשה/תה לייק ל-\"{{title}}\"" },
-    "chat": { "title": "הודעה חדשה מ-{{name}}" },
+    "match": {
+      "title": "יש התאמה עם {{name}}!"
+    },
+    "like_received": {
+      "title": "מועמד/ת עשה/תה לייק ל-\"{{title}}\""
+    },
+    "chat": {
+      "title": "הודעה חדשה מ-{{name}}"
+    },
     "team": {
       "job_posted": "{{actor}} פרסם/ה את \"{{title}}\"",
       "job_updated": "{{actor}} עדכן/ה את \"{{title}}\"",
@@ -440,9 +447,13 @@
         "title_two": "קורות החיים נותחו — {{count}} כישורים נוספו לפרופיל שלך.",
         "title_other": "קורות החיים נותחו — {{count}} כישורים נוספו לפרופיל שלך."
       },
-      "error": { "title": "לא הצלחנו לקרוא את קורות החיים שלך — כדאי לנסות להעלות שוב" }
+      "error": {
+        "title": "לא הצלחנו לקרוא את קורות החיים שלך — כדאי לנסות להעלות שוב"
+      }
     },
-    "job_expiring": { "title": "\"{{title}}\" פגה בעוד 3 ימים — לחדש?" },
+    "job_expiring": {
+      "title": "\"{{title}}\" פגה בעוד 3 ימים — לחדש?"
+    },
     "time": {
       "now": "הרגע",
       "minutes_one": "לפני {{count}} דקה",
@@ -467,6 +478,96 @@
       "teamHint": "כשחבר/ת צוות מפרסם/ת, עורך/ת או מבצע/ת פעולה במשרה או בהתאמה.",
       "account": "חשבון",
       "accountHint": "תוצאות ניתוח קורות חיים ותזכורות לפקיעת תוקף משרות."
+    }
+  },
+  "admin": {
+    "title": "ניהול",
+    "notAllowed": "העמוד הזה מיועד למנהלי JobSwipe בלבד.",
+    "tab": {
+      "liquidity": "נזילות",
+      "moderation": "מודרציה"
+    },
+    "liq": {
+      "intro": "האם השוק עובד? המספרים האלה מראים אם מועמדים ומעסיקים באמת מוצאים זה את זה — הרשמות, משרות פעילות, כמה מהר משתמשים חדשים מגיעים להתאמה ראשונה, והאם התאמות הופכות לשיחות. חשבונות בדיקה והדגמה לא נספרים אלא אם תכלול/י אותם.",
+      "range": "תקופה",
+      "lastDays_one": "היום האחרון",
+      "lastDays_two": "יומיים אחרונים",
+      "lastDays_other": "{{count}} ימים אחרונים",
+      "includeTest": "לכלול חשבונות בדיקה והדגמה",
+      "supply": "היצע",
+      "supplyHint": "מי נמצא בפלטפורמה, והאם יש על מה להחליק?",
+      "workers": "מועמדים",
+      "employers": "מעסיקים",
+      "employersLive": "מעסיקים עם משרות פעילות",
+      "liveJobs_one": "משרה פעילה אחת",
+      "liveJobs_two": "{{count}} משרות פעילות",
+      "liveJobs_other": "{{count}} משרות פעילות",
+      "newUsers_one": "משתמשים חדשים (היום האחרון)",
+      "newUsers_two": "משתמשים חדשים (יומיים אחרונים)",
+      "newUsers_other": "משתמשים חדשים ({{count}} ימים אחרונים)",
+      "activation": "הפעלה",
+      "activationHint": "האם משתמשים חדשים מגיעים מהר לרגע המרכזי — התאמה?",
+      "matched7d": "משתמשים חדשים שקיבלו התאמה תוך 7 ימים",
+      "timeToMatch": "זמן עד התאמה ראשונה",
+      "median": "חציון",
+      "conversations": "שיחות",
+      "conversationsHint": "האם התאמות הופכות לשיחות אמיתיות?",
+      "firstMessage": "התאמות עם הודעה ראשונה",
+      "twoWay": "התאמות ששני הצדדים ענו בהן",
+      "xOfY": "{{x}} מתוך {{y}}",
+      "signupsChart": "הרשמות ליום",
+      "matchesChart": "התאמות ליום",
+      "matches": "התאמות",
+      "total": "סה\"כ",
+      "day": "יום",
+      "showTable": "הצגת טבלה",
+      "showChart": "הצגת גרף",
+      "minutes_one": "דקה",
+      "minutes_two": "{{count}} דקות",
+      "minutes_other": "{{count}} דקות",
+      "hours_one": "שעה",
+      "hours_two": "שעתיים",
+      "hours_other": "{{count}} שעות",
+      "days_one": "יום",
+      "days_two": "יומיים",
+      "days_other": "{{count}} ימים"
+    },
+    "mod": {
+      "pending": "דיווחים ממתינים",
+      "suspended": "משתמשים מושעים",
+      "hidden": "משרות מוסתרות",
+      "autoActions": "פעולות אוטומטיות",
+      "on": "פעיל",
+      "off": "כבוי",
+      "threshold_one": "אחרי מדווח/ת אחד/ת",
+      "threshold_two": "אחרי {{count}} מדווחים",
+      "threshold_other": "אחרי {{count}} מדווחים",
+      "reports": "דיווחים",
+      "status": {
+        "pending": "ממתינים",
+        "actioned": "טופלו",
+        "dismissed": "נדחו"
+      },
+      "type": {
+        "user": "משתמש/ת",
+        "job": "משרה"
+      },
+      "reportCount_one": "דיווח אחד",
+      "reportCount_two": "{{count}} דיווחים על זה",
+      "reportCount_other": "{{count}} דיווחים על זה",
+      "reportedBy": "דווח על ידי {{email}}",
+      "dismiss": "דחייה",
+      "hideJob": "הסתרת משרה",
+      "suspendUser": "השעיית משתמש/ת",
+      "confirmHide": "להסתיר את המשרה הזו מכל הפידים?",
+      "confirmSuspend": "להשעות את החשבון הזה? הוא ינותק מכל מקום.",
+      "noReports": "אין כאן דיווחים.",
+      "suspendedUsers": "משתמשים מושעים",
+      "noSuspended": "אף אחד לא מושעה.",
+      "unsuspend": "ביטול השעיה",
+      "hiddenJobs": "משרות מוסתרות",
+      "noHidden": "אין משרות מוסתרות.",
+      "unhide": "ביטול הסתרה"
     }
   }
 }

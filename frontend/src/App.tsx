@@ -13,6 +13,7 @@ import Jobs from './pages/Jobs'
 import Team from './pages/Team'
 import JoinOrg from './pages/JoinOrg'
 import Bookmarks from './pages/Bookmarks'
+import Admin from './pages/Admin'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth()
@@ -41,7 +42,7 @@ export default function App() {
   // No app chrome during onboarding: the only way forward is finishing it.
   const showNavbar = !!session && pathname !== '/onboarding'
   // Phones get a bottom tab bar (see Navbar); leave room for it except in chat.
-  const tabBarPad = showNavbar && !pathname.startsWith('/chat/') ? 'pb-16 sm:pb-0' : ''
+  const tabBarPad = showNavbar && !pathname.startsWith('/chat/') ? 'pb-16 lg:pb-0' : ''
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -113,6 +114,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <Admin />
               </ProtectedRoute>
             }
           />

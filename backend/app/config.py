@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     REPORT_AUTO_ACTION_THRESHOLD: int = 3
     # Comma-separated emails allowed to call /admin/* (deny-all when empty).
     ADMIN_EMAILS: str = ""
+    # SQL LIKE patterns for test/demo accounts left out of the admin liquidity
+    # dashboard (unless the admin ticks "include test accounts").
+    ANALYTICS_EXCLUDE_EMAILS: str = (
+        "%@t.com,%@test.com,%@test.local,%@demo.com,%@jobswipe.dev,demo_employer@jobswipe.com"
+    )
     # Founder alert recipient for moderation events (sent via Resend if set).
     ADMIN_ALERT_EMAIL: str = ""
     # Extra comma-separated denylist terms for the content filter.

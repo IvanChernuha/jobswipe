@@ -768,3 +768,105 @@ export function updateNotificationPrefs(
     body: JSON.stringify({ type, enabled }),
   })
 }
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+export interface ModerationStatus {
+  auto_actions: boolean
+  threshold: number
+  image_moderation: string
+  pending_reports: number
+  suspended_users: number
+  hidden_jobs: number
+}
+
+export type AdminReportStatus = 'pending' | 'actioned' | 'dismissed'
+
+export interface AdminReport {
+  id: string
+  reporter_id: string
+  target_id: string
+  target_type: 'user' | 'job'
+  reason: ReportReason
+  details: string
+  status: AdminReportStatus
+  created_at: string | null
+  actioned_at: string | null
+  reporter_email: string
+  target_label: string
+  target_detail: string
+  target_reports: number
+}
+
+export interface SuspendedUser {
+  id: string
+  email: string
+  role: Role
+  suspended_at: string
+  reason: string
+}
+
+export interface HiddenJob {
+  id: string
+  title: string
+  employer_email: string
+  note: string
+}
+
+export interface LiquidityDay {
+  day: string
+  workers: number
+  employers: number
+  matches: number
+}
+
+export interface Liquidity {
+  days: number
+  include_test: boolean
+  totals: { workers: number; employers: number; new_users: number; employers_with_live_jobs: number; live_jobs: number }
+  activation: { new_users: number; matched_within_7d: number; pct_matched_within_7d: number | null; median_hours_to_first_match: number | null }
+  conversations: { matches: number; with_first_message: number; pct_with_first_message: number | null; two_way: number; pct_two_way: number | null }
+  daily: LiquidityDay[]
+}
+
+export function getModerationStatus(token: string): Promise<ModerationStatus> {
+  return request<ModerationStatus>('/admin/moderation/status', { token })
+}
+
+export function getAdminReports(token: string, status: AdminReportStatus): Promise<AdminReport[]> {
+  return request<AdminReport[]>(`/admin/reports?status=${status}`, { token })
+}
+
+export function dismissReport(token: string, id: string): Promise<unknown> {
+  return request(`/admin/reports/${id}/dismiss`, { method: 'POST', token })
+}
+
+export function actionReport(token: string, id: string): Promise<unknown> {
+  return request(`/admin/reports/${id}/action`, { method: 'POST', token, body: JSON.stringify({ note: '' }) })
+}
+
+export function getSuspendedUsers(token: string): Promise<SuspendedUser[]> {
+  return request<SuspendedUser[]>('/admin/users/suspended', { token })
+}
+
+export function unsuspendUser(token: string, id: string): Promise<unknown> {
+  return request(`/admin/users/${id}/unsuspend`, { method: 'POST', token })
+}
+
+export function getHiddenJobs(token: string): Promise<HiddenJob[]> {
+  return request<HiddenJob[]>('/admin/jobs/hidden', { token })
+}
+
+export function unhideJob(token: string, id: string): Promise<unknown> {
+  return request(`/admin/jobs/${id}/unhide`, { method: 'POST', token })
+}
+
+export function getLiquidity(token: string, days: number, includeTest: boolean): Promise<Liquidity> {
+  return request<Liquidity>(`/admin/liquidity?days=${days}&include_test=${includeTest}`, { token })
+}
+
+export function amIAdmin(token: string): Promise<{ admin: boolean }> {
+  return request<{ admin: boolean }>('/admin/am-i', { token })
+}

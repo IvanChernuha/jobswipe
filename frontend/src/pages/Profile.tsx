@@ -601,7 +601,7 @@ export default function Profile() {
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col items-center py-10 px-4">
       <div className="w-full max-w-lg">
         {/* Phones have no room for the toggle in the navbar; offer it here. */}
-        <div className="flex justify-end mb-3 sm:hidden"><LangToggle /></div>
+        <div className="flex justify-end mb-3 lg:hidden"><LangToggle /></div>
         <h1 className="text-2xl font-bold text-gray-900 mb-6">
           {role === 'employer' ? t('profile.companyProfile') : t('profile.yourProfile')}
         </h1>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { getUnreadCounts, getUnreadNotificationCount } from '../lib/api'
+import { amIAdmin, getUnreadCounts, getUnreadNotificationCount } from '../lib/api'
 import { useTranslation } from 'react-i18next'
 import LangToggle from './LangToggle'
 import NotificationBell from './NotificationBell'
@@ -41,6 +41,12 @@ export default function Navbar() {
     return () => { stopped = true; clearInterval(id) }
   }, [token])
 
+  const [isAdmin, setIsAdmin] = useState(false)
+  useEffect(() => {
+    if (!token) return
+    amIAdmin(token).then((r) => setIsAdmin(r.admin)).catch(() => {})
+  }, [token])
+
   async function handleSignOut() {
     await signOut()
     navigate('/', { replace: true })
@@ -62,7 +68,7 @@ export default function Navbar() {
   return (
     <>
       <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
           <Link to="/feed" className="flex items-center gap-2.5 shrink-0" aria-label="JobSwipe home">
             <span className="w-8 h-8 rounded-lg bg-brand-500 text-white flex items-center justify-center">
               <Icon name="briefcase" className="w-4 h-4" />
@@ -70,28 +76,40 @@ export default function Navbar() {
             <span className="font-display text-lg font-semibold text-gray-900 tracking-tight">JobSwipe</span>
           </Link>
 
-          <div className="hidden sm:flex items-center gap-1">
+          <div className="hidden lg:flex items-center gap-1">
             {items.map((it) => <NavItem key={it.to} {...it} />)}
+            {isAdmin && <NavItem to="/admin" label={t('nav.admin')} icon="shield" />}
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            {isAdmin && (
+              <NavLink
+                to="/admin"
+                aria-label={t('nav.admin')}
+                className={({ isActive }) =>
+                  `lg:hidden w-11 h-11 rounded-lg flex items-center justify-center ${isActive ? 'text-brand-600 bg-brand-50' : 'text-gray-600'}`
+                }
+              >
+                <Icon name="shield" className="w-5 h-5" />
+              </NavLink>
+            )}
             {token && <NotificationBell token={token} unreadCount={notifUnread} onCountChange={setNotifUnread} />}
-            <LangToggle className="hidden sm:inline-flex" />
+            <LangToggle className="hidden lg:inline-flex" />
             <button
               onClick={handleSignOut}
-              className="btn-ghost text-sm min-w-[44px] min-h-[44px] px-2 sm:px-3"
+              className="btn-ghost text-sm min-w-[44px] min-h-[44px] px-2 xl:px-3"
               title={t('nav.signOut')}
               aria-label={t('nav.signOut')}
             >
-              <span className="hidden sm:inline">{t('nav.signOut')}</span>
-              <Icon name="logOut" className="sm:hidden w-5 h-5 rtl:-scale-x-100" />
+              <span className="hidden xl:inline">{t('nav.signOut')}</span>
+              <Icon name="logOut" className="xl:hidden w-5 h-5 rtl:-scale-x-100" />
             </button>
           </div>
         </div>
       </nav>
 
       {!isChat && (
-        <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
+        <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
           <div className="grid" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
             {items.map((it) => <TabItem key={it.to} {...it} />)}
           </div>

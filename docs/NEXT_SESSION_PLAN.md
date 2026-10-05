@@ -43,8 +43,8 @@ Data caveat: 295 of 330 users are automated-test junk owning 173/180 jobs; clean
 
 1. ~~**Notifications**~~ — ✅ done (2026-09-22), see §4.
 2. ~~**Redesign / colors**~~ — ✅ done (2026-09-28): user picked direction A "Harbor". Applied via `tailwind.config.js` (`brand` = teal scale, `gray` overridden with warm/navy-tinted neutrals so every existing `gray-*` class picked up the new look), fonts in `index.html` + `fontFamily` (`font-display` = Fraunces → Frank Ruhl Libre for Hebrew; body IBM Plex Sans → IBM Plex Sans Hebrew), `components/Icon.tsx` replaced every emoji, `LangToggle` is now a `<select>` fed by `LANGUAGES` in `i18n.ts` (add a language = one entry + one locale file), phones got a bottom tab bar (`Navbar.tsx`, hidden on `/chat/*`; `App.tsx` pads `main` for it). All P3 cosmetic items closed in the same pass.
-3. **Admin panel UI + liquidity dashboard** ← **START HERE NEXT** — one page: reports queue, suspend/unsuspend, hide/unhide, plus signups/day, employers with live jobs, % new users with ≥1 match, time-to-first-match, matches→first message. Admin API exists at `/api/admin/*` (Swagger `/docs`), gated by `ADMIN_EMAILS`.
-4. **Employer "paste your job ad → live in 2 minutes"** (reuse `/api/cv/parse-job-files`) + job-expiry reminder ("expires in 3 days — renew?" — the backend half now exists, see §4).
+3. ~~**Admin panel UI + liquidity dashboard**~~ — ✅ done (2026-10-05): `/admin` (link shown only to `ADMIN_EMAILS`, via `GET /api/admin/am-i`). Liquidity tab = `GET /api/admin/liquidity?days=&include_test=` (test/demo accounts excluded by `ANALYTICS_EXCLUDE_EMAILS` unless toggled); Moderation tab = reports queue with names/emails, suspended users, hidden jobs. **Real (non-test) users as of today: 3 workers, 1 employer, 0 live jobs.** Original scope: reports queue, suspend/unsuspend, hide/unhide, plus signups/day, employers with live jobs, % new users with ≥1 match, time-to-first-match, matches→first message. Admin API exists at `/api/admin/*` (Swagger `/docs`), gated by `ADMIN_EMAILS`.
+4. **Employer "paste your job ad → live in 2 minutes"** ← **START HERE NEXT** (reuse `/api/cv/parse-job-files`) + job-expiry reminder ("expires in 3 days — renew?" — the backend half now exists, see §4).
 5. **PWA** (`vite-plugin-pwa`: manifest + service worker) + web push → **Android via Capacitor** (same React code; NO native rewrite). Play Store UGC review needs: report/block ✅, privacy policy URL, real in-app account deletion (GDPR delete needs the Phase-3 cleanup), data-safety form.
 6. Feedback-driven fixes → seeded public job listings → solo-useful CV value (skill gap analysis).
 
@@ -175,7 +175,7 @@ git log --oneline -5 && docker ps --format '{{.Names}} {{.Status}}' | grep jobsw
 docker logs jobswipe-tunnel 2>&1 | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1
 docker exec supabase-db psql -U postgres -d postgres -Atc "SELECT count(*) FROM users WHERE created_at > '2026-09-22' AND email NOT LIKE '%@test.local'"   # any friends yet?
 ```
-Notifications (§4) and the redesign (§5) are done. Start §3 item 3 (admin panel UI + liquidity dashboard) next.
+Notifications, redesign and admin panel are done. Next: §3 item 4 (employer paste-your-job-ad flow).
 
 ---
 
