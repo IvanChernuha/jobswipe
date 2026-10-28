@@ -52,9 +52,13 @@ backend() {
 }
 
 frontend() {
-  # No frontend tests yet (vitest arrives with Mobile P1); the production
-  # build still catches type errors and broken imports.
+  echo "==> Frontend tests"
+  # --progress=plain so vitest's output (and any failure) is visible.
+  docker build --progress=plain --target test ./frontend 2>&1 \
+    | sed -n 's/^#[0-9]* [0-9.]* //p' | grep -E "✓|×|FAIL|Test Files|Tests |Error|error" || true
+  docker build -q --target test ./frontend > /dev/null
   echo "==> Frontend build"
+  # The production build also type-checks the test files (tsc).
   docker build -q -t jobswipe-frontend:test ./frontend > /dev/null
 }
 

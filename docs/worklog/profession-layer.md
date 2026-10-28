@@ -305,3 +305,17 @@ None blocking. Later: which profession is niche #2 (decided after the no-code in
 | Visual check of the badge in the browser | PENDING: local frontend rebuilt; check it as an employer |
 
 **Follow-up (not done):** `routers/bookmarks.py::_best_job_for_worker`, which auto-files a bookmarked candidate under their best job, still uses active-only (no expiry check) and ignores required/preferred. It should reuse `best_job_score` so the bookmark folder matches the badge.
+
+### 2026-10-28: Website test setup (closes the TDD gap)
+Until now the website had no tests, so UI changes (like the best-job badge) were checked only by "the build passes".
+- `frontend`: vitest 2 + jsdom + React Testing Library + jest-dom; `npm test` = `vitest run`; `vitest.config.ts`; `src/test/setup.ts` (real en/he translations, reset to en and cleanup per test)
+- `frontend/Dockerfile`: stages `deps` → `test` (runs vitest) / `build` → nginx. The production build skips the `test` stage, so nothing extra ships; `tsc` in the build also type-checks the test files.
+- `scripts/test.sh --frontend`: runs the `test` stage (prints the vitest results), then the production build
+- `src/components/__tests__/SwipeCard.test.tsx`: 5 badge tests (names the job; no job line without a job; no badge without a score; no badge when the job has no tags; Hebrew "למשרה: …")
+
+| Check | Result |
+|---|---|
+| `scripts/test.sh --frontend` | **PASS**: 5/5, build OK |
+| Sanity check: job line removed from the badge | **PASS**: 2 tests fail, build stops; code restored |
+| `scripts/test.sh` (all) | **PASS** |
+| GitHub Actions on 3af0b78 (first run with the throwaway Postgres) | **PASS** |

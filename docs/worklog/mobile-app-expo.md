@@ -34,7 +34,7 @@ A **real native mobile app** for JobSwipe, built with **React Native and Expo**.
 | CORS | `CORS_ORIGINS="*"` | Native apps aren't subject to CORS, so no change |
 | Supabase auth emails | `SITE_URL=http://localhost:3000`, no redirect allowlist | Confirm and reset flows need a real host (Phase 0) |
 | Web build | `docker build ./frontend` (`deploy.yml:43`), `frontend/Dockerfile` copies only `frontend/` | Must change to the repo-root context so it can see `packages/shared` |
-| Frontend tests | **None** | Shared and mobile both get test suites from the start |
+| Frontend tests | vitest + React Testing Library since 2026-10-28 (`frontend/src/**/*.test.tsx`, Dockerfile `test` stage) | Shared and mobile get their own suites from the start |
 | Toolchain | No Node or JDK on the dev box; everything runs in Docker | Expo dev server and local Android builds run in Docker |
 | Hosting | Oracle A1 behind a Cloudflare **quick tunnel whose URL rotates**; the domain (`jobswipe.com`) is coming in a few days | Development uses the current tunnel URL (read when the dev server starts). Preview and production builds wait for the domain. **No ports get opened.** |
 | Plans | `pro_grants.source` already allows `'billing'` (`backend/app/models/tables/plan.py:32`); promo codes and admin grants work; no payment provider yet | Store subscriptions map onto `pro_grants` with `source='billing'` |
