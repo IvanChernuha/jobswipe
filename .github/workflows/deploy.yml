@@ -1,8 +1,10 @@
 name: Build & Deploy to GKE
 
+# Scale-up path only: no GKE cluster exists yet. Production runs on the Oracle
+# box (scripts/deploy_oracle.sh). Run this by hand from the Actions tab once a
+# cluster is set up.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -11,8 +13,19 @@ env:
   REGISTRY: us-central1-docker.pkg.dev
 
 jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run all checks
+        run: scripts/test.sh
+
   build-and-deploy:
     name: Build, Push, Deploy
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
