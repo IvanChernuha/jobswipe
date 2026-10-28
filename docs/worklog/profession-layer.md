@@ -277,3 +277,31 @@ None blocking. Later: which profession is niche #2 (decided after the no-code in
 | `scripts/test.sh --backend` | **PASS**: 103 passed (81 old + 22 new) |
 | Sanity check: required filter disabled in `worker_feed` | **PASS**: 2 tests fail (c1 required, c3 one-way); code restored, `git diff` clean |
 | `scripts/test.sh` (all) | **PASS**: backend 103, frontend build, script tests |
+
+### 2026-10-28: Employer feed shows the best live job per candidate (user request, OP #2610)
+**User decision:** an employer must see each candidate's match **per job**, not one % against all the team's jobs combined (3 jobs × ~30% looked like 90% "in sum"). Show the **highest** score among the team's **live** jobs, with the job's name: "for AI Engineer: 40%".
+
+**Rules (tests first, red → green):**
+- Live = `active` AND `expires_at >= now`. Expired-but-active jobs no longer filter or score; this was the old quirk.
+- Score each live job separately; only jobs the candidate qualifies for (required/preferred rules) count.
+- Best = highest %, then most matched tags, then newest job.
+- The feed is sorted by each candidate's best score.
+- No live jobs: everyone is shown, with `match_score = null` (the badge was already hidden in that case).
+
+**Changes:**
+- `app/services/scoring.py`: `qualifies_for_job`, `best_job_score` (pure)
+- `app/routers/workers.py` (`employer_feed`): per-job sets for live jobs only; `best_job_score`; sorting handles null scores
+- `app/models/worker.py`: `MatchScore.job_id`, `job_title`
+- Web: `MatchScore` type, `SwipeCard` badge adds a second line "for {title}" (truncated, `dir=auto`); i18n `swipeCard.forJob` (en "for {{title}}", he "למשרה: {{title}}")
+- Tests: `tests/test_scoring.py` (8 unit tests); characterization C5 updated to the new behaviour (only live jobs; best single job with title; best among qualifying jobs only; sort by best job; no live jobs → null score)
+
+**Verification:**
+| Check | Result |
+|---|---|
+| New/changed tests before implementing | **RED**: ImportError (no `best_job_score`); 4 integration failures; the sort test was tightened because it passed by coincidence under the old combined score |
+| `scripts/test.sh --backend` after implementing | **PASS**: 114 passed |
+| `scripts/test.sh --frontend` | **PASS**: build OK |
+| Real dev data, demo employer (9 live jobs) via the local API | **PASS**: e.g. "100% for C++ Game Engine Developer (4/4)", "86% for Senior React Frontend Engineer (6/7)", "78% for Backend Python Developer (7/9)" |
+| Visual check of the badge in the browser | PENDING: local frontend rebuilt; check it as an employer |
+
+**Follow-up (not done):** `routers/bookmarks.py::_best_job_for_worker`, which auto-files a bookmarked candidate under their best job, still uses active-only (no expiry check) and ignores required/preferred. It should reuse `best_job_score` so the bookmark folder matches the badge.

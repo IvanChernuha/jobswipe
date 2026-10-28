@@ -132,10 +132,18 @@ function MatchBadge({ score }: { score: MatchScore }) {
         : 'bg-gray-600/80 text-white'
 
   return (
-    <div className={`absolute top-3 start-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full backdrop-blur-sm shadow-lg ${color}`}>
-      <span className="text-sm font-bold">{pct}%</span>
-      <span className="text-xs opacity-90">{t('swipeCard.match')}</span>
-      <span className="text-[10px] opacity-75">({score.matched}/{score.total})</span>
+    <div className={`absolute top-3 start-3 z-10 max-w-[70%] px-2.5 py-1 rounded-2xl backdrop-blur-sm shadow-lg ${color}`}>
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm font-bold">{pct}%</span>
+        <span className="text-xs opacity-90">{t('swipeCard.match')}</span>
+        <span className="text-[10px] opacity-75">({score.matched}/{score.total})</span>
+      </div>
+      {/* Employer feed: which of the team's live jobs this best score is for */}
+      {score.job_title && (
+        <div className="text-[11px] leading-tight opacity-90 truncate" dir="auto" title={score.job_title}>
+          {t('swipeCard.forJob', { title: score.job_title })}
+        </div>
+      )}
     </div>
   )
 }

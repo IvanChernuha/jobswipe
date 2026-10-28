@@ -158,6 +158,9 @@ export interface MatchScore {
   matched: number
   total: number
   percentage: number
+  /** Employer feed: the live job this (best) score is for. */
+  job_id?: string | null
+  job_title?: string | null
 }
 
 export interface TagCategory {

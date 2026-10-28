@@ -200,19 +200,35 @@ async def test_c5_no_active_jobs_shows_every_worker(session, world):
     b = await world.worker([], name="B")
     await world.commit()
 
-    assert set(ids(await workers_for(session, emp))) == {str(a), str(b)}
+    cards = await workers_for(session, emp)
+    assert set(ids(cards)) == {str(a), str(b)}
+    assert all(c["match_score"] is None for c in cards)  # nothing to score against
 
 
-async def test_c5_expired_but_active_job_still_counts(session, world):
-    # Unlike the worker feed, the employer feed doesn't check expires_at.
+async def test_c5_only_live_jobs_count(session, world):
+    # Changed 2026-10-28 (user decision): only LIVE jobs (active and not
+    # expired) count. Before, an expired-but-active job still filtered and
+    # scored candidates.
     emp = await world.employer()
     await world.job(emp, required=["Rust"], expires_in_days=-5)
+    await world.job(emp, required=["Python"])
     rust_dev = await world.worker(["Rust"])
     python_dev = await world.worker(["Python"])
     await world.commit()
 
-    assert ids(await workers_for(session, emp)) == [str(rust_dev)]
-    assert str(python_dev) not in ids(await workers_for(session, emp))
+    assert ids(await workers_for(session, emp)) == [str(python_dev)]
+    assert str(rust_dev) not in ids(await workers_for(session, emp))
+
+
+async def test_c5_only_expired_jobs_means_no_live_jobs(session, world):
+    emp = await world.employer()
+    await world.job(emp, required=["Rust"], expires_in_days=-5)
+    a = await world.worker(["Python"], name="A")
+    await world.commit()
+
+    [card] = await workers_for(session, emp)
+    assert card["id"] == str(a)
+    assert card["match_score"] is None
 
 
 async def test_c5_preferred_and_implications(session, world):
@@ -227,16 +243,47 @@ async def test_c5_preferred_and_implications(session, world):
     assert str(no_preferred) not in ids(await workers_for(session, emp))
 
 
-async def test_c5_score_against_all_team_job_tags_combined(session, world):
+async def test_c5_score_is_best_single_job_with_its_title(session, world):
+    # Changed 2026-10-28 (user decision): score each live job separately and
+    # show the best one with its title, not one % against all jobs combined.
     emp = await world.employer()
-    await world.job(emp, nice=["React", "Python"])
-    await world.job(emp, nice=["Go", "Rust"])
-    dev = await world.worker(["React", "Go"])
+    await world.job(emp, nice=["React", "Python"], title="Frontend")
+    ai = await world.job(emp, nice=["PyTorch", "Python", "CUDA"], title="AI Engineer")
+    await world.job(emp, nice=["Go", "Rust", "Kafka", "Redis"], title="Backend")
+    dev = await world.worker(["PyTorch", "Python"])
     await world.commit()
 
     [card] = await workers_for(session, emp)
     assert card["id"] == str(dev)
-    assert card["match_score"] == {"matched": 2, "total": 4, "percentage": 50}
+    assert card["match_score"] == {
+        "matched": 2, "total": 3, "percentage": 67, "job_id": str(ai), "job_title": "AI Engineer",
+    }
+
+
+async def test_c5_best_job_only_among_jobs_they_qualify_for(session, world):
+    emp = await world.employer()
+    # Higher overlap, but the worker lacks its required tag, so it can't be "best".
+    await world.job(emp, required=["Kubernetes"], nice=["Go", "Rust"], title="Platform")
+    fits = await world.job(emp, nice=["Go", "Java", "Kotlin", "Scala"], title="JVM")
+    dev = await world.worker(["Go", "Rust"])
+    await world.commit()
+
+    [card] = await workers_for(session, emp)
+    assert card["match_score"]["job_id"] == str(fits)
+    assert card["match_score"]["percentage"] == 25
+
+
+async def test_c5_feed_sorted_by_each_workers_best_job(session, world):
+    emp = await world.employer()
+    await world.job(emp, nice=["Go", "Rust"], title="Backend")
+    await world.job(emp, nice=["React", "TypeScript", "CSS", "HTML", "Vite", "Jest"], title="Frontend")
+    # Per job: Go dev 100% (Backend), FE dev 50% (Frontend) -> Go dev first.
+    # The old all-jobs-combined score (8 tags) would put FE dev first (3/8 > 2/8).
+    go_dev = await world.worker(["Go", "Rust"], name="Go dev")
+    fe_dev = await world.worker(["React", "TypeScript", "CSS"], name="FE dev")
+    await world.commit()
+
+    assert ids(await workers_for(session, emp)) == [str(go_dev), str(fe_dev)]
 
 
 async def test_c5_team_members_jobs_count_for_each_other(session, world):

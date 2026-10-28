@@ -52,3 +52,33 @@ def compute_match_score(
     matched = len(overlap)
     pct = round(matched / total * 100) if total > 0 else 0
     return {"matched": matched, "total": total, "percentage": pct}
+
+
+def qualifies_for_job(worker_tags: set[str], required: set[str], preferred: set[str]) -> bool:
+    """All required tags present, and at least one preferred tag if the job has any.
+    All sets are already expanded with implications."""
+    if required and not required.issubset(worker_tags):
+        return False
+    if preferred and not (worker_tags & preferred):
+        return False
+    return True
+
+
+def best_job_score(worker_tags: set[str], jobs: list[dict]) -> dict | None:
+    """Score a worker against each job separately and return the best one.
+
+    `jobs` items: {"id", "title", "tags", "required", "preferred", "created_at"},
+    tag sets already expanded. Only jobs the worker qualifies for count.
+    Best = highest percentage, then most matched tags, then newest job.
+    Returns compute_match_score's dict plus "job_id" and "job_title", or None
+    if the worker qualifies for none of the jobs.
+    """
+    best: tuple | None = None
+    for job in jobs:
+        if not qualifies_for_job(worker_tags, job["required"], job["preferred"]):
+            continue
+        score = compute_match_score(worker_tags, job["tags"])
+        key = (score["percentage"], score["matched"], job["created_at"] or "")
+        if best is None or key > best[0]:
+            best = (key, {**score, "job_id": str(job["id"]), "job_title": job["title"]})
+    return best[1] if best else None

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, delete
@@ -15,9 +16,7 @@ from app.models.tables.employer import EmployerProfile
 from app.models.tables.organization import OrgMember
 from app.models.tables.user import User
 from app.services.blocks import blocked_ids_for
-from app.services.scoring import (
-    expand_tags_with_implications_async, batch_expand_implications, compute_match_score,
-)
+from app.services.scoring import batch_expand_implications, best_job_score
 
 router = APIRouter(prefix="/workers", tags=["workers"])
 
@@ -172,42 +171,49 @@ async def employer_feed(
     if not workers:
         return []
 
-    # 3. Employer's jobs (org-aware)
+    # 3. The team's LIVE jobs (active and not expired), org-aware. Each worker
+    #    is scored against each job separately; the card shows the best one.
     org_emp_ids = await _get_org_employer_ids(session, user)
     org_emp_uuids = [uuid.UUID(eid) for eid in org_emp_ids]
     result = await session.execute(
-        select(JobPosting.id).where(JobPosting.employer_id.in_(org_emp_uuids), JobPosting.active == True)
+        select(JobPosting.id, JobPosting.title, JobPosting.created_at).where(
+            JobPosting.employer_id.in_(org_emp_uuids),
+            JobPosting.active == True,
+            JobPosting.expires_at >= datetime.now(timezone.utc),
+        )
     )
-    employer_job_ids = [row.id for row in result.all()]
+    live_jobs = {
+        row.id: {"id": row.id, "title": row.title, "created_at": row.created_at,
+                 "tags": set(), "required": set(), "preferred": set()}
+        for row in result.all()
+    }
 
-    # Job tag structures
-    all_emp_tag_ids: set[str] = set()
-    job_required: dict[str, set[str]] = {}
-    job_preferred: dict[str, set[str]] = {}
-    job_all_tags: dict[str, set[str]] = {}
-
-    if employer_job_ids:
+    if live_jobs:
         result = await session.execute(
-            select(JobPostingTag).where(JobPostingTag.job_posting_id.in_(employer_job_ids))
+            select(JobPostingTag).where(JobPostingTag.job_posting_id.in_(list(live_jobs)))
         )
         for jt in result.scalars().all():
-            jid = str(jt.job_posting_id)
+            job = live_jobs[jt.job_posting_id]
             tid = str(jt.tag_id)
-            all_emp_tag_ids.add(tid)
-            job_all_tags.setdefault(jid, set()).add(tid)
+            job["tags"].add(tid)
             if jt.requirement == "required":
-                job_required.setdefault(jid, set()).add(tid)
+                job["required"].add(tid)
             elif jt.requirement == "preferred":
-                job_preferred.setdefault(jid, set()).add(tid)
+                job["preferred"].add(tid)
 
-    employer_expanded = await expand_tags_with_implications_async(session, all_emp_tag_ids)
-    emp_impl_map = await batch_expand_implications(session, all_emp_tag_ids)
+        all_job_tag_ids = set().union(*(j["tags"] for j in live_jobs.values()))
+        job_impl_map = await batch_expand_implications(session, all_job_tag_ids)
 
-    def expand_set(ids: set[str]) -> set[str]:
-        expanded = set(ids)
-        for tid in ids:
-            expanded |= emp_impl_map.get(tid, set())
-        return expanded
+        def expand_set(ids: set[str]) -> set[str]:
+            expanded = set(ids)
+            for tid in ids:
+                expanded |= job_impl_map.get(tid, set())
+            return expanded
+
+        for job in live_jobs.values():
+            job["tags"], job["required"], job["preferred"] = (
+                expand_set(job["tags"]), expand_set(job["required"]), expand_set(job["preferred"])
+            )
 
     # 4. Batch-fetch worker tags
     worker_ids = [w.user_id for w in workers]
@@ -242,25 +248,15 @@ async def employer_feed(
         wid = str(w.user_id)
         w_expanded = worker_expanded.get(wid, set())
 
-        qualifies = False
-        if not employer_job_ids:
-            qualifies = True
+        if live_jobs:
+            # None = fits none of the live jobs (a required/preferred rule fails).
+            score = best_job_score(w_expanded, list(live_jobs.values()))
+            if score is None:
+                continue
         else:
-            for jid_uuid in employer_job_ids:
-                jid = str(jid_uuid)
-                req = job_required.get(jid, set())
-                pref = job_preferred.get(jid, set())
-                if req and not expand_set(req).issubset(w_expanded):
-                    continue
-                if pref and not (w_expanded & expand_set(pref)):
-                    continue
-                qualifies = True
-                break
+            # No live jobs: show everyone, with no % (nothing to measure against).
+            score = None
 
-        if not qualifies:
-            continue
-
-        score = compute_match_score(w_expanded, employer_expanded)
         scored.append({
             "id": wid,
             "name": w.name,
@@ -273,6 +269,10 @@ async def employer_feed(
             "match_score": score,
         })
 
-    scored.sort(key=lambda x: (x["match_score"]["percentage"], x["match_score"]["matched"]), reverse=True)
+    def sort_key(card: dict) -> tuple[int, int]:
+        s = card["match_score"]
+        return (s["percentage"], s["matched"]) if s else (-1, -1)
+
+    scored.sort(key=sort_key, reverse=True)
     offset = (page - 1) * size
     return scored[offset:offset + size]

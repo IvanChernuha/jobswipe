@@ -66,6 +66,9 @@ class MatchScore(BaseModel):
     matched: int = 0
     total: int = 0
     percentage: int = 0
+    # Employer feed: the single best live job this score is for.
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
 
 
 class WorkerCard(BaseModel):

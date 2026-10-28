@@ -162,6 +162,7 @@
     "like": "לייק",
     "nope": "לא רלוונטי",
     "match": "התאמה",
+    "forJob": "למשרה: {{title}}",
     "job": "משרה",
     "candidate": "מועמד/ת",
     "moreEllipsis": "… עוד",

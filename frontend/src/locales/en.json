@@ -161,6 +161,7 @@
     "like": "LIKE",
     "nope": "NOPE",
     "match": "match",
+    "forJob": "for {{title}}",
     "job": "Job",
     "candidate": "Candidate",
     "moreEllipsis": "… more",
