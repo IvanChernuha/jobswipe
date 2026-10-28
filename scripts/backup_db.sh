@@ -44,9 +44,13 @@ log "db.dump $(du -h "$out/db.dump" | cut -f1), roles.sql $(du -h "$out/roles.sq
 
 # 2. Storage files, read through a helper container that shares the storage
 #    container's volumes so host file permissions never get in the way.
+#    The file backend keeps each object's content-type/cache-control in
+#    user.supabase.* xattrs and returns 500 (ENODATA) without them, so this
+#    must be GNU tar with --xattrs (busybox tar silently drops them).
+#    Restore with the same flags: tar --xattrs --xattrs-include='user.*' -xzf
 docker inspect "$STORAGE_CONTAINER" >/dev/null 2>&1 || fail "container $STORAGE_CONTAINER not found"
-docker run --rm --volumes-from "$STORAGE_CONTAINER":ro alpine:3.20 \
-  tar czf - -C "$STORAGE_PATH_IN_CONTAINER" . > "$out/storage.tgz"
+docker run --rm --volumes-from "$STORAGE_CONTAINER":ro debian:bookworm-slim \
+  tar --xattrs --xattrs-include='user.*' -czf - -C "$STORAGE_PATH_IN_CONTAINER" . > "$out/storage.tgz"
 log "storage.tgz $(du -h "$out/storage.tgz" | cut -f1) ($(tar tzf "$out/storage.tgz" | grep -vc '/$') files)"
 
 # 3. Integrity: the dump must be parseable, and record checksums.
