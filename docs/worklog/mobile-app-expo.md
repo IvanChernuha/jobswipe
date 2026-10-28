@@ -122,6 +122,14 @@ scripts/mobile/                               ← NEW: Docker wrappers (dev serv
 | Config | `MOBILE_PUBLIC_HOST` → `apiUrl`, `supabaseUrl`, `webUrl` in `app.config.ts` `extra` | Swapping to the real domain changes one setting |
 | Tests | **vitest** (shared), **jest-expo + React Native Testing Library** (mobile), **Maestro** (end-to-end on the Android emulator), pytest (backend) | Each layer is tested where it lives |
 
+### Decision 2026-10-28: no Expo account / EAS cloud
+User: React Native, Android now, iOS later on their own Mac. So we keep the **Expo toolkit** (open-source modules, Expo Router, `expo prebuild`) but **don't depend on Expo's account or cloud**:
+- **Android builds:** `npx expo prebuild` + Gradle, **locally in Docker** (`scripts/mobile/build-android.sh`), with no EAS login.
+- **Push:** `expo-notifications` with **native device tokens** (`getDevicePushTokenAsync`). The backend sends through **Firebase Cloud Messaging HTTP v1** directly, not the Expo Push API, so a Firebase project is needed (free). AC8.5/8.7 change accordingly: the device-token table stores the FCM token, and errors handle `UNREGISTERED`.
+- **iOS (later):** on the user's Mac, `npx expo run:ios` / Xcode from the same code (bundle id `com.jobswipe.app`). APNs goes through FCM.
+- **OTA updates (EAS Update):** out of scope; optional later if an Expo account is ever created.
+- Everything else in this plan (shared package, no Android-only code, tests) is unchanged.
+
 ## 6. Acceptance criteria
 
 **[NC]** marks one that needs confirmation and **[ASSUMPTION]** one that's still unverified.
