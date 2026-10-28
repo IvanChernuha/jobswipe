@@ -243,3 +243,37 @@ None blocking. Later: which profession is niche #2 (decided after the no-code in
 | Workflow YAML parse | **PASS**: test.yml on push/pull_request; deploy.yml on workflow_dispatch, `build-and-deploy` needs `test` |
 | GitHub Actions run after push | PENDING (needs a push) |
 | First real `deploy_oracle.sh` to Oracle | PENDING (by the user, when ready) |
+
+### 2026-10-28: Step 1, characterization tests (C1–C6)
+**Approach:** the feed logic lives inside the router functions and their SQL, so the tests call the real `worker_feed` / `employer_feed` against a **throwaway Postgres** (`postgres:16-alpine`). `scripts/test.sh` starts it on a private Docker network and removes it afterwards. The schema is built from the SQLModel tables; the enum types (declared `create_type=False` in the models) are created by the fixture. Dev and live databases are never touched. Without `TEST_DATABASE_URL` the integration tests skip, unless `REQUIRE_DB_TESTS=1` (set by `scripts/test.sh`, so CI and deploys can't silently skip them).
+
+**Files:**
+- `backend/tests/integration/conftest.py`: `session` fixture (fresh engine, empty tables per test) and a `World` builder (tags, implications, workers, employers, jobs)
+- `backend/tests/integration/test_feed_characterization.py`: 22 tests
+- `scripts/test.sh`: start, use and stop the test DB
+
+**Behaviour locked in** (including quirks, kept as-is on purpose):
+- Worker feed:
+  - all required tags needed; at least one preferred tag needed
+  - related skills count, and only one way
+  - the job's required tags are expanded too
+  - score = overlap / expanded job tags; sort by % then matched count; paging after sorting
+  - hides inactive, expired, swiped, suspended-employer and blocked jobs
+  - location, remote and salary filters
+- Employer feed:
+  - a worker must fit **any one** of the team's active jobs
+  - **no active jobs → every worker shown**
+  - **expired-but-active jobs still count**
+  - score against **all team job tags combined**
+  - teammates' jobs count
+  - hides unnamed, swiped, suspended and blocked workers
+  - experience and location filters
+- Saving: job tag levels are deduped required > preferred > nice and replaced, not merged; worker tags are deduped, invalid ones dropped, and replaced.
+
+**Verification:**
+| Check | Result |
+|---|---|
+| First run | 13 FAIL: fixture bug (tag INSERT not ordered before rows referencing it; no ORM relationships). Fixed by flushing in `World.tag()`. Not an app bug. |
+| `scripts/test.sh --backend` | **PASS**: 103 passed (81 old + 22 new) |
+| Sanity check: required filter disabled in `worker_feed` | **PASS**: 2 tests fail (c1 required, c3 one-way); code restored, `git diff` clean |
+| `scripts/test.sh` (all) | **PASS**: backend 103, frontend build, script tests |
