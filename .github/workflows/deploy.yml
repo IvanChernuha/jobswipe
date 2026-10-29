@@ -53,7 +53,7 @@ jobs:
 
       - name: Build & Push frontend
         run: |
-          docker build -t $REGISTRY/$PROJECT_ID/jobswipe/frontend:$GITHUB_SHA ./frontend
+          docker build -t $REGISTRY/$PROJECT_ID/jobswipe/frontend:$GITHUB_SHA -f frontend/Dockerfile .
           docker push $REGISTRY/$PROJECT_ID/jobswipe/frontend:$GITHUB_SHA
           docker tag $REGISTRY/$PROJECT_ID/jobswipe/frontend:$GITHUB_SHA \
                      $REGISTRY/$PROJECT_ID/jobswipe/frontend:latest

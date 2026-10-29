@@ -1,0 +1,7 @@
+{
+  "name": "@jobswipe/shared",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Code shared by the JobSwipe web app and mobile app. Plain TypeScript, no dependencies.",
+  "type": "module"
+}

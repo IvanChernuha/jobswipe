@@ -76,8 +76,8 @@ services:
   # ── React Frontend ──────────────────────────────────────────
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: jobswipe-frontend
     restart: unless-stopped
     networks:

@@ -54,12 +54,12 @@ backend() {
 frontend() {
   echo "==> Frontend tests"
   # --progress=plain so vitest's output (and any failure) is visible.
-  docker build --progress=plain --target test ./frontend 2>&1 \
+  docker build --progress=plain --target test -f frontend/Dockerfile . 2>&1 \
     | sed -n 's/^#[0-9]* [0-9.]* //p' | grep -E "✓|×|FAIL|Test Files|Tests |Error|error" || true
-  docker build -q --target test ./frontend > /dev/null
+  docker build -q --target test -f frontend/Dockerfile . > /dev/null
   echo "==> Frontend build"
   # The production build also type-checks the test files (tsc).
-  docker build -q -t jobswipe-frontend:test ./frontend > /dev/null
+  docker build -q -t jobswipe-frontend:test -f frontend/Dockerfile . > /dev/null
 }
 
 mobile() {

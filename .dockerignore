@@ -1,0 +1,7 @@
+# Builds that use the repo root as context (frontend/Dockerfile) see ONLY
+# what is allowed here. Everything else (.env, backend/, .git, ...) stays out.
+*
+!frontend
+!packages
+**/node_modules
+frontend/dist
