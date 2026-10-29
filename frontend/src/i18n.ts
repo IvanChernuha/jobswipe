@@ -1,10 +1,11 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
-import en from './locales/en.json'
-import he from './locales/he.json'
+// Translations are shared with the mobile app (packages/shared/src/i18n/locales).
+import en from '@jobswipe/shared/i18n/locales/en.json'
+import he from '@jobswipe/shared/i18n/locales/he.json'
 
-// Add a language here (plus its locales/<code>.json and the `resources`
+// Add a language here (plus packages/shared/src/i18n/locales/<code>.json and the `resources`
 // entry below) and it appears in the language dropdown everywhere.
 export const LANGUAGES = [
   { code: 'en', label: 'EN', name: 'English', dir: 'ltr' },
