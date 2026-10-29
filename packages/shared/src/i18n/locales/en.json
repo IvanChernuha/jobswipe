@@ -614,5 +614,16 @@
     "redeemedOk": "Code applied — you're on Pro.",
     "askOwner": "Ask your organization's owner or an admin to enter a Pro code.",
     "limitReached": "You've reached the Free plan's limit. Deactivate a job or redeem a Pro code to post another."
+  },
+  "mobile": {
+    "comingSoon": "Coming in the next version",
+    "comingSoonBody": "This part of JobSwipe is being built. Your account and data are already here.",
+    "onboardingTitle": "Welcome to JobSwipe",
+    "onboardingBody": "Setting up your profile is coming in the next version. For now you can explore the app.",
+    "continue": "Continue",
+    "signedInAs": "Signed in as",
+    "restartTitle": "Restart to finish",
+    "restartBody": "Close and reopen JobSwipe to switch the layout direction.",
+    "ok": "OK"
   }
 }

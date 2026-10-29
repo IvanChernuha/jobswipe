@@ -64,9 +64,9 @@ frontend() {
 
 mobile() {
   echo "==> Mobile tests"
-  docker build --progress=plain -f mobile/Dockerfile.test mobile 2>&1 \
+  docker build --progress=plain -f mobile/Dockerfile.test . 2>&1 \
     | sed -n 's/^#[0-9]* [0-9.]* //p' | grep -E "✓|✕|Tests:|error TS|FAIL" || true
-  docker build -q -f mobile/Dockerfile.test mobile > /dev/null
+  docker build -q -f mobile/Dockerfile.test . > /dev/null
 }
 
 scripts() {

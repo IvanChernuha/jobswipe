@@ -4,6 +4,18 @@
     "strict": true,
     "types": [
       "jest"
-    ]
-  }
+    ],
+    "paths": {
+      "@jobswipe/shared/*": [
+        "../packages/shared/src/*"
+      ]
+    },
+    "resolveJsonModule": true
+  },
+  "exclude": [
+    "node_modules",
+    "android",
+    "ios",
+    "build"
+  ]
 }

@@ -1,15 +1,40 @@
 {
   "name": "jobswipe-mobile",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/frank-ruhl-libre": "^0.4.1",
+    "@expo-google-fonts/fraunces": "^0.4.1",
+    "@expo-google-fonts/ibm-plex-sans": "^0.4.1",
+    "@expo-google-fonts/ibm-plex-sans-hebrew": "^0.4.1",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.21.0",
+    "@react-navigation/native": "^7.5.1",
+    "@supabase/supabase-js": "^2.118.0",
+    "aes-js": "^3.1.2",
     "expo": "~58.0.21",
+    "expo-asset": "~58.0.19",
+    "expo-constants": "~58.0.14",
+    "expo-font": "~58.0.11",
+    "expo-linking": "~58.0.15",
+    "expo-localization": "~58.0.5",
+    "expo-router": "~58.0.28",
+    "expo-secure-store": "~58.0.2",
+    "expo-splash-screen": "~58.0.12",
     "expo-status-bar": "~58.0.4",
+    "i18next": "^26.5.11",
     "react": "19.3.0",
-    "react-native": "0.88.1"
+    "react-dom": "19.3.0",
+    "react-i18next": "^17.1.9",
+    "react-native": "0.88.1",
+    "react-native-get-random-values": "^2.1.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0"
   },
   "devDependencies": {
     "@testing-library/react-native": "^14.1.0",
+    "@types/aes-js": "^3.1.4",
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
     "jest": "~30.5.2",
@@ -26,6 +51,20 @@
   },
   "private": true,
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "setupFiles": [
+      "./jest.setup.tsx"
+    ],
+    "moduleNameMapper": {
+      "^@jobswipe/shared/(.*)$": "<rootDir>/../packages/shared/src/$1"
+    },
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/__tests__/helpers/"
+    ],
+    "moduleDirectories": [
+      "node_modules",
+      "<rootDir>/node_modules"
+    ]
   }
 }
