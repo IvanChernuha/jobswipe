@@ -3,7 +3,7 @@
 # Used by CI (.github/workflows/test.yml) and by scripts/deploy_oracle.sh,
 # so "tests pass" means the same thing everywhere.
 #
-#   scripts/test.sh              # backend tests + frontend build + script tests
+#   scripts/test.sh              # backend, frontend, mobile and script tests
 #   scripts/test.sh --backend    # backend tests only
 set -euo pipefail
 
@@ -62,17 +62,25 @@ frontend() {
   docker build -q -t jobswipe-frontend:test ./frontend > /dev/null
 }
 
+mobile() {
+  echo "==> Mobile tests"
+  docker build --progress=plain -f mobile/Dockerfile.test mobile 2>&1 \
+    | sed -n 's/^#[0-9]* [0-9.]* //p' | grep -E "✓|✕|Tests:|error TS|FAIL" || true
+  docker build -q -f mobile/Dockerfile.test mobile > /dev/null
+}
+
 scripts() {
   echo "==> Script tests"
   bash scripts/tests/test_deploy_oracle.sh
 }
 
 case "$ONLY" in
-  all) backend; frontend; scripts ;;
+  all) backend; frontend; mobile; scripts ;;
   --backend) backend ;;
   --frontend) frontend ;;
+  --mobile) mobile ;;
   --scripts) scripts ;;
-  *) echo "Usage: $0 [--backend|--frontend|--scripts]" >&2; exit 2 ;;
+  *) echo "Usage: $0 [--backend|--frontend|--mobile|--scripts]" >&2; exit 2 ;;
 esac
 
 echo "==> All checks passed"

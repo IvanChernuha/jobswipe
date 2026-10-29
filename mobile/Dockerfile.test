@@ -1,0 +1,7 @@
+# Mobile unit tests + typecheck, used by scripts/test.sh (CI and deploys).
+FROM node:22-alpine
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund --loglevel=error
+COPY . .
+RUN npx tsc --noEmit && npx jest --ci
