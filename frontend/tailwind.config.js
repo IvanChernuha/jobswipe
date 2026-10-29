@@ -1,3 +1,8 @@
+import { colors, fonts } from '../packages/shared/src/theme/index.ts'
+
+// Quote multi-word family names for CSS.
+const cssFamily = (f) => (f.includes(' ') ? `"${f}"` : f)
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -6,38 +11,16 @@ export default {
   ],
   theme: {
     extend: {
+      // Harbor tokens are shared with the mobile app (packages/shared/src/theme).
       fontFamily: {
-        sans: ['"IBM Plex Sans"', '"IBM Plex Sans Hebrew"', 'system-ui', 'sans-serif'],
-        display: ['Fraunces', '"Frank Ruhl Libre"', 'Georgia', 'serif'],
+        sans: fonts.sans.map(cssFamily),
+        display: fonts.display.map(cssFamily),
       },
       colors: {
-        // Teal accent ("Harbor" direction).
-        brand: {
-          50:  '#EAF4F3',
-          100: '#D3E9E8',
-          200: '#A8D3D2',
-          300: '#74B8B7',
-          400: '#3E9C9B',
-          500: '#0E7C7B',
-          600: '#0B6665',
-          700: '#095251',
-          800: '#073F3E',
-          900: '#052D2C',
-        },
-        // Warm neutrals with navy ink: overrides Tailwind's cool gray so the
-        // existing gray-* classes across the app pick up the new ground/ink.
-        gray: {
-          50:  '#F5F1EA',
-          100: '#ECE6DB',
-          200: '#E3DCD0',
-          300: '#D5CDBF',
-          400: '#737A8C',
-          500: '#5B6373',
-          600: '#3B4358',
-          700: '#2B3448',
-          800: '#1E2A44',
-          900: '#14213D',
-        },
+        brand: colors.brand,
+        // Overrides Tailwind's cool gray so the existing gray-* classes across
+        // the app pick up the warm ivory ground and navy ink.
+        gray: colors.gray,
       },
       keyframes: {
         'slide-left': {
