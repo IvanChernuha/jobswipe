@@ -61,7 +61,7 @@ docker run --rm \
   -e VERSION="$VERSION" \
   "$IMAGE" bash -euo pipefail -c '
     # Files created as root inside the container go back to the host user.
-    trap "chown -R $HOST_UID:$HOST_GID node_modules android build .expo 2>/dev/null || true" EXIT
+    trap "chown -R $HOST_UID:$HOST_GID /repo/mobile/node_modules /repo/mobile/android /repo/mobile/build /repo/mobile/.expo 2>/dev/null || true" EXIT
     npm ci --no-audit --no-fund --loglevel=error
     npx expo prebuild --platform android --clean --no-install
     cd android
