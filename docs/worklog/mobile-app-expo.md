@@ -410,3 +410,26 @@ docker run --rm --env-file .env jobswipe-backend:test python -m pytest -q
 - [ ] iOS Universal Links: `associatedDomains` plus `/.well-known/apple-app-site-association`
 - [ ] Invite and email links open the app (`/join`, `/login`)
 - [ ] Web `CORS_ORIGINS` and Caddy include `https://jobswipe.com`
+
+
+## Work log
+
+### 2026-10-29: P0 done, P1 mostly done
+**P0 (#2242, closed):**
+- `mobile/` Expo SDK 58 / RN 0.88 app; start screen loads the skill categories from the real API; 5 tests written first.
+- `scripts/mobile/build-android.sh` builds a sideloadable release APK in Docker (no Expo account).
+- Installed on the user's Galaxy S26 Ultra: "Connected… 8 skill categories loaded".
+
+**P1 (#2243), test-first at every step:**
+1. `28d98c0`: 13 characterization tests for the web API client.
+2. `4833b64`: the API client moves to `packages/shared/src/api`.
+   - `configureApi({ baseUrl, onUnauthorized })` replaces `import.meta.env` and the window event.
+   - Uploads accept a browser File or React Native `{ uri, name, type }`.
+   - The web `src/lib/api.ts` is a small setup that re-exports. The 13 tests pass unchanged, and there are 5 new shared tests.
+   - The web image builds from the repo root, with a root `.dockerignore` allowlist (frontend/, packages/ only).
+3. `271c5f7`: en/he translations move to `packages/shared/src/i18n/locales`. The parity test passes, so the translations are complete.
+4. this commit: Harbor colors and fonts become `packages/shared/src/theme`, and Tailwind reads them. The built CSS is byte-identical.
+
+**Changed scope:**
+- The pure feed logic (AC1.7: undo, bookmark-swipe, no double swipe) moves to **P4**, where the mobile feed is built, with characterization tests on `Feed.tsx` first. Extracting it now, with no second user, would be a refactor without a consumer.
+- The mobile app starts importing `@jobswipe/shared` in **P2** (Metro/Jest/TS alias).
