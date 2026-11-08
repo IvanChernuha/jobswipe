@@ -5,13 +5,23 @@ import {
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
-import { createJobPosting, getJobPostings, updateJobPosting, type JobInput, type Tag } from '../lib/api'
+import * as DocumentPicker from 'expo-document-picker'
+import {
+  createJobPosting, getJobPostings, parseJobFiles, parseJobText, updateJobPosting, type JobInput, type ParsedJob, type Tag,
+} from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import SkillPicker from './SkillPicker'
 import { Body, Button, ErrorBox, Field, Screen } from './ui'
 import { colors, fonts, space, TOUCH } from '../lib/theme'
 
 const DEFAULT_DAYS = 30
+/** The AI needs a few words about the job (the server asks for 20+ characters). */
+const MIN_AI_TEXT = 20
+const JOB_FILE_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+]
 
 const daysLeft = (iso: string) => Math.max(1, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000))
 const num = (s: string) => Number(s.replace(/[^\d]/g, '')) || 0
@@ -38,6 +48,8 @@ export default function JobForm({ jobId }: { jobId?: string }) {
   const [preferred, setPreferred] = useState<Tag[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [aiBusy, setAiBusy] = useState<'text' | 'file' | null>(null)
+  const [aiNote, setAiNote] = useState<string | null>(null)
 
   useEffect(() => {
     if (!jobId || !token) return
@@ -61,6 +73,71 @@ export default function JobForm({ jobId }: { jobId?: string }) {
       .catch((err: unknown) => setError(err instanceof Error ? err.message : t('jobs.failedToLoad')))
       .finally(() => setLoading(false))
   }, [jobId, token, t])
+
+  /** Fill what the AI found into the form: empty fields only, and skills not
+   *  chosen yet. Must-have stays must-have; "at least one of" has no phone
+   *  editor, so those become normal skills (they only raise the score). */
+  function applyAi(job: ParsedJob) {
+    if (!title.trim() && job.title) setTitle(job.title)
+    if (!description.trim() && job.description) setDescription(job.description)
+    if (!location.trim() && job.location) setLocation(job.location)
+    if (!salaryMin && job.salary_min) setSalaryMin(String(job.salary_min))
+    if (!salaryMax && job.salary_max) setSalaryMax(String(job.salary_max))
+    if (!minExperience && job.min_experience_years) setMinExperience(String(job.min_experience_years))
+    if (job.remote) setRemote(true)
+
+    const have = new Set(skills.map((s) => s.id))
+    const found = (ids: string[], names: string[], must: boolean) =>
+      ids.map((id, i) => ({ tag: { id, name: names[i] ?? id, category: '' }, must }))
+    const added: { tag: Tag; must: boolean }[] = []
+    for (const a of [
+      ...found(job.required_tag_ids, job.required_tags, true),
+      ...found(job.preferred_tag_ids, job.preferred_tags, false),
+      ...found(job.tag_ids, job.nice_tags, false),
+    ]) {
+      if (have.has(a.tag.id)) continue
+      have.add(a.tag.id)
+      added.push(a)
+    }
+    setSkills((prev) => [...prev, ...added.map((a) => a.tag)])
+    setRequired((prev) => new Set([...prev, ...added.filter((a) => a.must).map((a) => a.tag.id)]))
+    setAiNote(added.length ? t('mobile.aiAdded', { count: added.length }) : t('mobile.aiNothing'))
+  }
+
+  async function fillWithAi() {
+    if (aiBusy) return
+    setAiBusy('text')
+    setError(null)
+    setAiNote(null)
+    try {
+      applyAi(await parseJobText(token, [title.trim(), description.trim()].filter(Boolean).join('\n\n')))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('jobs.couldNotParse'))
+    } finally {
+      setAiBusy(null)
+    }
+  }
+
+  async function fromFile() {
+    if (aiBusy) return
+    const pick = await DocumentPicker.getDocumentAsync({ type: JOB_FILE_TYPES, copyToCacheDirectory: true })
+    if (pick.canceled || !pick.assets?.length) return
+    const file = pick.assets[0]
+    setAiBusy('file')
+    setError(null)
+    setAiNote(null)
+    try {
+      const [job] = await parseJobFiles(token, [
+        { uri: file.uri, name: file.name, type: file.mimeType ?? 'application/octet-stream' },
+      ])
+      if (!job || job.error) throw new Error(job?.error ?? t('jobs.couldNotParse'))
+      applyAi(job)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('jobs.couldNotParse'))
+    } finally {
+      setAiBusy(null)
+    }
+  }
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/jobs'))
 
@@ -124,6 +201,23 @@ export default function JobForm({ jobId }: { jobId?: string }) {
               label={t('common.description')} placeholder={t('jobs.form.descriptionPlaceholder')}
               value={description} onChangeText={setDescription} multiline style={styles.multiline}
             />
+            <View style={styles.aiBox}>
+              <Text style={[styles.aiHint, { fontFamily: f.regular }]}>{t('mobile.aiHint')}</Text>
+              <View style={styles.pair}>
+                <View style={styles.flex}>
+                  <Button
+                    title={t('mobile.fillWithAi')}
+                    onPress={fillWithAi}
+                    busy={aiBusy === 'text'}
+                    disabled={!!aiBusy || description.trim().length < MIN_AI_TEXT}
+                  />
+                </View>
+                <View style={styles.flex}>
+                  <Button title={t('mobile.fromFile')} variant="secondary" onPress={fromFile} busy={aiBusy === 'file'} disabled={!!aiBusy} />
+                </View>
+              </View>
+              {aiNote && <Text style={[styles.aiNote, { fontFamily: f.medium }]}>{aiNote}</Text>}
+            </View>
             <Field label={t('common.location')} value={location} onChangeText={setLocation} />
             <View style={styles.switchRow}>
               <Text style={[styles.label, { fontFamily: f.medium }]}>{t('mobile.remoteJob')}</Text>
@@ -182,5 +276,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, color: colors.gray[700] },
   pair: { flexDirection: 'row', gap: space.md },
   section: { gap: space.xs, marginTop: space.sm },
+  aiBox: { gap: space.md, padding: space.md, borderRadius: 12, backgroundColor: colors.brandScale[50], borderWidth: 1, borderColor: colors.brandScale[200] },
+  aiHint: { fontSize: 13, lineHeight: 19, color: colors.gray[700], textAlign: 'left' },
+  aiNote: { fontSize: 13, color: colors.brandDark, textAlign: 'left' },
   sectionTitle: { fontSize: 16, color: colors.ink, textAlign: 'left' },
 })

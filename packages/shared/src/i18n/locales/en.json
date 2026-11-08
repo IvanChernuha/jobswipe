@@ -641,6 +641,15 @@
     "editProfile": "Edit profile",
     "account": "Account",
     "emptyProfileWorker": "Add your details so employers can find you.",
-    "emptyProfileEmployer": "Add your company details so candidates know who you are."
+    "emptyProfileEmployer": "Add your company details so candidates know who you are.",
+    "fillWithAi": "Fill with AI",
+    "fromFile": "From a file",
+    "aiHint": "Write or paste the job description, then let AI fill in the title, salary and skills. Or start from a PDF or Word file.",
+    "aiAdded_one": "AI added {{count}} skill. Check it before saving.",
+    "aiAdded_other": "AI added {{count}} skills. Check them before saving.",
+    "aiNothing": "AI didn't find skills to add. Add them yourself below.",
+    "matchCount_one": "{{count}} match",
+    "matchCount_other": "{{count}} matches",
+    "otherMatches": "Other matches"
   }
 }

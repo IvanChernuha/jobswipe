@@ -3,7 +3,7 @@
 // an absolute server address, a callback instead of a window event, and
 // React Native style file uploads.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { configureApi, getMatches, uploadAvatar, uploadResume } from '..'
+import { configureApi, getMatches, parseJobText, uploadAvatar, uploadResume } from '..'
 
 const fetchMock = vi.fn()
 
@@ -61,5 +61,18 @@ describe('uploads from React Native', () => {
     fetchMock.mockResolvedValue(json(200, { url: '/supabase/a.png' }))
     await uploadAvatar('t', new File(['png'], 'a.png', { type: 'image/png' }))
     expect((fetchMock.mock.calls[0][1].body as FormData).get('file')).toBeInstanceOf(File)
+  })
+})
+
+describe('parseJobText (Fill with AI)', () => {
+  it('sends the typed posting and returns the form data', async () => {
+    const parsed = { title: 'Junior React Developer', required_tag_ids: ['t1'], preferred_tag_ids: [], tag_ids: ['t2'] }
+    fetchMock.mockResolvedValue(json(200, parsed))
+    await expect(parseJobText('tok', 'We need a junior React developer')).resolves.toEqual(parsed)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/cv/parse-job-text')
+    expect(init.method).toBe('POST')
+    expect(init.headers.Authorization).toBe('Bearer tok')
+    expect(JSON.parse(init.body)).toEqual({ text: 'We need a junior React developer' })
   })
 })

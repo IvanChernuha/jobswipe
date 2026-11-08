@@ -1,7 +1,7 @@
 // P5: matches list and chat. Same behaviour as the web Matches.tsx/Chat.tsx:
 // each match shows the other side and unread count, opens a chat, messages
 // send and arrive (polling), and a refused message keeps the draft.
-import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library'
+import { act, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library'
 import * as api from '@jobswipe/shared/api'
 import { fakeSupabase, sessionFor } from './helpers/fakeSupabase'
 import { usePolling } from '../src/lib/usePolling'
@@ -14,6 +14,7 @@ jest.mock('@jobswipe/shared/api', () => ({
   getUnreadCounts: jest.fn(),
   getMessages: jest.fn(),
   sendMessage: jest.fn(),
+  getJobPostings: jest.fn(),
 }))
 
 // The 3-second timer itself is tested in usePolling.test; here the test runs the poll.
@@ -23,8 +24,8 @@ const mocked = api as jest.Mocked<typeof api>
 const mockedPolling = usePolling as jest.Mock
 const APP = './src/app'
 
-const match = (id: string, company: string, worker: string): api.Match => ({
-  id, worker_id: 'id-worker', employer_id: 'id-employer', job_posting_id: 'j1',
+const match = (id: string, company: string, worker: string, jobId: string | null = 'j1'): api.Match => ({
+  id, worker_id: 'id-worker', employer_id: 'id-employer', job_posting_id: jobId,
   matched_at: '2026-11-01T10:00:00Z', status: 'active',
   worker: { name: worker, avatar_url: null, skills: [], experience_years: 2 },
   employer: { company_name: company, industry: 'Software', avatar_url: null, job_title: 'React Developer', location: 'Tel Aviv' },
@@ -48,6 +49,9 @@ beforeEach(() => {
   mocked.getMatch.mockResolvedValue(match('m1', 'Wix', 'Dana Levi'))
   mocked.getMessages.mockResolvedValue([msg('a', 'Hi! Loved your profile', false), msg('b', 'Thanks, happy to talk', true)])
   mocked.sendMessage.mockImplementation(async (_t, _m, body) => msg('new', body, true))
+  mocked.getJobPostings.mockResolvedValue([
+    { id: 'j1', title: 'Frontend Engineer' }, { id: 'j2', title: 'Backend Engineer' },
+  ] as api.JobPosting[])
 })
 
 describe('matches list', () => {
@@ -63,6 +67,29 @@ describe('matches list', () => {
     await open('employer', '/matches')
     expect(await screen.findByText('Dana Levi')).toBeOnTheScreen()
     expect(screen.getByText('Omer Cohen')).toBeOnTheScreen()
+  })
+
+  it('employers see their matches grouped under the job they matched for', async () => {
+    mocked.getMatches.mockResolvedValueOnce([
+      match('m1', 'Wix', 'Dana Levi', 'j1'), match('m2', 'Wix', 'Omer Cohen', 'j2'),
+      match('m3', 'Wix', 'Noa Katz', 'j1'), match('m4', 'Wix', 'Yossi Bar', null),
+    ])
+    await open('employer', '/matches')
+    await screen.findByText('Dana Levi')
+    const frontend = within(screen.getByTestId('matches-job-j1'))
+    expect(frontend.getByText('Frontend Engineer')).toBeOnTheScreen()
+    expect(frontend.getByText('Dana Levi')).toBeOnTheScreen()
+    expect(frontend.getByText('Noa Katz')).toBeOnTheScreen()
+    expect(frontend.getByText('2 matches')).toBeOnTheScreen()
+    expect(within(screen.getByTestId('matches-job-j2')).getByText('Omer Cohen')).toBeOnTheScreen()
+    expect(within(screen.getByTestId('matches-job-none')).getByText('Yossi Bar')).toBeOnTheScreen()
+  })
+
+  it('workers see one list (each row already says the job)', async () => {
+    await open('worker', '/matches')
+    await screen.findByText('Wix')
+    expect(screen.queryByTestId('matches-job-j1')).toBeNull()
+    expect(mocked.getJobPostings).not.toHaveBeenCalled()
   })
 
   it('shows how many messages are unread', async () => {

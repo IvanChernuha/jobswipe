@@ -663,6 +663,17 @@
     "editProfile": "עריכת פרופיל",
     "account": "חשבון",
     "emptyProfileWorker": "הוסיפו את הפרטים שלכם כדי שמעסיקים ימצאו אתכם.",
-    "emptyProfileEmployer": "הוסיפו את פרטי החברה כדי שמועמדים ידעו מי אתם."
+    "emptyProfileEmployer": "הוסיפו את פרטי החברה כדי שמועמדים ידעו מי אתם.",
+    "fillWithAi": "מילוי עם AI",
+    "fromFile": "מקובץ",
+    "aiHint": "כתבו או הדביקו את תיאור המשרה, וה-AI ימלא את הכותרת, השכר והכישורים. אפשר גם להתחיל מקובץ PDF או Word.",
+    "aiAdded_one": "ה-AI הוסיף כישור אחד. בדקו לפני השמירה.",
+    "aiAdded_two": "ה-AI הוסיף {{count}} כישורים. בדקו לפני השמירה.",
+    "aiAdded_other": "ה-AI הוסיף {{count}} כישורים. בדקו לפני השמירה.",
+    "aiNothing": "ה-AI לא מצא כישורים להוסיף. הוסיפו אותם בעצמכם למטה.",
+    "matchCount_one": "התאמה אחת",
+    "matchCount_two": "{{count}} התאמות",
+    "matchCount_other": "{{count}} התאמות",
+    "otherMatches": "התאמות נוספות"
   }
 }

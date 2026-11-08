@@ -474,3 +474,34 @@ The user's 0.3.1 test found swiping stable, but every tab except Feed was a plac
 - Website: 43 passed, plus the production build with `tsc`.
 - Mobile: 83 passed (was 39) plus `tsc --noEmit`.
 - deploy_oracle script tests passed.
+
+### 2026-11-08 (later): AI reads the job posting, matches by job, app 0.5.0
+The user pointed out the core missing piece: the AI that reads a posting and sets its skills. Shadow tags (tag implications) were already applied in scoring for every job, including ones posted from the app; what was missing was the step where the AI reads the posting.
+
+**Done (test-first):**
+- **Server `POST /cv/parse-job-text`** (`app/services/job_parsing.py`, `app/models/cv.py`):
+  - The AI reads a posting typed into the form and returns job form data: title, location, remote, salary, minimum experience, and skills split into must-have / at-least-one / nice-to-have as real tag ids. Skill names the AI made up are dropped.
+  - Requires 20–20000 characters. Uses 1 unit of the daily AI quota, a limit of 30/hour, and the shared LLM semaphore. An AI failure returns 502 with a plain message.
+  - `parse-job-files` now uses the same `profile_to_form` helper.
+  - 7 integration tests, with the LLM faked.
+- **Shared** `parseJobText()` and `ParsedJob`, plus 1 client test.
+- **App job form, AI box under the description:**
+  - **Fill with AI** sends title + description; it is enabled at 20+ characters.
+  - **From a file** uses `expo-document-picker` (PDF/DOCX/TXT) and `parseJobFiles`.
+  - Only empty fields are filled, and the user's own description is kept. Skills are added without duplicates, and must-have ones get the switch on.
+  - "At least one of" skills become normal skills on the phone, since they have no editor there. This makes the job visible to more candidates, never fewer.
+  - Shows "AI added N skills. Check them before saving." or the server's reason (quota, AI down). 6 tests.
+- **Matches grouped by job (employers):** each job, with its count, followed by "Other matches" for deleted or missing jobs (`groupByJob` in `lib/matches.ts`). Workers keep one list, since each row names the job. 2 tests.
+
+**Found:** the Gemini key's AI Studio prepaid credit is used up. A test call from Oracle on 2026-11-08 returned `402 RESOURCE_EXHAUSTED: prepayment credits are depleted`. Every AI feature (CV, job file, Fill with AI, re-extract) fails until it is topped up at ai.studio/projects. The GCP ₪3,092 trial credit doesn't apply (see #2605).
+
+**Not yet:**
+- The Pro-only rule for AI (decision 2026-11) is **not enforced on the server**: only the daily quota applies.
+- Worker CV upload in the app (P6).
+- The server change needs a deploy to Oracle before Fill with AI works from the phone. File parsing already works there.
+
+**Verification (`scripts/test.sh`, all PASS):**
+- Backend: 130 passed.
+- Website: 44 passed, plus the build.
+- Mobile: 91 passed, plus `tsc`.
+- Scripts: passed.

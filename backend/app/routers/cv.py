@@ -15,10 +15,11 @@ from app.services.llm_quota import consume_llm_units
 from app.models.tables.worker import WorkerProfile
 from app.models.tables.employer import EmployerProfile
 from app.models.tables.job import JobPosting
-from app.models.tables.tag import Tag
 from app.tasks.cv_processing import extract_cv_tags, extract_job_tags, extract_job_tags_bulk
 from app.services.cv_parser import extract_text
 from app.services.llm.factory import get_llm_provider
+from app.services.job_parsing import load_taxonomy, parse_job_text, profile_to_form
+from app.models.cv import ParseJobTextRequest
 
 router = APIRouter(prefix="/cv", tags=["cv"])
 
@@ -179,9 +180,7 @@ async def parse_job_files(
 
     await consume_llm_units(user["id"], len(files))
 
-    # Get tag taxonomy
-    result = await session.execute(select(Tag.id, Tag.name))
-    taxonomy = {row.name: str(row.id) for row in result.all()}
+    taxonomy = await load_taxonomy(session)
     taxonomy_names = list(taxonomy.keys())
 
     provider = get_llm_provider()
@@ -208,23 +207,7 @@ async def parse_job_files(
             raw_text = extract_text(content, effective_type)
             async with _LLM_SEMAPHORE:
                 profile = await provider.extract_job_profile(raw_text, taxonomy_names)
-            return {
-                "filename": file.filename,
-                "title": profile.title,
-                "description": profile.description,
-                "location": profile.location,
-                "remote": profile.remote,
-                "salary_min": profile.salary_min,
-                "salary_max": profile.salary_max,
-                "required_tag_ids": [taxonomy[t] for t in profile.required_tags if t in taxonomy],
-                "preferred_tag_ids": [taxonomy[t] for t in profile.preferred_tags if t in taxonomy],
-                "tag_ids": [taxonomy[t] for t in profile.nice_tags if t in taxonomy],
-                "required_tags": profile.required_tags,
-                "preferred_tags": profile.preferred_tags,
-                "nice_tags": profile.nice_tags,
-                "min_experience_years": profile.min_experience_years,
-                "error": None,
-            }
+            return {"filename": file.filename, **profile_to_form(profile, taxonomy), "error": None}
         except Exception as e:
             import logging as _log
             _log.getLogger(__name__).error("parse-job-files error for %s: %s", file.filename, e)
@@ -232,3 +215,24 @@ async def parse_job_files(
 
     results = await asyncio.gather(*[parse_one(f) for f in files])
     return {"parsed": results}
+
+
+@router.post("/parse-job-text")
+@limiter.limit("30/hour", key_func=user_or_ip)
+async def parse_job_text_route(
+    request: Request,
+    payload: ParseJobTextRequest,
+    user: dict = Depends(require_employer),
+    session: AsyncSession = Depends(get_session),
+):
+    """Read a job posting typed into the form and return it as form data
+    (title, location, salary, skills by requirement level). The app's
+    "Fill with AI" button; same output as parse-job-files, per job."""
+    await consume_llm_units(user["id"], 1)
+    try:
+        async with _LLM_SEMAPHORE:
+            return await parse_job_text(session, get_llm_provider(), payload.text)
+    except Exception as e:
+        import logging as _log
+        _log.getLogger(__name__).error("parse-job-text error: %s", e)
+        raise HTTPException(502, "The AI couldn't read this right now. Please try again in a minute.")

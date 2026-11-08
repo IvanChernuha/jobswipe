@@ -501,6 +501,18 @@ export interface ParsedJobFile {
   error: string | null
 }
 
+/** One job as the AI read it: what the job form needs (parse-job-text). */
+export type ParsedJob = Omit<ParsedJobFile, 'filename' | 'error'>
+
+/** "Fill with AI": the server's AI reads a posting typed into the form. */
+export function parseJobText(token: string, text: string): Promise<ParsedJob> {
+  return request<ParsedJob>('/cv/parse-job-text', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ text }),
+  })
+}
+
 export async function parseJobFiles(token: string, files: UploadFile[]): Promise<ParsedJobFile[]> {
   const form = new FormData()
   files.forEach((f) => appendFile(form, 'files', f))
