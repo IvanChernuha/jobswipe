@@ -69,8 +69,14 @@ export const SWIPE_DISTANCE = 0.3
 /** Horizontal speed (px/s) that counts as a flick even on a short drag. */
 export const SWIPE_VELOCITY = 800
 
-/** What a released drag means: like (right), pass (left) or snap back (null). */
+/**
+ * What a released drag means: like (right), pass (left) or snap back (null).
+ * Runs on the phone's UI thread inside the gesture handler, so it must be a
+ * worklet: calling a plain function from there crashes a release build.
+ * (On the web the directive is just an unused string.)
+ */
 export function swipeDecision({ dx, vx, width }: { dx: number; vx: number; width: number }): 'like' | 'pass' | null {
+  'worklet'
   const far = Math.abs(dx) > width * SWIPE_DISTANCE
   const flick = Math.abs(vx) > SWIPE_VELOCITY && Math.sign(vx) === Math.sign(dx)
   if (!far && !flick) return null
