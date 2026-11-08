@@ -624,6 +624,7 @@
     "signedInAs": "Signed in as",
     "restartTitle": "Restart to finish",
     "restartBody": "Close and reopen JobSwipe to switch the layout direction.",
-    "ok": "OK"
+    "ok": "OK",
+    "refresh": "Refresh"
   }
 }
