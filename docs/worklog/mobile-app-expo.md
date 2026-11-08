@@ -433,3 +433,44 @@ docker run --rm --env-file .env jobswipe-backend:test python -m pytest -q
 **Changed scope:**
 - The pure feed logic (AC1.7: undo, bookmark-swipe, no double swipe) moves to **P4**, where the mobile feed is built, with characterization tests on `Feed.tsx` first. Extracting it now, with no second user, would be a refactor without a consumer.
 - The mobile app starts importing `@jobswipe/shared` in **P2** (Metro/Jest/TS alias).
+
+### 2026-11-08: P5 + first cut of P6/P7 (every tab now works), app 0.4.0
+The user's 0.3.1 test found swiping stable, but every tab except Feed was a placeholder. Each screen below was built test-first, with the tests written and seen failing before the code.
+
+**Done:**
+- **Matches** (`(tabs)/matches.tsx`): a list with the other side's name, job/experience, match date, and unread badge (AC5.1). It reloads on tab focus, supports pull to refresh, and has empty/error states.
+- **Chat** (`chat/[id].tsx`):
+  - Shows the conversation, newest at the bottom, with day separators.
+  - Sends messages. If the server refuses one (content filter or block), the reason is shown and the draft is kept.
+  - Polls every 3 s through `lib/usePolling.ts`, which has its own fake-timer tests. The chat test runs the poll by hand: fake timers inside an expo-router render broke the tests that came after it.
+  - The match popup's "Start Chat" now opens that chat (feed and saved).
+- **Saved** (`(tabs)/saved.tsx`):
+  - Workers see saved jobs; employers see candidates grouped by job.
+  - Each item has like (match popup on a match), pass and remove. Team viewers can't like.
+  - Shared `SavedItem` type: what GET /bookmarks actually returns.
+- **Jobs** (`(tabs)/jobs.tsx`, `job/new.tsx`, `job/[id].tsx`, `components/JobForm.tsx`):
+  - The list shows status, must-have skills and views/likes/matches. Jobs can be deactivated/reactivated, and deleted with a confirm.
+  - Create/edit form: title (required), description, location, remote, salary in **₪/month**, minimum experience, skills with a Must-have switch, and listing days.
+  - Server refusals, such as the free-plan job limit, are shown in the form. "At least one of" (preferred) skills are kept on edit but can't be edited on the phone yet.
+  - Shared `JobInput` type, matching backend JobPostingCreate. Salary 0 means "not given", because the backend rejects null.
+- **Profile** (`(tabs)/profile.tsx`, `profile/edit.tsx`):
+  - Workers can view and edit name, location, experience, bio and skills; employers the company details.
+  - The account card (email, language, sign out) shows even if the profile fails to load.
+- `components/SkillPicker.tsx` (search + chips, optional Must-have) and `components/Avatar.tsx` (photo or initials).
+- New `mobile.*` strings in en and he (he includes the `_two` plural form).
+- `testTimeout` raised to 15 s, because the first test per file spends about 4–8 s loading the app.
+
+**Gaps against the ACs (next):**
+- AC5.2:
+  - Uses a FlatList, not a FlashList.
+  - Polling doesn't pause in the background (`AppState`).
+  - Sends aren't optimistic: a failed send shows the reason, and there is no retry button yet.
+- AC6.1: no photo or CV upload yet (needs the image and document pickers). AC6.2–6.5 not started.
+- AC7.1: no parse-from-file. AC7.2: no move or notes on saved items. AC7.3 (Team) and AC7.4 (Plan) not started.
+- The web job form labels salary "$/yr", but the data is ₪ per month. Fix the web label.
+
+**Verification (`scripts/test.sh`, all PASS):**
+- Backend: 123 passed.
+- Website: 43 passed, plus the production build with `tsc`.
+- Mobile: 83 passed (was 39) plus `tsc --noEmit`.
+- deploy_oracle script tests passed.

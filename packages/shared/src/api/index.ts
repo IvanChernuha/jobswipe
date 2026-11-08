@@ -100,10 +100,28 @@ export interface Bookmark {
   expires_at: string
 }
 
+/** A saved item as GET /bookmarks returns it: the bookmark plus what it points
+ *  at (a job for workers, a candidate for employers). */
+export interface SavedItem extends Bookmark {
+  name?: string | null
+  avatar_url?: string | null
+  bio?: string | null
+  location?: string | null
+  experience_years?: number | null
+  skills?: string[] | null
+  job_title?: string | null
+  company_name?: string | null
+  description?: string | null
+  salary_min?: number | null
+  salary_max?: number | null
+  remote?: boolean | null
+  tags?: Tag[]
+}
+
 export interface BookmarkGroup {
   job_posting_id: string | null
   job_title: string
-  bookmarks: Bookmark[]
+  bookmarks: SavedItem[]
 }
 
 export interface SwipeResponse {
@@ -376,10 +394,27 @@ export function getMatch(token: string, matchId: string): Promise<Match> {
 // Job postings
 // ---------------------------------------------------------------------------
 
-export function createJobPosting(
-  token: string,
-  data: Omit<JobPosting, 'id' | 'employer_id' | 'created_at'> & { expires_in_days?: number },
-): Promise<JobPosting> {
+/** What POST/PUT /employers/jobs accept (backend JobPostingCreate/Update).
+ *  Salary 0 means "not given"; tags come as ids split by requirement. */
+export interface JobInput {
+  title: string
+  description?: string
+  location?: string
+  salary_min?: number
+  salary_max?: number
+  remote?: boolean
+  min_experience_years?: number | null
+  expires_in_days?: number
+  skills_required?: string[]
+  /** Nice-to-have skills. */
+  tag_ids?: string[]
+  /** Candidates must have all of these. */
+  required_tag_ids?: string[]
+  /** Candidates must have at least one of these. */
+  preferred_tag_ids?: string[]
+}
+
+export function createJobPosting(token: string, data: JobInput): Promise<JobPosting> {
   return request<JobPosting>('/employers/jobs', {
     method: 'POST',
     token,
@@ -394,7 +429,7 @@ export function getJobPostings(token: string): Promise<JobPosting[]> {
 export function updateJobPosting(
   token: string,
   jobId: string,
-  data: Partial<Omit<JobPosting, 'id' | 'employer_id' | 'created_at' | 'swipe_count' | 'like_count' | 'match_count'>> & { expires_in_days?: number },
+  data: Partial<JobInput>,
 ): Promise<JobPosting> {
   return request<JobPosting>(`/employers/jobs/${jobId}`, {
     method: 'PUT',

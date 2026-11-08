@@ -184,7 +184,7 @@ describe("it's a match", () => {
     expect(screen.getByText('Omer Cohen')).toBeOnTheScreen()
   })
 
-  it('start chat goes to the matches', async () => {
+  it('start chat opens the chat with the new match', async () => {
     const router = await (async () => {
       fakeSupabase.__reset(sessionFor('employer'))
       return renderRouter(APP, { initialUrl: '/feed' })
@@ -192,7 +192,7 @@ describe("it's a match", () => {
     await screen.findByText('Dana Levi')
     await press('Like')
     await press('Start Chat')
-    await waitFor(() => expect(router.getPathname()).toBe('/matches'))
+    await waitFor(() => expect(router.getPathname()).toBe('/chat/m1'))
   })
 })
 

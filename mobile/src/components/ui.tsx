@@ -23,14 +23,14 @@ export function Body({ children, muted }: { children: ReactNode; muted?: boolean
   return <Text style={[styles.body, { fontFamily: fonts().regular }, muted && styles.muted]}>{children}</Text>
 }
 
-export function Field({ label, ...input }: { label: string } & TextInputProps) {
+export function Field({ label, style, ...input }: { label: string } & TextInputProps) {
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { fontFamily: fonts().medium }]}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
         placeholderTextColor={colors.gray[400]}
-        style={[styles.input, { fontFamily: fonts().regular }]}
+        style={[styles.input, { fontFamily: fonts().regular }, style]}
         {...input}
       />
     </View>
@@ -38,16 +38,19 @@ export function Field({ label, ...input }: { label: string } & TextInputProps) {
 }
 
 export function Button({
-  title, onPress, busy, variant = 'primary',
-}: { title: string; onPress: () => void; busy?: boolean; variant?: 'primary' | 'secondary' }) {
+  title, onPress, busy, disabled, variant = 'primary',
+}: { title: string; onPress: () => void; busy?: boolean; disabled?: boolean; variant?: 'primary' | 'secondary' }) {
   const primary = variant === 'primary'
+  const off = !!busy || !!disabled
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: busy, busy }}
-      disabled={busy}
+      accessibilityState={{ disabled: off, busy }}
+      disabled={off}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, primary ? styles.primary : styles.secondary, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.button, primary ? styles.primary : styles.secondary, pressed && styles.pressed, disabled && styles.disabled,
+      ]}
     >
       {busy && <ActivityIndicator color={primary ? '#fff' : colors.brand} style={styles.spinner} />}
       <Text style={[styles.buttonText, { fontFamily: fonts().semibold }, !primary && styles.secondaryText]}>{title}</Text>
@@ -114,6 +117,7 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: colors.brand },
   secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   pressed: { opacity: 0.85 },
+  disabled: { opacity: 0.4 },
   spinner: { marginEnd: space.sm },
   buttonText: { fontSize: 16, color: '#fff' },
   secondaryText: { color: colors.ink },

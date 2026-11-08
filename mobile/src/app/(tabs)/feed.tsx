@@ -26,7 +26,7 @@ export default function Feed() {
 
   const [state, setState] = useState<DeckState<CardData>>(deck.initial)
   const [load, setLoad] = useState<Load>('loading')
-  const [matchName, setMatchName] = useState<string | null>(null)
+  const [newMatch, setNewMatch] = useState<{ id: string | null; name: string } | null>(null)
   const [canLike, setCanLike] = useState(true)
   // Guards against a second tap before the first swipe's request returns.
   const busy = useRef(false)
@@ -75,7 +75,7 @@ export default function Feed() {
         const res = await postSwipe(token, { target_id: card.id, direction: kind })
         if (res.matched) {
           haptic.success()
-          setMatchName(card.name)
+          setNewMatch({ id: res.match_id, name: card.name })
         }
       } catch {
         // Like the web: a failed swipe is not fatal, keep going.
@@ -170,11 +170,12 @@ export default function Feed() {
       )}
 
       <MatchModal
-        name={matchName}
-        onClose={() => setMatchName(null)}
+        name={newMatch?.name ?? null}
+        onClose={() => setNewMatch(null)}
         onChat={() => {
-          setMatchName(null)
-          router.navigate('/matches')
+          const id = newMatch?.id
+          setNewMatch(null)
+          router.navigate(id ? `/chat/${id}` : '/matches')
         }}
       />
     </Screen>

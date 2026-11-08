@@ -21,10 +21,14 @@ export interface CardData {
 
 const k = (n: number) => `₪${Math.round(n / 1000)}k`
 
+/** "₪15k–22k", "From ₪15k", or null when the job gives no salary. */
+export function salaryRange(min?: number | null, max?: number | null): string | null {
+  if (min && max) return `${k(min)}–${k(max)}`
+  return min ? i18n.t('swipeCard.fromSalary', { amount: k(min) }) : null
+}
+
 export function jobToCard(e: EmployerCard): CardData {
-  const salary =
-    e.salary_min && e.salary_max ? `${k(e.salary_min)}–${k(e.salary_max)}`
-      : e.salary_min ? i18n.t('swipeCard.fromSalary', { amount: k(e.salary_min) }) : null
+  const salary = salaryRange(e.salary_min, e.salary_max)
   return {
     id: e.id,
     kind: 'job',

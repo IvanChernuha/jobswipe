@@ -53,6 +53,10 @@ function RootNavigator() {
         <Stack.Protected guard={!!session}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="onboarding" />
+          <Stack.Screen name="chat/[id]" />
+          <Stack.Screen name="job/new" />
+          <Stack.Screen name="job/[id]" />
+          <Stack.Screen name="profile/edit" />
         </Stack.Protected>
       </Stack>
     </>

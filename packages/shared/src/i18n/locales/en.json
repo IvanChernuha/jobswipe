@@ -625,6 +625,22 @@
     "restartTitle": "Restart to finish",
     "restartBody": "Close and reopen JobSwipe to switch the layout direction.",
     "ok": "OK",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "unread_one": "{{count}} unread",
+    "unread_other": "{{count}} unread",
+    "loadFailed": "Couldn't load this. Check your connection.",
+    "savedHint": "Tap the bookmark button in the feed to save something for later.",
+    "minSalaryMonthly": "Min salary (₪/month)",
+    "maxSalaryMonthly": "Max salary (₪/month)",
+    "mustHave": "Must-have",
+    "mustHaveFor": "Must-have: {{name}}",
+    "removeSkill": "Remove {{name}}",
+    "active": "Active",
+    "remoteJob": "Remote job",
+    "noSkillsYet": "No skills yet. Search above to add some.",
+    "editProfile": "Edit profile",
+    "account": "Account",
+    "emptyProfileWorker": "Add your details so employers can find you.",
+    "emptyProfileEmployer": "Add your company details so candidates know who you are."
   }
 }

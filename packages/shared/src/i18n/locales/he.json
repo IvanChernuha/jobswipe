@@ -646,6 +646,23 @@
     "restartTitle": "צריך להפעיל מחדש",
     "restartBody": "סגרו ופתחו את JobSwipe כדי להחליף את כיוון התצוגה.",
     "ok": "אישור",
-    "refresh": "רענון"
+    "refresh": "רענון",
+    "unread_one": "הודעה אחת שלא נקראה",
+    "unread_two": "{{count}} הודעות שלא נקראו",
+    "unread_other": "{{count}} הודעות שלא נקראו",
+    "loadFailed": "לא הצלחנו לטעון. בדקו את החיבור לאינטרנט.",
+    "savedHint": "לחצו על כפתור השמירה בפיד כדי לשמור משהו לאחר כך.",
+    "minSalaryMonthly": "שכר מינימום (₪ לחודש)",
+    "maxSalaryMonthly": "שכר מקסימום (₪ לחודש)",
+    "mustHave": "חובה",
+    "mustHaveFor": "חובה: {{name}}",
+    "removeSkill": "הסרת {{name}}",
+    "active": "פעילה",
+    "remoteJob": "עבודה מרחוק",
+    "noSkillsYet": "עדיין אין כישורים. חפשו למעלה כדי להוסיף.",
+    "editProfile": "עריכת פרופיל",
+    "account": "חשבון",
+    "emptyProfileWorker": "הוסיפו את הפרטים שלכם כדי שמעסיקים ימצאו אתכם.",
+    "emptyProfileEmployer": "הוסיפו את פרטי החברה כדי שמועמדים ידעו מי אתם."
   }
 }
