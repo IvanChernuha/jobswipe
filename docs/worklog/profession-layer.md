@@ -52,7 +52,7 @@ Make professions **data, not code**. Each profession defines its skill tags, lic
 
 ## 4. Design
 
-### 4.1 Schema (migration `015_professions.sql`)
+### 4.1 Schema (migrations `015_tag_categories.sql` + `016_professions.sql`; as built 2026-11-08)
 ```sql
 create table professions (
   id uuid primary key default gen_random_uuid(),
@@ -319,3 +319,42 @@ Until now the website had no tests, so UI changes (like the best-job badge) were
 | Sanity check: job line removed from the badge | **PASS**: 2 tests fail, build stops; code restored |
 | `scripts/test.sh` (all) | **PASS** |
 | GitHub Actions on 3af0b78 (first run with the throwaway Postgres) | **PASS** |
+
+
+### 2026-11-08: Step 2, profession migrations (+ schema drift found and fixed)
+**Test harness:** `backend/tests/migrations/` applies the **real** `supabase/migrations` files in order to a fresh database per test.
+- `supabase_stub.sql` stands in for Supabase's `auth` schema, `auth.uid()` and `pgcrypto`.
+- The test Postgres is now `pgvector/pgvector:pg16`, because 001 creates `vector`.
+- `scripts/test.sh` mounts `supabase/migrations` into the backend test container.
+
+**Drift found:** the first run showed that a fresh database can't be built.
+- 013 needs `bookmarks.note`, which no migration creates.
+- A full schema diff (migrations vs the dev DB) found 4 hand-added columns, plus their FK and index:
+  - `bookmarks.expires_at`, `job_posting_id`, `note`
+  - `job_postings.min_experience_years`
+- `backend/alembic.ini` + `migrations/` exist, but with **no versions**, and `alembic_version` is empty. `supabase/migrations` is the real source of truth.
+
+**Fixes:**
+- `012b_schema_catchup.sql` adds the 4 columns + FK + index with the dev definitions. It is a no-op on dev and Oracle.
+- New drift-guard test: every column in the SQLModel tables must exist in a database built from the migrations.
+
+**Migrations (named 015/016 instead of the planned 015a/015):**
+- `015_tag_categories.sql`: enum values `spoken_language`, `license`, `shift`
+- `016_professions.sql`:
+  - `professions` + `profession_tags`; `software_dev` (enabled, en/he name, categories, the junior fields from §4.2)
+  - links tech tags that no profession claims yet (soft skills stay universal)
+  - `profession_id` + `extra` on workers, and `profession_id` (NOT NULL) + `pay_type` + `extra` on jobs
+  - **default `public.default_profession_id()`**, so the backend keeps working before step 3
+  - indexes; RLS on with no client access
+  - safe to run twice
+
+**Verification:**
+| Check | Result |
+|---|---|
+| Migration tests before 015/016 | RED: first `gen_random_bytes` (stub needed pgcrypto: test setup), then 013 drift (real), then the 8 profession tests |
+| After 012b | drift guard **PASS**; the 8 profession tests still red, for the right reason |
+| After 015/016 | **PASS**: 123 backend tests |
+| Sanity check: worker backfill removed | **PASS**: M1 fails; file restored |
+| Applied to **dev** (backup `pg_dump -n public` taken first) | 012b skipped existing columns; 201 workers + 189 jobs → software_dev, 0 NULL; 257 tags linked (295 − 38 soft skills); worker_tags 259 / job tags 155 unchanged |
+| Local API smoke test after migrating | employer feed, jobs and tags OK |
+| **Oracle** | **PENDING**: apply 012b, 015, 016 by hand **before** the next `deploy_oracle.sh`. The server has no `.deployed_commit` yet, so the deploy script can't list new migrations this first time. |

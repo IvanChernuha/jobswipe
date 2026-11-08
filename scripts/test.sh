@@ -21,12 +21,13 @@ stop_test_db() {
 }
 
 start_test_db() {
-  # Throwaway Postgres for tests/integration; never the dev or live database.
+  # Throwaway Postgres (with pgvector) for tests/integration and tests/migrations;
+  # never the dev or live database.
   stop_test_db
   trap stop_test_db EXIT
   docker network create "$TEST_NET" > /dev/null
   docker run -d --rm --name "$TEST_DB" --network "$TEST_NET" \
-    -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test postgres:16-alpine > /dev/null
+    -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test pgvector/pgvector:pg16 > /dev/null
   for _ in $(seq 1 60); do
     docker exec "$TEST_DB" pg_isready -U postgres -d test -q 2>/dev/null && return 0
     sleep 1
@@ -41,6 +42,7 @@ backend() {
   start_test_db
   # Settings require these four values; the tests never reach a real Supabase.
   docker run --rm --network "$TEST_NET" \
+    -v "$ROOT/supabase/migrations":/supabase/migrations:ro \
     -e SUPABASE_URL=http://supabase.invalid \
     -e SUPABASE_SERVICE_KEY=test \
     -e SUPABASE_ANON_KEY=test \
