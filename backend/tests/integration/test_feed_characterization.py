@@ -27,7 +27,7 @@ async def jobs_for(session, worker_id, **filters):
 
 
 async def workers_for(session, employer_id, **filters):
-    params = dict(page=1, size=50, location=None, experience_min=None, experience_max=None)
+    params = dict(page=1, size=50, location=None, experience_min=None, experience_max=None, job_id=None)
     params.update(filters)
     return await employer_feed(user={"id": str(employer_id), "role": "employer"}, session=session, **params)
 

@@ -420,7 +420,8 @@
     "markAllRead": "Mark all read",
     "empty": "No notifications yet",
     "match": {
-      "title": "It's a match with {{name}}!"
+      "title": "It's a match with {{name}}!",
+      "moved": "{{name}} moved your match to \"{{title}}\""
     },
     "like_received": {
       "title": "A candidate liked \"{{title}}\""
@@ -650,6 +651,20 @@
     "aiNothing": "AI didn't find skills to add. Add them yourself below.",
     "matchCount_one": "{{count}} match",
     "matchCount_other": "{{count}} matches",
-    "otherMatches": "Other matches"
+    "otherMatches": "Other matches",
+    "likedYou": "Liked you",
+    "superLikedYou": "Super liked you",
+    "allJobs": "All jobs",
+    "candidatesFor": "Candidates for",
+    "viewProfile": "View profile",
+    "openCv": "Open CV",
+    "noCv": "No CV uploaded yet",
+    "cvFailed": "Couldn't open the CV. Try again.",
+    "about": "About",
+    "aboutCompany": "About the company",
+    "viewProfileOf": "View profile: {{name}}",
+    "moveToJob": "Move to another job",
+    "movedTo": "Moved to {{title}}",
+    "currentJob": "Current"
   }
 }

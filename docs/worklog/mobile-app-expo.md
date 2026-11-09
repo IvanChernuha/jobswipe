@@ -505,3 +505,50 @@ The user pointed out the core missing piece: the AI that reads a posting and set
 - Website: 44 passed, plus the build.
 - Mobile: 91 passed, plus `tsc`.
 - Scripts: passed.
+
+### 2026-11-09: user feedback on 0.5.0: job switcher, liked-you, full profiles, animations (app 0.6.0)
+**The user asked for:**
+- a way to move between jobs
+- a way to read the CV/profile again from Saved and Matches
+- animations on the undo, pass, super like and save buttons
+- a way to see who liked or super liked you
+
+**Decisions (user, 2026-11-09):**
+- **Job switcher** in the employer feed: "All jobs" plus each live job. A like still counts for the whole company, as before; per-job likes were rejected as too big a change.
+- **"Liked you" / "Super liked you" badge on both feeds**, and those cards come first, super likes before likes. This replaces the earlier decision not to tell job seekers. There is still no notification for job seekers, only the badge.
+- **The CV file opens for the employer only after a match.** Before that, the profile card only.
+
+**Done (test-first):**
+- **Server:**
+  - `GET /workers/feed?job_id=`: only that team job counts. It must be live and the team's own, otherwise 404.
+  - `liked_you` on both feeds (`services/likes.py`); liked cards are sorted first.
+  - `GET /matches/{id}` now returns the full other side: bio, location, skills and `has_resume` for candidates; description, salary, remote, required skills and company description for jobs.
+  - New `GET /matches/{id}/resume`: a fresh 15-minute signed link (`services/resumes.py`), for the matched employer team only.
+  - `browser_url` moved to `services/storage.py`.
+  - Tests: 13 new; 143 in total.
+- **Found:** the CV link saved at upload is signed for **7 days only** (`uploads.py`), so "View current resume" on the website stops working after a week. The match CV uses fresh links. Fix the worker's own profile the same way (next).
+- **Shared:**
+  - `flingOffset`: like goes right, pass left, super like up, bookmark down; undo comes back from the same side. It is a worklet, checked in `worklets.test.ts`.
+  - `getEmployerFeed({ job_id })`, `getMatchResume`, `liked_you` on cards, and the fuller `Match` type.
+- **App:**
+  - The feed buttons now animate the card off (SwipeDeck `fling` via ref), and undo flies the card back in.
+  - Job switcher chips (`JobSwitcher`) on the employer feed.
+  - A "Liked you" (pink) or "Super liked you" (blue) badge on cards.
+  - Full-profile screens: `match/[id]`, opened from the chat header or the person icon in Matches, with **Open CV** for employers and **Chat**; and `saved/[id]`, opened by tapping a saved row (`ProfileDetails`, `savedToCard`, `matchToCard`).
+  - The animations themselves are checked on the phone. Jest only checks that each button asks for the right fling, and that undo passes the returning side.
+
+**Verification (`scripts/test.sh`, all PASS):**
+- Backend: 143 passed.
+- Shared/website: 50 passed, plus the build.
+- Mobile: 108 passed, plus `tsc`.
+- Scripts: passed.
+
+**Same day, follow-up: move a match to another job (app 0.6.1).** The user asked for this because, while talking to a candidate, the employer may decide they fit a different job; it keeps Matches organized by job.
+- Server: `PATCH /matches/{id} {job_posting_id}`:
+  - Employer team only, and needs the `chat` permission, so viewers can't.
+  - The target must be the team's own job, otherwise 404.
+  - The candidate gets a `match` notification `notif.match.moved` ("Wix moved your match to …") linking to the chat. Moving to the same job does nothing.
+  - New helper: `org_access.require_team_permission`. 6 tests.
+- Shared `moveMatch()`, 1 test.
+- App: **Move to another job** on the match profile (employers): a list of their jobs with the current one marked; picking another moves it and says "Moved to …". 4 tests.
+- **Verification (`scripts/test.sh`, all PASS):** backend 149, website 51, mobile 112, scripts.

@@ -23,3 +23,9 @@ it('swipeDecision (shared, called while dragging) is compiled as a worklet', () 
   const fn = code.slice(code.indexOf('function swipeDecision'))
   expect(fn.slice(0, 2000)).toMatch(/__workletHash/)
 })
+
+it('flingOffset (shared, used by the button and undo animations) is compiled as a worklet', () => {
+  const code = compiled('../../packages/shared/src/feed/index.ts')
+  const fn = code.slice(code.indexOf('function flingOffset'))
+  expect(fn.slice(0, 2000)).toMatch(/__workletHash/)
+})

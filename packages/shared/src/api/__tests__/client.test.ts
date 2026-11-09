@@ -3,7 +3,7 @@
 // an absolute server address, a callback instead of a window event, and
 // React Native style file uploads.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { configureApi, getMatches, parseJobText, uploadAvatar, uploadResume } from '..'
+import { configureApi, getEmployerFeed, getMatches, getMatchResume, moveMatch, parseJobText, uploadAvatar, uploadResume } from '..'
 
 const fetchMock = vi.fn()
 
@@ -74,5 +74,38 @@ describe('parseJobText (Fill with AI)', () => {
     expect(init.method).toBe('POST')
     expect(init.headers.Authorization).toBe('Bearer tok')
     expect(JSON.parse(init.body)).toEqual({ text: 'We need a junior React developer' })
+  })
+})
+
+describe('employer feed for one job (job switcher)', () => {
+  it('asks for candidates for that job only', async () => {
+    fetchMock.mockResolvedValue(json(200, []))
+    await getEmployerFeed('tok', { job_id: 'j1' })
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/workers/feed?job_id=j1')
+  })
+
+  it('without a job asks for all jobs', async () => {
+    fetchMock.mockResolvedValue(json(200, []))
+    await getEmployerFeed('tok')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/workers/feed')
+  })
+})
+
+describe('getMatchResume', () => {
+  it("returns a fresh link to the matched candidate's CV", async () => {
+    fetchMock.mockResolvedValue(json(200, { url: '/supabase/storage/v1/object/sign/resumes/x?token=t' }))
+    await expect(getMatchResume('tok', 'm1')).resolves.toBe('/supabase/storage/v1/object/sign/resumes/x?token=t')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/matches/m1/resume')
+  })
+})
+
+describe('moveMatch', () => {
+  it('puts the match under another job and returns it', async () => {
+    fetchMock.mockResolvedValue(json(200, { id: 'm1', job_posting_id: 'j2' }))
+    await expect(moveMatch('tok', 'm1', 'j2')).resolves.toMatchObject({ job_posting_id: 'j2' })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/matches/m1')
+    expect(init.method).toBe('PATCH')
+    expect(JSON.parse(init.body)).toEqual({ job_posting_id: 'j2' })
   })
 })

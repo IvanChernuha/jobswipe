@@ -82,3 +82,21 @@ export function swipeDecision({ dx, vx, width }: { dx: number; vx: number; width
   if (!far && !flick) return null
   return dx > 0 ? 'like' : 'pass'
 }
+
+/**
+ * Where a card flies to when a button is pressed (and where it comes back
+ * from on undo): like right, pass left, super like up, bookmark down. Far
+ * enough to be fully off screen. A worklet, like swipeDecision.
+ */
+export function flingOffset(
+  kind: SwipeKind | 'bookmark',
+  { width, height }: { width: number; height: number },
+): { x: number; y: number } {
+  'worklet'
+  switch (kind) {
+    case 'like': return { x: width * 1.5, y: 0 }
+    case 'pass': return { x: -width * 1.5, y: 0 }
+    case 'super_like': return { x: 0, y: -height * 1.5 }
+    case 'bookmark': return { x: 0, y: height * 1.5 }
+  }
+}

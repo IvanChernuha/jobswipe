@@ -82,5 +82,7 @@ class WorkerCard(BaseModel):
     avatar_url: Optional[str] = None
     tags: list[Tag] = []
     match_score: Optional[MatchScore] = None
+    # The other side already liked you ("like" / "super_like"); shown as a badge.
+    liked_you: Optional[str] = None
 
     model_config = {"extra": "ignore"}

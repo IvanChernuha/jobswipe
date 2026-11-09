@@ -2,7 +2,7 @@
 // as the web Feed.tsx): one card on top, one-step undo, bookmarks advance
 // without a swipe, no double swipes, and the drag gesture's decision.
 import { describe, expect, it } from 'vitest'
-import { deck, swipeDecision } from '..'
+import { deck, flingOffset, swipeDecision } from '..'
 
 const a = { id: 'a' }, b = { id: 'b' }, c = { id: 'c' }
 
@@ -97,5 +97,25 @@ describe('swipeDecision (drag gesture)', () => {
   it('the distance threshold scales with the screen width', () => {
     expect(swipeDecision({ dx: 110, vx: 0, width: 300 })).toBe('like') // 110 > 30% of 300
     expect(swipeDecision({ dx: 110, vx: 0, width: 500 })).toBeNull() // 110 < 30% of 500
+  })
+})
+
+describe('flingOffset (button animations)', () => {
+  const size = { width: 400, height: 800 }
+
+  it('like flies right, pass flies left, both off the screen', () => {
+    expect(flingOffset('like', size)).toEqual({ x: 600, y: 0 })
+    expect(flingOffset('pass', size)).toEqual({ x: -600, y: 0 })
+  })
+
+  it('super like flies up, a bookmark drops down', () => {
+    expect(flingOffset('super_like', size)).toEqual({ x: 0, y: -1200 })
+    expect(flingOffset('bookmark', size)).toEqual({ x: 0, y: 1200 })
+  })
+
+  it('undo brings the card back from where it left', () => {
+    // The deck starts the returning card at flingOffset(last.kind) and springs it to the centre.
+    const s = deck.swiped(deck.loaded(deck.initial(), [a, b]), 'super_like')
+    expect(flingOffset(s.last!.kind, size)).toEqual({ x: 0, y: -1200 })
   })
 })

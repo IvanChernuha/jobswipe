@@ -49,6 +49,14 @@ export default function SwipeCard({ card }: { card: CardData }) {
             ) : null}
           </View>
         )}
+        {card.liked && (
+          <View style={[styles.liked, card.liked === 'super_like' && styles.superLiked]}>
+            <Ionicons name={card.liked === 'super_like' ? 'star' : 'heart'} size={14} color="#fff" />
+            <Text style={[styles.likedText, { fontFamily: f.semibold }]}>
+              {card.liked === 'super_like' ? t('mobile.superLikedYou') : t('mobile.likedYou')}
+            </Text>
+          </View>
+        )}
         <Text style={[styles.kind, { fontFamily: f.semibold }]}>
           {card.kind === 'job' ? t('swipeCard.job') : t('swipeCard.candidate')}
         </Text>
@@ -112,6 +120,12 @@ const styles = StyleSheet.create({
     position: 'absolute', top: space.md, end: space.md, fontSize: 11, color: '#fff', letterSpacing: 0.6,
     textTransform: 'uppercase', backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: space.sm, paddingVertical: 2, borderRadius: radius.full, overflow: 'hidden',
   },
+  liked: {
+    position: 'absolute', bottom: space.md, flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: space.md, paddingVertical: 4, borderRadius: radius.full, backgroundColor: '#E0457B',
+  },
+  superLiked: { backgroundColor: '#2F6FD6' },
+  likedText: { fontSize: 13, color: '#fff' },
   body: { flex: 1, padding: space.xl, gap: space.sm },
   headline: { fontSize: 26, color: colors.ink, lineHeight: 32 },
   subtitle: { fontSize: 16, color: colors.gray[600] },

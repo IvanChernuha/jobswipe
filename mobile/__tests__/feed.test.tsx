@@ -15,13 +15,23 @@ jest.mock('@jobswipe/shared/api', () => ({
   addBookmark: jest.fn(),
   removeBookmark: jest.fn(),
   getMyMembership: jest.fn(),
+  getJobPostings: jest.fn(),
 }))
 
-// The animated deck (Reanimated + gestures) is visual; its swipe decision is
-// unit-tested in packages/shared (swipeDecision). Here it just shows the top card.
+// The animated deck (Reanimated + gestures) is visual; its swipe decision and
+// fly-off directions are unit-tested in packages/shared (swipeDecision,
+// flingOffset). Here it shows the top card and records what it was asked to do.
+const mockDeck: { flings: string[]; returning: unknown[] } = { flings: [], returning: [] }
 jest.mock('../src/components/SwipeDeck', () => {
+  const { useImperativeHandle } = require('react')
   const SwipeCard = require('../src/components/SwipeCard').default
-  return ({ top }: { top: unknown }) => (top ? <SwipeCard card={top} /> : null)
+  return function StubDeck({ top, returning, ref }: { top: { id: string } | null; returning: unknown; ref: unknown }) {
+    useImperativeHandle(ref, () => ({
+      fling: async (kind: string) => { mockDeck.flings.push(kind) },
+    }))
+    if (returning) mockDeck.returning.push(returning)
+    return top ? <SwipeCard card={top} /> : null
+  }
 })
 
 const mocked = api as jest.Mocked<typeof api>
@@ -49,6 +59,14 @@ const press = async (label: string) => act(async () => fireEvent.press(screen.ge
 
 beforeEach(() => {
   jest.clearAllMocks()
+  mockDeck.flings = []
+  mockDeck.returning = []
+  mocked.getJobPostings.mockResolvedValue([
+    { id: 'j1', title: 'Frontend Engineer', active: true, expires_at: '2099-01-01T00:00:00Z' },
+    { id: 'j2', title: 'Data Analyst', active: true, expires_at: '2099-01-01T00:00:00Z' },
+    { id: 'j3', title: 'Paused Job', active: false, expires_at: '2099-01-01T00:00:00Z' },
+    { id: 'j4', title: 'Old Job', active: true, expires_at: '2020-01-01T00:00:00Z' },
+  ] as api.JobPosting[])
   mocked.getWorkerFeed.mockResolvedValue([job('j1', 'React Developer', 'Wix'), job('j2', 'Backend Engineer', 'Monday')] as never)
   mocked.getEmployerFeed.mockResolvedValue([candidate('w1', 'Dana Levi'), candidate('w2', 'Omer Cohen')] as never)
   mocked.postSwipe.mockResolvedValue({ matched: false, match_id: null })
@@ -205,5 +223,82 @@ describe('team viewers', () => {
     expect(screen.queryByRole('button', { name: 'Super Like' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Pass' })).toBeOnTheScreen()
     expect(screen.getByRole('button', { name: 'Bookmark' })).toBeOnTheScreen()
+  })
+})
+
+describe('animations', () => {
+  it('each button flies the card off its own way before the next card', async () => {
+    mocked.getWorkerFeed.mockResolvedValue([
+      job('j1', 'A', 'Wix'), job('j2', 'B', 'Wix'), job('j3', 'C', 'Wix'), job('j4', 'D', 'Wix'),
+    ] as never)
+    await openFeedAs('worker')
+    await screen.findByText('A')
+    await press('Like')
+    await screen.findByText('B')
+    await press('Pass')
+    await screen.findByText('C')
+    await press('Super Like')
+    await screen.findByText('D')
+    await press('Bookmark')
+    expect(mockDeck.flings).toEqual(['like', 'pass', 'super_like', 'bookmark'])
+  })
+
+  it('undo brings the card back from the side it left', async () => {
+    await openFeedAs('worker')
+    await screen.findByText('React Developer')
+    await press('Pass')
+    await screen.findByText('Backend Engineer')
+    await press('Undo')
+    await screen.findByText('React Developer')
+    expect(mockDeck.returning).toContainEqual({ id: 'j1', kind: 'pass' })
+  })
+})
+
+describe('liked you', () => {
+  it('a job whose employer liked you says so', async () => {
+    mocked.getWorkerFeed.mockResolvedValueOnce([{ ...job('j1', 'React Developer', 'Wix'), liked_you: 'like' }] as never)
+    await openFeedAs('worker')
+    expect(await screen.findByText('Liked you')).toBeOnTheScreen()
+  })
+
+  it('a candidate who super liked your job says so', async () => {
+    mocked.getEmployerFeed.mockResolvedValueOnce([{ ...candidate('w1', 'Dana Levi'), liked_you: 'super_like' }] as never)
+    await openFeedAs('employer')
+    expect(await screen.findByText('Super liked you')).toBeOnTheScreen()
+  })
+
+  it('no badge when nobody liked you yet', async () => {
+    await openFeedAs('worker')
+    await screen.findByText('React Developer')
+    expect(screen.queryByText('Liked you')).toBeNull()
+  })
+})
+
+describe('job switcher (employers)', () => {
+  it('shows All jobs plus each live job', async () => {
+    await openFeedAs('employer')
+    await screen.findByText('Dana Levi')
+    expect(await screen.findByRole('radio', { name: 'All jobs' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Frontend Engineer' })).toBeOnTheScreen()
+    expect(screen.getByRole('radio', { name: 'Data Analyst' })).toBeOnTheScreen()
+    expect(screen.queryByRole('radio', { name: 'Paused Job' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Old Job' })).toBeNull()
+  })
+
+  it('picking a job shows candidates for that job', async () => {
+    await openFeedAs('employer')
+    await screen.findByText('Dana Levi')
+    mocked.getEmployerFeed.mockResolvedValueOnce([candidate('w9', 'Noa Katz')] as never)
+    await act(async () => fireEvent.press(await screen.findByRole('radio', { name: 'Data Analyst' })))
+    expect(mocked.getEmployerFeed).toHaveBeenLastCalledWith('token-employer', { job_id: 'j2' })
+    expect(await screen.findByText('Noa Katz')).toBeOnTheScreen()
+    expect(screen.getByRole('radio', { name: 'Data Analyst' })).toBeChecked()
+  })
+
+  it('workers have no job switcher', async () => {
+    await openFeedAs('worker')
+    await screen.findByText('React Developer')
+    expect(screen.queryByRole('radio', { name: 'All jobs' })).toBeNull()
+    expect(mocked.getJobPostings).not.toHaveBeenCalled()
   })
 })

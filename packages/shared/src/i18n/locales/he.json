@@ -428,7 +428,8 @@
     "markAllRead": "סימון הכול כנקרא",
     "empty": "עדיין אין התראות",
     "match": {
-      "title": "יש התאמה עם {{name}}!"
+      "title": "יש התאמה עם {{name}}!",
+      "moved": "{{name}} העבירו את ההתאמה שלך למשרה \"{{title}}\""
     },
     "like_received": {
       "title": "מועמד/ת עשה/תה לייק ל-\"{{title}}\""
@@ -674,6 +675,20 @@
     "matchCount_one": "התאמה אחת",
     "matchCount_two": "{{count}} התאמות",
     "matchCount_other": "{{count}} התאמות",
-    "otherMatches": "התאמות נוספות"
+    "otherMatches": "התאמות נוספות",
+    "likedYou": "אהבו אותך",
+    "superLikedYou": "סופר-לייק בשבילך",
+    "allJobs": "כל המשרות",
+    "candidatesFor": "מועמדים עבור",
+    "viewProfile": "צפייה בפרופיל",
+    "openCv": "פתיחת קורות חיים",
+    "noCv": "עדיין לא הועלו קורות חיים",
+    "cvFailed": "לא הצלחנו לפתוח את קורות החיים. נסו שוב.",
+    "about": "אודות",
+    "aboutCompany": "אודות החברה",
+    "viewProfileOf": "צפייה בפרופיל: {{name}}",
+    "moveToJob": "העברה למשרה אחרת",
+    "movedTo": "הועבר אל {{title}}",
+    "currentJob": "נוכחית"
   }
 }

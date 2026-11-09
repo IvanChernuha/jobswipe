@@ -2,6 +2,7 @@
 // each match shows the other side and unread count, opens a chat, messages
 // send and arrive (polling), and a refused message keeps the draft.
 import { act, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library'
+import { Linking } from 'react-native'
 import * as api from '@jobswipe/shared/api'
 import { fakeSupabase, sessionFor } from './helpers/fakeSupabase'
 import { usePolling } from '../src/lib/usePolling'
@@ -15,7 +16,11 @@ jest.mock('@jobswipe/shared/api', () => ({
   getMessages: jest.fn(),
   sendMessage: jest.fn(),
   getJobPostings: jest.fn(),
+  getMatchResume: jest.fn(),
+  moveMatch: jest.fn(),
 }))
+// A real server address, so CV links (server paths) become full URLs.
+jest.mock('../src/lib/config', () => ({ config: { apiUrl: 'https://jobswipe.test/api', supabaseUrl: '', supabaseAnonKey: '' } }))
 
 // The 3-second timer itself is tested in usePolling.test; here the test runs the poll.
 jest.mock('../src/lib/usePolling', () => ({ usePolling: jest.fn() }))
@@ -181,5 +186,113 @@ describe('chat', () => {
     await screen.findByText('Hi! Loved your profile')
     await press('Back')
     await waitFor(() => expect(router.getPathname()).toBe('/matches'))
+  })
+})
+
+describe('full profile', () => {
+  const fullMatch = (): api.Match => ({
+    ...match('m1', 'Wix', 'Dana Levi'),
+    worker: {
+      name: 'Dana Levi', avatar_url: null, skills: [], experience_years: 2, bio: 'Bootcamp grad who loves React',
+      location: 'Haifa', tags: [{ id: 't1', name: 'React', category: 'framework' }], has_resume: true,
+    },
+    employer: {
+      company_name: 'Wix', industry: 'Software', avatar_url: null, job_title: 'React Developer', location: 'Tel Aviv',
+      company_description: 'We build websites', description: 'Build our editor', salary_min: 15000, salary_max: 22000,
+      remote: false, tags: [{ id: 't1', name: 'React', category: 'framework', requirement: 'required' }],
+    },
+  })
+
+  beforeEach(() => {
+    mocked.getMatch.mockResolvedValue(fullMatch())
+    mocked.getMatchResume.mockResolvedValue('/supabase/storage/v1/object/sign/resumes/w1/resume.pdf?token=t')
+  })
+
+  it('opens from the chat header', async () => {
+    const router = await open('employer', '/chat/m1')
+    await screen.findByText('Hi! Loved your profile')
+    await press('View profile')
+    await waitFor(() => expect(router.getPathname()).toBe('/match/m1'))
+  })
+
+  it('opens from the matches list', async () => {
+    const router = await open('employer', '/matches')
+    await screen.findByText('Dana Levi')
+    await press('View profile: Dana Levi')
+    await waitFor(() => expect(router.getPathname()).toBe('/match/m1'))
+  })
+
+  it("employers read the candidate's whole profile and open the CV", async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined)
+    await open('employer', '/match/m1')
+    expect(await screen.findByText('Bootcamp grad who loves React')).toBeOnTheScreen()
+    expect(screen.getByText('Haifa')).toBeOnTheScreen()
+    expect(screen.getByText('React')).toBeOnTheScreen()
+    await press('Open CV')
+    expect(mocked.getMatchResume).toHaveBeenCalledWith('token-employer', 'm1')
+    expect(openURL).toHaveBeenCalledWith('https://jobswipe.test/supabase/storage/v1/object/sign/resumes/w1/resume.pdf?token=t')
+    openURL.mockRestore()
+  })
+
+  it('says when there is no CV', async () => {
+    const m = fullMatch()
+    mocked.getMatch.mockResolvedValue({ ...m, worker: { ...m.worker!, has_resume: false } })
+    await open('employer', '/match/m1')
+    expect(await screen.findByText('No CV uploaded yet')).toBeOnTheScreen()
+    expect(screen.queryByRole('button', { name: 'Open CV' })).toBeNull()
+  })
+
+  it('says so when the CV will not open', async () => {
+    mocked.getMatchResume.mockRejectedValueOnce(new Error('Network request failed'))
+    await open('employer', '/match/m1')
+    await screen.findByText('Bootcamp grad who loves React')
+    await press('Open CV')
+    expect(await screen.findByText("Couldn't open the CV. Try again.")).toBeOnTheScreen()
+  })
+
+  it('workers read the whole job and the company', async () => {
+    await open('worker', '/match/m1')
+    expect(await screen.findByText('Build our editor')).toBeOnTheScreen()
+    expect(screen.getByText('We build websites')).toBeOnTheScreen()
+    expect(screen.getByText('₪15k–₪22k')).toBeOnTheScreen()
+    expect(screen.getByText('React')).toBeOnTheScreen()
+    expect(screen.queryByRole('button', { name: 'Open CV' })).toBeNull()
+  })
+})
+
+describe('moving a match to another job', () => {
+  beforeEach(() => {
+    mocked.getMatch.mockResolvedValue(match('m1', 'Wix', 'Dana Levi', 'j1'))
+    mocked.moveMatch.mockImplementation(async (_t, id, jobId) => match(id, 'Wix', 'Dana Levi', jobId))
+  })
+
+  it('employers pick another of their jobs and the match moves', async () => {
+    await open('employer', '/match/m1')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Move to another job' })))
+    expect(screen.getByRole('radio', { name: 'Frontend Engineer' })).toBeChecked()
+    await act(async () => fireEvent.press(screen.getByRole('radio', { name: 'Backend Engineer' })))
+    expect(mocked.moveMatch).toHaveBeenCalledWith('token-employer', 'm1', 'j2')
+    expect(await screen.findByText('Moved to Backend Engineer')).toBeOnTheScreen()
+  })
+
+  it('picking the job it is already under does nothing', async () => {
+    await open('employer', '/match/m1')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Move to another job' })))
+    await act(async () => fireEvent.press(screen.getByRole('radio', { name: 'Frontend Engineer' })))
+    expect(mocked.moveMatch).not.toHaveBeenCalled()
+  })
+
+  it('shows why when it cannot move', async () => {
+    mocked.moveMatch.mockRejectedValueOnce(new Error('Your role (viewer) cannot perform: chat'))
+    await open('employer', '/match/m1')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Move to another job' })))
+    await act(async () => fireEvent.press(screen.getByRole('radio', { name: 'Backend Engineer' })))
+    expect(await screen.findByText('Your role (viewer) cannot perform: chat')).toBeOnTheScreen()
+  })
+
+  it('job seekers cannot move a match', async () => {
+    await open('worker', '/match/m1')
+    await screen.findByText('React Developer')
+    expect(screen.queryByRole('button', { name: 'Move to another job' })).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 // The draggable top card with the next card waiting underneath. Dragging and
 // the fly-off animation run on the UI thread (Reanimated), so it stays smooth.
-import { useEffect } from 'react'
+import { useEffect, useImperativeHandle, type Ref } from 'react'
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler'
 import Animated, {
@@ -8,10 +8,17 @@ import Animated, {
 } from 'react-native-reanimated'
 import { scheduleOnRN } from 'react-native-worklets'
 import { useTranslation } from 'react-i18next'
-import { swipeDecision } from '@jobswipe/shared/feed'
+import { flingOffset, swipeDecision, type SwipeKind } from '@jobswipe/shared/feed'
 import type { CardData } from '../lib/cards'
 import SwipeCard from './SwipeCard'
 import { colors, fonts, radius } from '../lib/theme'
+
+type Fling = SwipeKind | 'bookmark'
+
+export interface DeckHandle {
+  /** Fly the top card off the way `kind` goes (the buttons); resolves when it's gone. */
+  fling: (kind: Fling) => Promise<void>
+}
 
 interface Props {
   top: CardData | null
@@ -19,19 +26,45 @@ interface Props {
   enabled: boolean
   /** Called once a drag is released past the threshold. */
   onSwipe: (dir: 'like' | 'pass') => void
+  /** A card coming back after undo flies in from where it left. */
+  returning?: { id: string; kind: Fling } | null
+  ref?: Ref<DeckHandle>
 }
 
-export default function SwipeDeck({ top, next, enabled, onSwipe }: Props) {
+const FLING_MS = 240
+
+export default function SwipeDeck({ top, next, enabled, onSwipe, returning, ref }: Props) {
   const { t } = useTranslation()
-  const { width } = useWindowDimensions()
+  const { width, height } = useWindowDimensions()
   const x = useSharedValue(0)
   const y = useSharedValue(0)
 
-  // A new top card always starts centred.
+  // A new top card starts centred, or (after undo) off screen where it left
+  // and springs back in.
   useEffect(() => {
-    x.value = 0
-    y.value = 0
+    if (top && returning?.id === top.id) {
+      const from = flingOffset(returning.kind, { width, height })
+      x.value = from.x
+      y.value = from.y
+      x.value = withSpring(0, { damping: 18 })
+      y.value = withSpring(0, { damping: 18 })
+    } else {
+      x.value = 0
+      y.value = 0
+    }
+    // Only when the top card changes; `returning` is read at that moment.
   }, [top?.id, x, y])
+
+  useImperativeHandle(ref, () => ({
+    fling: (kind) =>
+      new Promise<void>((resolve) => {
+        const to = flingOffset(kind, { width, height })
+        x.value = withTiming(to.x, { duration: FLING_MS })
+        y.value = withTiming(to.y, { duration: FLING_MS }, () => {
+          scheduleOnRN(resolve)
+        })
+      }),
+  }), [width, height, x, y])
 
   const pan = usePanGesture({
     enabled,

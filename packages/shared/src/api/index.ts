@@ -68,6 +68,8 @@ export interface WorkerCard {
   experience_years: number
   tags: Tag[]
   match_score?: MatchScore | null
+  /** The other side already liked / super liked you (shown as a badge). */
+  liked_you?: 'like' | 'super_like' | null
 }
 
 export interface EmployerCard {
@@ -83,6 +85,8 @@ export interface EmployerCard {
   skills_required: string[]
   tags: Tag[]
   match_score?: MatchScore | null
+  /** The other side already liked / super liked you (shown as a badge). */
+  liked_you?: 'like' | 'super_like' | null
 }
 
 export interface SwipeRequest {
@@ -140,6 +144,8 @@ export interface FeedFilters {
   remote?: boolean
   experience_min?: number
   experience_max?: number
+  /** Employer feed only: candidates for this one live job (the job switcher). */
+  job_id?: string
 }
 
 export interface Match {
@@ -154,6 +160,12 @@ export interface Match {
     avatar_url: string | null
     skills: string[]
     experience_years: number
+    /** The rest come from getMatch (one match) only. */
+    bio?: string
+    location?: string
+    tags?: Tag[]
+    /** Whether getMatchResume has a CV to open. */
+    has_resume?: boolean
   }
   employer?: {
     company_name: string
@@ -161,6 +173,13 @@ export interface Match {
     avatar_url: string | null
     job_title: string
     location: string
+    /** The rest come from getMatch (one match) only. */
+    company_description?: string
+    description?: string
+    salary_min?: number
+    salary_max?: number
+    remote?: boolean
+    tags?: Tag[]
   }
   contact_email?: string
 }
@@ -355,6 +374,7 @@ export function getEmployerFeed(token: string, filters?: FeedFilters): Promise<W
   if (filters?.location) params.set('location', filters.location)
   if (filters?.experience_min != null) params.set('experience_min', String(filters.experience_min))
   if (filters?.experience_max != null) params.set('experience_max', String(filters.experience_max))
+  if (filters?.job_id) params.set('job_id', filters.job_id)
   const qs = params.toString()
   return request<WorkerCard[]>(`/workers/feed${qs ? `?${qs}` : ''}`, { token })
 }
@@ -388,6 +408,21 @@ export function getMatches(token: string): Promise<Match[]> {
 
 export function getMatch(token: string, matchId: string): Promise<Match> {
   return request<Match>(`/matches/${matchId}`, { token })
+}
+
+/** Employer: move a match under another of the team's jobs (the candidate is notified). */
+export function moveMatch(token: string, matchId: string, jobPostingId: string): Promise<Match> {
+  return request<Match>(`/matches/${matchId}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify({ job_posting_id: jobPostingId }),
+  })
+}
+
+/** Employer side, after a match: a fresh short-lived link to the candidate's CV. */
+export async function getMatchResume(token: string, matchId: string): Promise<string> {
+  const res = await request<{ url: string }>(`/matches/${matchId}/resume`, { token })
+  return res.url
 }
 
 // ---------------------------------------------------------------------------

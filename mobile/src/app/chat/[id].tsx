@@ -116,6 +116,14 @@ export default function Chat() {
               </Text>
             )}
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('mobile.viewProfile')}
+            onPress={() => router.push(`/match/${id}`)}
+            style={styles.iconButton}
+          >
+            <Ionicons name="person-circle-outline" size={28} color={colors.brand} />
+          </Pressable>
         </View>
 
         {loading && (

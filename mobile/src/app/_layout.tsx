@@ -57,6 +57,8 @@ function RootNavigator() {
           <Stack.Screen name="job/new" />
           <Stack.Screen name="job/[id]" />
           <Stack.Screen name="profile/edit" />
+          <Stack.Screen name="match/[id]" />
+          <Stack.Screen name="saved/[id]" />
         </Stack.Protected>
       </Stack>
     </>

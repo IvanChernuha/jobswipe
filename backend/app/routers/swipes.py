@@ -109,7 +109,8 @@ async def record_swipe(
         return SwipeResponse(matched=False)
 
     if role == "worker":
-        # A like/super_like on a job notifies the employer (never workers — confirmed decision).
+        # A like/super_like on a job notifies the employer. Workers get no
+        # notification, but both feeds show a "Liked you" badge (2026-11-09).
         await notify(
             session, job.employer_id, "like_received",
             "notif.like_received.title", params={"title": job.title or "a job"}, link="/jobs",

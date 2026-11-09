@@ -5,6 +5,9 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fastapi import HTTPException
+
+from app.models.organization import has_permission
 from app.models.tables.organization import OrgMember
 from app.models.tables.employer import EmployerProfile
 
@@ -38,3 +41,14 @@ async def get_org_employer_ids(session: AsyncSession, uid: str) -> list[str]:
         return []  # Former member — no access
 
     return [uid]  # Solo employer
+
+
+async def require_team_permission(session: AsyncSession, uid: str, action: str) -> None:
+    """403 if the user is on a team whose role doesn't allow `action`.
+    Solo employers (no team) may do everything."""
+    result = await session.execute(
+        select(OrgMember.role).where(OrgMember.user_id == uuid.UUID(uid)).limit(1)
+    )
+    row = result.first()
+    if row and not has_permission(row.role, action):
+        raise HTTPException(403, f"Your role ({row.role}) cannot perform: {action}")

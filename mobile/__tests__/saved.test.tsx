@@ -23,11 +23,13 @@ const base = (target_id: string, job_posting_id: string | null = null): api.Save
 })
 
 const savedJob = (id: string, title: string, company: string): api.SavedItem => ({
-  ...base(id), job_title: title, company_name: company, location: 'Tel Aviv', salary_min: 15000, salary_max: 22000, tags: [],
+  ...base(id), job_title: title, company_name: company, location: 'Tel Aviv', salary_min: 15000, salary_max: 22000,
+  description: `The full ${title} job description`, tags: [{ id: 't1', name: 'React', category: 'framework', requirement: 'required' }],
 })
 
 const savedCandidate = (id: string, name: string, job: string | null): api.SavedItem => ({
-  ...base(id, job), name, experience_years: 1, location: 'Haifa', tags: [],
+  ...base(id, job), name, experience_years: 1, location: 'Haifa', bio: `${name} wrote a long bio`,
+  tags: [{ id: 't2', name: 'TypeScript', category: 'language' }],
 })
 
 async function open(role: 'worker' | 'employer') {
@@ -127,5 +129,24 @@ describe('states', () => {
     expect(await screen.findByText("Couldn't load this. Check your connection.")).toBeOnTheScreen()
     await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Retry' })))
     expect(await screen.findByText('React Developer')).toBeOnTheScreen()
+  })
+})
+
+describe('full card', () => {
+  it('tapping a saved job opens all of it', async () => {
+    const router = await open('worker')
+    await act(async () => fireEvent.press(await screen.findByText('React Developer')))
+    await waitFor(() => expect(router.getPathname()).toBe('/saved/j1'))
+    expect(await screen.findByText('The full React Developer job description')).toBeOnTheScreen()
+    expect(screen.getByText('React')).toBeOnTheScreen()
+  })
+
+  it('tapping a saved candidate opens their whole profile (no CV before a match)', async () => {
+    const router = await open('employer')
+    await act(async () => fireEvent.press(await screen.findByText('Dana Levi')))
+    await waitFor(() => expect(router.getPathname()).toBe('/saved/w1'))
+    expect(await screen.findByText('Dana Levi wrote a long bio')).toBeOnTheScreen()
+    expect(screen.getByText('TypeScript')).toBeOnTheScreen()
+    expect(screen.queryByRole('button', { name: 'Open CV' })).toBeNull()
   })
 })

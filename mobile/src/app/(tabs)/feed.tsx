@@ -4,12 +4,13 @@ import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { deck, type DeckState, type SwipeKind } from '@jobswipe/shared/feed'
 import {
-  addBookmark, getEmployerFeed, getMyMembership, getWorkerFeed, postSwipe, removeBookmark, undoLastSwipe,
+  addBookmark, getEmployerFeed, getJobPostings, getMyMembership, getWorkerFeed, postSwipe, removeBookmark, undoLastSwipe,
 } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
 import { haptic } from '../../lib/haptics'
 import { candidateToCard, jobToCard, type CardData } from '../../lib/cards'
-import SwipeDeck from '../../components/SwipeDeck'
+import SwipeDeck, { type DeckHandle } from '../../components/SwipeDeck'
+import JobSwitcher from '../../components/JobSwitcher'
 import MatchModal from '../../components/MatchModal'
 import RoundButton from '../../components/RoundButton'
 import { Body, Button, Screen, Title } from '../../components/ui'
@@ -28,21 +29,27 @@ export default function Feed() {
   const [load, setLoad] = useState<Load>('loading')
   const [newMatch, setNewMatch] = useState<{ id: string | null; name: string } | null>(null)
   const [canLike, setCanLike] = useState(true)
+  // Employers: their live jobs, and the one the feed is showing (null = all).
+  const [jobs, setJobs] = useState<{ id: string; title: string }[]>([])
+  const [jobId, setJobId] = useState<string | null>(null)
+  // A card coming back after undo flies in from where it left.
+  const [returning, setReturning] = useState<{ id: string; kind: SwipeKind | 'bookmark' } | null>(null)
+  const deckRef = useRef<DeckHandle>(null)
   // Guards against a second tap before the first swipe's request returns.
   const busy = useRef(false)
 
   const fetchCards = useCallback(async () => {
     setLoad('loading')
     try {
-      const cards = employer
-        ? (await getEmployerFeed(token)).map(candidateToCard)
-        : (await getWorkerFeed(token)).map(jobToCard)
+      const cards = !employer
+        ? (await getWorkerFeed(token)).map(jobToCard)
+        : (await (jobId ? getEmployerFeed(token, { job_id: jobId }) : getEmployerFeed(token))).map(candidateToCard)
       setState((s) => deck.loaded(s, cards))
       setLoad('ready')
     } catch {
       setLoad('error')
     }
-  }, [employer, token])
+  }, [employer, token, jobId])
 
   useEffect(() => {
     if (token) fetchCards()
@@ -54,12 +61,17 @@ export default function Feed() {
     getMyMembership(token)
       .then((m) => setCanLike(!(m.has_org && m.role === 'viewer')))
       .catch(() => {})
+    const now = Date.now()
+    getJobPostings(token)
+      .then((all) => setJobs(all.filter((j) => j.active && new Date(j.expires_at).getTime() >= now)))
+      .catch(() => {})
   }, [token, employer])
 
   async function act(fn: (card: CardData) => Promise<DeckState<CardData> | null>) {
     const card = deck.top(state)
     if (busy.current || !card) return
     busy.current = true
+    setReturning(null)
     try {
       const next = await fn(card)
       if (next) setState(next)
@@ -68,9 +80,11 @@ export default function Feed() {
     }
   }
 
-  const swipe = (kind: SwipeKind) =>
+  /** `dragged`: the finger already threw the card; buttons animate it here. */
+  const swipe = (kind: SwipeKind, dragged = false) =>
     act(async (card) => {
       if (kind !== 'pass') haptic.tap()
+      if (!dragged) await deckRef.current?.fling(kind)
       try {
         const res = await postSwipe(token, { target_id: card.id, direction: kind })
         if (res.matched) {
@@ -85,6 +99,7 @@ export default function Feed() {
 
   const bookmark = () =>
     act(async (card) => {
+      await deckRef.current?.fling('bookmark')
       await addBookmark(token, card.id).catch(() => {})
       return deck.bookmarked(state)
     })
@@ -94,7 +109,10 @@ export default function Feed() {
     const last = state.last!
     busy.current = true
     const done = (ok: boolean) => {
-      if (ok) setState((s) => deck.undone(s))
+      if (ok) {
+        setReturning({ id: last.card.id, kind: last.kind })
+        setState((s) => deck.undone(s))
+      }
       busy.current = false
     }
     if (last.kind === 'bookmark') {
@@ -117,6 +135,12 @@ export default function Feed() {
           </Text>
         )}
       </View>
+
+      {employer && jobs.length > 0 && (
+        <View style={styles.switcher}>
+          <JobSwitcher jobs={jobs} selected={jobId} onSelect={setJobId} />
+        </View>
+      )}
 
       <View style={styles.deckArea}>
         {load === 'loading' && (
@@ -142,10 +166,12 @@ export default function Feed() {
         )}
         {load === 'ready' && top && (
           <SwipeDeck
+            ref={deckRef}
             top={top}
             next={state.cards[1] ?? null}
             enabled={canLike}
-            onSwipe={(dir) => swipe(dir)}
+            returning={returning}
+            onSwipe={(dir) => swipe(dir, true)}
           />
         )}
       </View>
@@ -186,6 +212,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: space.xl, paddingTop: space.sm },
   brand: { fontSize: 24, color: colors.ink },
   count: { fontSize: 13, color: colors.muted },
+  switcher: { marginTop: space.sm },
   deckArea: { flex: 1, marginHorizontal: space.lg, marginTop: space.md },
   center: { flex: 1, justifyContent: 'center', gap: space.lg, paddingHorizontal: space.lg },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.lg, paddingVertical: space.lg },

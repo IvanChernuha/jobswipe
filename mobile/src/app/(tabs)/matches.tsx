@@ -90,6 +90,15 @@ export default function Matches() {
           {!!subtitle && <Text style={[styles.sub, { fontFamily: f.regular }]} numberOfLines={1}>{subtitle}</Text>}
           <Text style={[styles.date, { fontFamily: f.regular }]}>{t('matches.matchedOn', { date: date(m.matched_at) })}</Text>
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('mobile.viewProfileOf', { name: other.name })}
+          onPress={() => router.push(`/match/${m.id}`)}
+          hitSlop={6}
+          style={styles.profileButton}
+        >
+          <Ionicons name="person-circle-outline" size={26} color={colors.brand} />
+        </Pressable>
         <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} style={styles.chevron} />
       </Pressable>
     )
@@ -174,5 +183,6 @@ const styles = StyleSheet.create({
   groupHead: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.sm },
   groupTitle: { flex: 1, fontSize: 15, color: colors.gray[700], textAlign: 'left' },
   groupCount: { fontSize: 13, color: colors.muted },
+  profileButton: { width: TOUCH - 8, height: TOUCH, alignItems: 'center', justifyContent: 'center' },
   chevron: { transform: [{ scaleX: I18nManager.isRTL ? -1 : 1 }] },
 })

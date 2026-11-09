@@ -80,7 +80,7 @@ describe('jobs list', () => {
   })
 
   it('with no jobs, invites you to post the first one', async () => {
-    mocked.getJobPostings.mockResolvedValueOnce([])
+    mocked.getJobPostings.mockResolvedValue([]) // the feed tab loads jobs too (job switcher)
     const router = await open('/jobs')
     expect(await screen.findByText('No job postings yet')).toBeOnTheScreen()
     await press('Create Job')

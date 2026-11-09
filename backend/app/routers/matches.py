@@ -6,15 +6,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user
 from app.db.session import get_session
-from app.models.match import MatchResponse
+from app.models.match import MatchResponse, MoveMatchRequest
 from app.models.message import UnreadCount
 from app.models.tables.match import Match
-from app.models.tables.job import JobPosting
+from app.models.tables.job import JobPosting, JobPostingTag
+from app.models.tables.tag import Tag
 from app.models.tables.employer import EmployerProfile
-from app.models.tables.worker import WorkerProfile
+from app.models.tables.worker import WorkerProfile, WorkerTag
 from app.models.tables.user import User
 from app.models.tables.message import Message, MessageReadCursor
-from app.services.org_access import get_org_employer_ids
+from app.services.notifications import notify
+from app.services.org_access import get_org_employer_ids, require_team_permission
+from app.services.resumes import fresh_resume_url
 
 router = APIRouter(prefix="/matches", tags=["matches"])
 
@@ -146,14 +149,13 @@ async def unread_counts(
     return out
 
 
-@router.get("/{match_id}", response_model=MatchResponse)
-async def get_match(
-    match_id: str,
-    user: dict = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-):
+async def _match_for(session: AsyncSession, user: dict, match_id: str) -> Match:
+    """The match, if the caller is its worker or on its employer's team."""
     uid = user["id"]
-    match = await session.get(Match, uuid.UUID(match_id))
+    try:
+        match = await session.get(Match, uuid.UUID(match_id))
+    except ValueError:
+        match = None
     if not match:
         raise HTTPException(404, "Match not found")
 
@@ -164,6 +166,67 @@ async def get_match(
         org_ids = await get_org_employer_ids(session, uid)
         if str(match.employer_id) not in org_ids:
             raise HTTPException(403, "Access denied")
+    return match
+
+
+@router.get("/{match_id}/resume")
+async def get_match_resume(
+    match_id: str,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """A fresh, short-lived link to the matched candidate's CV (employer side
+    only; before a match the CV stays private)."""
+    if user["role"] != "employer":
+        raise HTTPException(403, "Only the employer side can open the candidate's CV")
+    match = await _match_for(session, user, match_id)
+    url = fresh_resume_url(str(match.worker_id))
+    if not url:
+        raise HTTPException(404, "This candidate hasn't uploaded a CV")
+    return {"url": url}
+
+
+@router.patch("/{match_id}", response_model=MatchResponse)
+async def move_match(
+    match_id: str,
+    body: MoveMatchRequest,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Employer: move a match under another of the team's jobs (e.g. the
+    candidate fits a different role). The candidate gets a notification."""
+    if user["role"] != "employer":
+        raise HTTPException(403, "Only the employer side can move a match")
+    match = await _match_for(session, user, match_id)
+    await require_team_permission(session, user["id"], "chat")
+
+    try:
+        job = await session.get(JobPosting, uuid.UUID(body.job_posting_id))
+    except ValueError:
+        job = None
+    if not job or str(job.employer_id) not in await get_org_employer_ids(session, user["id"]):
+        raise HTTPException(404, "Job not found")
+
+    if match.job_posting_id != job.id:
+        match.job_posting_id = job.id
+        session.add(match)
+        ep = await session.get(EmployerProfile, match.employer_id)
+        await notify(
+            session, match.worker_id, "match", "notif.match.moved",
+            params={"name": (ep.company_name if ep else "") or "", "title": job.title or ""},
+            link=f"/chat/{match.id}", actor_id=uuid.UUID(user["id"]),
+        )
+        await session.commit()
+    return await get_match(match_id, user=user, session=session)
+
+
+@router.get("/{match_id}", response_model=MatchResponse)
+async def get_match(
+    match_id: str,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    match = await _match_for(session, user, match_id)
 
     # Contact emails
     worker_user = await session.get(User, match.worker_id)
@@ -189,19 +252,44 @@ async def get_match(
     job = await session.get(JobPosting, match.job_posting_id) if match.job_posting_id else None
     if user["role"] == "worker":
         ep = await session.get(EmployerProfile, match.employer_id)
+        job_tags = []
+        if job:
+            rows = await session.execute(
+                select(Tag.id, Tag.name, Tag.category, JobPostingTag.requirement)
+                .join(JobPostingTag, JobPostingTag.tag_id == Tag.id)
+                .where(JobPostingTag.job_posting_id == job.id)
+            )
+            job_tags = [{"id": str(r.id), "name": r.name, "category": r.category, "requirement": r.requirement}
+                        for r in rows.all()]
         out["employer"] = {
             "company_name": ep.company_name if ep else "",
             "industry": ep.industry if ep else "",
             "avatar_url": ep.logo_url if ep else None,
             "job_title": job.title if job else "",
             "location": job.location if job else "",
+            "company_description": (ep.description if ep else "") or "",
+            "description": (job.description if job else "") or "",
+            "salary_min": (job.salary_min if job else 0) or 0,
+            "salary_max": (job.salary_max if job else 0) or 0,
+            "remote": bool(job.remote) if job else False,
+            "tags": job_tags,
         }
     else:
         wp = await session.get(WorkerProfile, match.worker_id)
+        rows = await session.execute(
+            select(Tag.id, Tag.name, Tag.category)
+            .join(WorkerTag, WorkerTag.tag_id == Tag.id)
+            .where(WorkerTag.worker_id == match.worker_id)
+        )
         out["worker"] = {
             "name": wp.name if wp else "",
             "avatar_url": wp.avatar_url if wp else None,
             "skills": wp.skills if wp else [],
             "experience_years": wp.experience_years if wp else 0,
+            "bio": (wp.bio if wp else "") or "",
+            "location": (wp.location if wp else "") or "",
+            "tags": [{"id": str(r.id), "name": r.name, "category": r.category} for r in rows.all()],
+            # Whether there is a CV to open; the link itself comes from /resume.
+            "has_resume": bool(wp and wp.resume_url),
         }
     return out

@@ -16,6 +16,7 @@ from app.models.tables.employer import EmployerProfile
 from app.models.tables.organization import OrgMember
 from app.models.tables.user import User
 from app.services.blocks import blocked_ids_for
+from app.services.likes import LIKE_RANK, likes_from
 from app.services.scoring import batch_expand_implications, best_job_score
 
 router = APIRouter(prefix="/workers", tags=["workers"])
@@ -138,10 +139,28 @@ async def employer_feed(
     location: str = Query(None),
     experience_min: int = Query(None, ge=0),
     experience_max: int = Query(None, ge=0),
+    job_id: str = Query(None, description="Only candidates for this one live job (the job switcher)"),
     user: dict = Depends(require_employer),
     session: AsyncSession = Depends(get_session),
 ):
     uid = uuid.UUID(user["id"])
+    org_emp_ids = await _get_org_employer_ids(session, user)
+    org_emp_uuids = [uuid.UUID(eid) for eid in org_emp_ids]
+    now = datetime.now(timezone.utc)
+
+    # 0. The job switcher: the job must be one of the team's live jobs.
+    only_job = None
+    if job_id:
+        try:
+            only_job = uuid.UUID(job_id)
+        except ValueError:
+            raise HTTPException(404, "Job not found")
+        live = await session.execute(select(JobPosting.id).where(
+            JobPosting.id == only_job, JobPosting.employer_id.in_(org_emp_uuids),
+            JobPosting.active == True, JobPosting.expires_at >= now,
+        ))
+        if not live.first():
+            raise HTTPException(404, "Job not found, or it is paused or expired")
 
     # 1. Swiped targets
     result = await session.execute(select(Swipe.target_id).where(Swipe.swiper_id == uid))
@@ -173,15 +192,15 @@ async def employer_feed(
 
     # 3. The team's LIVE jobs (active and not expired), org-aware. Each worker
     #    is scored against each job separately; the card shows the best one.
-    org_emp_ids = await _get_org_employer_ids(session, user)
-    org_emp_uuids = [uuid.UUID(eid) for eid in org_emp_ids]
-    result = await session.execute(
-        select(JobPosting.id, JobPosting.title, JobPosting.created_at).where(
-            JobPosting.employer_id.in_(org_emp_uuids),
-            JobPosting.active == True,
-            JobPosting.expires_at >= datetime.now(timezone.utc),
-        )
+    #    With the job switcher, only that job counts.
+    job_query = select(JobPosting.id, JobPosting.title, JobPosting.created_at).where(
+        JobPosting.employer_id.in_(org_emp_uuids),
+        JobPosting.active == True,
+        JobPosting.expires_at >= now,
     )
+    if only_job:
+        job_query = job_query.where(JobPosting.id == only_job)
+    result = await session.execute(job_query)
     live_jobs = {
         row.id: {"id": row.id, "title": row.title, "created_at": row.created_at,
                  "tags": set(), "required": set(), "preferred": set()}
@@ -269,9 +288,20 @@ async def employer_feed(
             "match_score": score,
         })
 
-    def sort_key(card: dict) -> tuple[int, int]:
+    # 7. Who already liked one of the team's jobs (any job, live or not).
+    liked = await likes_from(
+        session,
+        swipers=[w.user_id for w in workers],
+        targets=select(JobPosting.id).where(JobPosting.employer_id.in_(org_emp_uuids)),
+    )
+    for card in scored:
+        card["liked_you"] = liked.get(card["id"])
+
+    # People who liked you come first (super likes first), then the best fit.
+    def sort_key(card: dict) -> tuple[int, int, int]:
         s = card["match_score"]
-        return (s["percentage"], s["matched"]) if s else (-1, -1)
+        fit = (s["percentage"], s["matched"]) if s else (-1, -1)
+        return (LIKE_RANK.get(card["liked_you"], 0), *fit)
 
     scored.sort(key=sort_key, reverse=True)
     offset = (page - 1) * size

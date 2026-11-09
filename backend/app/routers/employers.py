@@ -19,6 +19,7 @@ from app.models.tables.match import Match
 from app.models.tables.worker import WorkerProfile, WorkerTag
 from app.models.tables.organization import OrgMember
 from app.models.tables.user import User
+from app.services.likes import LIKE_RANK, likes_from
 from app.services.blocks import blocked_ids_for
 from app.services.notifications import notify_team
 from app.services.plans import assert_can_go_live
@@ -441,9 +442,20 @@ async def worker_feed(
             "location": job.location or "", "remote": job.remote or False,
             "company_name": ep.company_name, "industry": ep.industry or "",
             "avatar_url": ep.logo_url, "tags": tags_by_job.get(jid, []),
-            "match_score": score,
+            "match_score": score, "employer_id": str(job.employer_id),
         })
 
-    scored.sort(key=lambda x: (x["match_score"]["percentage"], x["match_score"]["matched"]), reverse=True)
+    # 8. Employers who already liked this worker; their jobs come first
+    #    (super likes first), then the best fit.
+    liked = await likes_from(session, swipers=list({j.employer_id for j in jobs}), targets=[uid])
+    for card in scored:
+        card["liked_you"] = liked.get(card["employer_id"])
+
+    scored.sort(
+        key=lambda x: (LIKE_RANK.get(x["liked_you"], 0), x["match_score"]["percentage"], x["match_score"]["matched"]),
+        reverse=True,
+    )
+    for card in scored:
+        del card["employer_id"]
     offset = (page - 1) * size
     return scored[offset:offset + size]

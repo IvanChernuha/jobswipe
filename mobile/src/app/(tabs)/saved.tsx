@@ -179,11 +179,16 @@ export default function Saved() {
           return (
             <View style={styles.row} testID={`saved-${b.target_id}`}>
               <Avatar name={name || headline} url={b.avatar_url} size={48} />
-              <View style={styles.info}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityHint={t('mobile.viewProfile')}
+                onPress={() => router.push(`/saved/${b.target_id}`)}
+                style={({ pressed }) => [styles.info, pressed && styles.infoPressed]}
+              >
                 <Text style={[styles.title, { fontFamily: f.semibold }]} numberOfLines={2}>{headline}</Text>
                 {!!subtitle && <Text style={[styles.sub, { fontFamily: f.regular }]} numberOfLines={1}>{subtitle}</Text>}
                 {!!salary && <Text style={[styles.salary, { fontFamily: f.medium }]}>{salary}</Text>}
-              </View>
+              </Pressable>
               <View style={styles.actions}>
                 <Action icon="close" label={t('feed.pass')} color={colors.danger} onPress={() => swipe(b, 'pass', headline)} />
                 {canLike && (
@@ -213,6 +218,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
   },
   info: { flex: 1, gap: 2 },
+  infoPressed: { opacity: 0.6 },
   title: { fontSize: 16, color: colors.ink, textAlign: 'left' },
   sub: { fontSize: 13, color: colors.gray[600], textAlign: 'left' },
   salary: { fontSize: 13, color: colors.brandDark, textAlign: 'left' },
