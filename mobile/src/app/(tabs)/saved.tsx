@@ -3,11 +3,14 @@ import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, 
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
-import { getBookmarks, getMyMembership, postSwipe, removeBookmark, type BookmarkGroup, type SavedItem } from '../../lib/api'
+import {
+  getBookmarks, getJobPostings, getMyMembership, moveBookmark, postSwipe, removeBookmark, type BookmarkGroup, type SavedItem,
+} from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
 import { salaryRange } from '../../lib/cards'
 import { haptic } from '../../lib/haptics'
 import Avatar from '../../components/Avatar'
+import JobPicker, { type PickJob } from '../../components/JobPicker'
 import MatchModal from '../../components/MatchModal'
 import { Body, Button, Screen, Title } from '../../components/ui'
 import { colors, fonts, radius, space, TOUCH } from '../../lib/theme'
@@ -29,8 +32,8 @@ function Action({ icon, label, color, onPress }: { icon: IconName; label: string
   )
 }
 
-// Same as the web Bookmarks.tsx (notes and moving between jobs come later):
-// saved jobs for workers, saved candidates by job for employers.
+// Same as the web Bookmarks.tsx (notes come later): saved jobs for workers,
+// saved candidates by job for employers, who can move them between jobs.
 export default function Saved() {
   const { t } = useTranslation()
   const router = useRouter()
@@ -43,6 +46,9 @@ export default function Saved() {
   const [refreshing, setRefreshing] = useState(false)
   const [canLike, setCanLike] = useState(true)
   const [newMatch, setNewMatch] = useState<{ id: string | null; name: string } | null>(null)
+  // Employers: the candidate being moved to another job, and the jobs to pick from.
+  const [moving, setMoving] = useState<{ item: SavedItem; name: string } | null>(null)
+  const [jobs, setJobs] = useState<PickJob[]>([])
 
   const fetchSaved = useCallback(async () => {
     try {
@@ -93,6 +99,22 @@ export default function Saved() {
     }
     drop(item.target_id)
     await removeBookmark(token, item.target_id).catch(() => {})
+  }
+
+  async function startMove(item: SavedItem, name: string) {
+    if (jobs.length === 0) {
+      const mine = await getJobPostings(token).catch(() => [])
+      setJobs([...mine.map((j) => ({ id: j.id, title: j.title })), { id: null, title: t('bookmarks.unsorted') }])
+    }
+    setMoving({ item, name })
+  }
+
+  async function moveTo(job: PickJob) {
+    const item = moving?.item
+    setMoving(null)
+    if (!item) return
+    await moveBookmark(token, item.target_id, job.id).catch(() => {})
+    await fetchSaved()
   }
 
   const retry = () => {
@@ -190,6 +212,9 @@ export default function Saved() {
                 {!!salary && <Text style={[styles.salary, { fontFamily: f.medium }]}>{salary}</Text>}
               </Pressable>
               <View style={styles.actions}>
+                {employer && (
+                  <Action icon="swap-horizontal" label={t('mobile.moveNamed', { name })} color={colors.gray[600]} onPress={() => startMove(b, name)} />
+                )}
                 <Action icon="close" label={t('feed.pass')} color={colors.danger} onPress={() => swipe(b, 'pass', headline)} />
                 {canLike && (
                   <Action icon="heart" label={t('feed.like')} color={colors.brand} onPress={() => swipe(b, 'like', employer ? name : b.company_name ?? headline)} />
@@ -201,6 +226,13 @@ export default function Saved() {
         }}
       />
       {modal}
+      <JobPicker
+        title={moving ? t('mobile.moveNamed', { name: moving.name }) : null}
+        jobs={jobs}
+        current={moving?.item.job_posting_id ?? null}
+        onPick={moveTo}
+        onClose={() => setMoving(null)}
+      />
     </Screen>
   )
 }

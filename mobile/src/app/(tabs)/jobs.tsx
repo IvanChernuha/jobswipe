@@ -175,14 +175,16 @@ export default function Jobs() {
               )}
 
               <View style={styles.stats}>
-                {[
-                  [t('jobs.views'), j.swipe_count],
-                  [t('jobs.likes'), j.like_count],
-                  [t('jobs.matches'), j.match_count],
-                ].map(([label, value]) => (
-                  <View key={label} style={styles.stat}>
-                    <Text style={[styles.statValue, { fontFamily: f.semibold }]}>{value ?? 0}</Text>
-                    <Text style={[styles.statLabel, { fontFamily: f.regular }]}>{label}</Text>
+                {([
+                  [t('jobs.views'), j.swipe_count, colors.ink],
+                  // like_count includes super likes; show them apart.
+                  [t('jobs.likes'), (j.like_count ?? 0) - (j.super_like_count ?? 0), '#E0457B'],
+                  [t('mobile.superLikes'), j.super_like_count ?? 0, '#2F6FD6'],
+                  [t('jobs.matches'), j.match_count, colors.brand],
+                ] as const).map(([label, value, color]) => (
+                  <View key={label} style={styles.stat} accessible accessibilityLabel={`${label}: ${value ?? 0}`}>
+                    <Text style={[styles.statValue, { fontFamily: f.semibold, color }]}>{value ?? 0}</Text>
+                    <Text style={[styles.statLabel, { fontFamily: f.regular }]} numberOfLines={1}>{label}</Text>
                   </View>
                 ))}
               </View>

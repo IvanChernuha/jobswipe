@@ -552,3 +552,14 @@ The user pointed out the core missing piece: the AI that reads a posting and set
 - Shared `moveMatch()`, 1 test.
 - App: **Move to another job** on the match profile (employers): a list of their jobs with the current one marked; picking another moves it and says "Moved to …". 4 tests.
 - **Verification (`scripts/test.sh`, all PASS):** backend 149, website 51, mobile 112, scripts.
+
+### 2026-11-11: move from the lists, likes vs super likes per job (app 0.6.2)
+A phone screenshot (via adb) showed the user on **Saved**, where nothing could be moved. In 0.6.1, Move was only inside a match's profile screen, which was too hidden. The user wants moving in both Matches and Saved.
+- **App:** a ⇄ **Move** button on every employer row in **Saved** and **Matches**. It opens a shared bottom sheet (`components/JobPicker.tsx`) listing the employer's jobs, plus **Unsorted** for saved candidates, with the current job marked.
+  - Saved uses the existing `moveBookmark` (`PATCH /bookmarks/{id}/move`) and reloads.
+  - Matches uses `moveMatch` and regroups in place.
+  - 6 tests.
+- **Jobs (user ask): likes and super likes shown apart.**
+  - Server: `GET /employers/jobs` adds `super_like_count`. `like_count` stays as likes + super likes, so the website's "Likes" number doesn't change. 1 test.
+  - App: job cards show Views · Likes (plain) · Super likes · Matches, each with a spoken label.
+- **Verification (`scripts/test.sh`, all PASS):** backend 150, website 51, mobile 118, scripts.

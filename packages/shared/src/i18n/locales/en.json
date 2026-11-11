@@ -665,6 +665,8 @@
     "viewProfileOf": "View profile: {{name}}",
     "moveToJob": "Move to another job",
     "movedTo": "Moved to {{title}}",
-    "currentJob": "Current"
+    "currentJob": "Current",
+    "moveNamed": "Move {{name}} to another job",
+    "superLikes": "Super likes"
   }
 }

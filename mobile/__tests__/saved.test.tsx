@@ -12,6 +12,8 @@ jest.mock('@jobswipe/shared/api', () => ({
   removeBookmark: jest.fn(),
   postSwipe: jest.fn(),
   getMyMembership: jest.fn(),
+  getJobPostings: jest.fn(),
+  moveBookmark: jest.fn(),
 }))
 
 const mocked = api as jest.Mocked<typeof api>
@@ -53,6 +55,10 @@ beforeEach(() => {
   mocked.removeBookmark.mockResolvedValue(undefined)
   mocked.postSwipe.mockResolvedValue({ matched: false, match_id: null })
   mocked.getMyMembership.mockResolvedValue({ has_org: false } as never)
+  mocked.getJobPostings.mockResolvedValue([
+    { id: 'p1', title: 'Frontend Engineer' }, { id: 'p2', title: 'Backend Engineer' },
+  ] as api.JobPosting[])
+  mocked.moveBookmark.mockResolvedValue({} as never)
 })
 
 describe('workers', () => {
@@ -148,5 +154,45 @@ describe('full card', () => {
     expect(await screen.findByText('Dana Levi wrote a long bio')).toBeOnTheScreen()
     expect(screen.getByText('TypeScript')).toBeOnTheScreen()
     expect(screen.queryByRole('button', { name: 'Open CV' })).toBeNull()
+  })
+})
+
+describe('moving a saved candidate to another job', () => {
+  it('employers move a candidate from one job to another', async () => {
+    await open('employer')
+    await screen.findByText('Dana Levi')
+    await act(async () => fireEvent.press(inRow('w1').getByRole('button', { name: 'Move Dana Levi to another job' })))
+    expect(await screen.findByRole('radio', { name: 'Frontend Engineer' })).toBeChecked()
+    mocked.getBookmarks.mockResolvedValueOnce([
+      { job_posting_id: 'p2', job_title: 'Backend Engineer', bookmarks: [savedCandidate('w1', 'Dana Levi', 'p2')] },
+      { job_posting_id: null, job_title: 'Unsorted', bookmarks: [savedCandidate('w2', 'Omer Cohen', null)] },
+    ])
+    await act(async () => fireEvent.press(screen.getByRole('radio', { name: 'Backend Engineer' })))
+    expect(mocked.moveBookmark).toHaveBeenCalledWith('token-employer', 'w1', 'p2')
+    expect(await screen.findByText('Backend Engineer')).toBeOnTheScreen()
+    expect(screen.queryByText('Frontend Engineer')).toBeNull()
+  })
+
+  it('can also go back to Unsorted', async () => {
+    await open('employer')
+    await screen.findByText('Dana Levi')
+    await act(async () => fireEvent.press(inRow('w1').getByRole('button', { name: 'Move Dana Levi to another job' })))
+    await act(async () => fireEvent.press(await screen.findByRole('radio', { name: 'Unsorted' })))
+    expect(mocked.moveBookmark).toHaveBeenCalledWith('token-employer', 'w1', null)
+  })
+
+  it('cancel closes the list without moving', async () => {
+    await open('employer')
+    await screen.findByText('Dana Levi')
+    await act(async () => fireEvent.press(inRow('w1').getByRole('button', { name: 'Move Dana Levi to another job' })))
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Cancel' })))
+    await waitFor(() => expect(screen.queryByRole('radio', { name: 'Backend Engineer' })).toBeNull())
+    expect(mocked.moveBookmark).not.toHaveBeenCalled()
+  })
+
+  it('job seekers have nothing to move', async () => {
+    await open('worker')
+    await screen.findByText('React Developer')
+    expect(inRow('j1').queryByRole('button', { name: /to another job/ })).toBeNull()
   })
 })

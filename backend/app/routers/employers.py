@@ -221,11 +221,14 @@ async def list_my_jobs(
     # Batch swipe stats
     sr = await session.execute(select(Swipe.target_id, Swipe.direction).where(Swipe.target_id.in_(job_ids)))
     swipe_counts: dict[uuid.UUID, int] = {}
-    like_counts: dict[uuid.UUID, int] = {}
+    like_counts: dict[uuid.UUID, int] = {}  # likes + super likes
+    super_like_counts: dict[uuid.UUID, int] = {}
     for s in sr.all():
         swipe_counts[s.target_id] = swipe_counts.get(s.target_id, 0) + 1
         if s.direction in ("like", "super_like"):
             like_counts[s.target_id] = like_counts.get(s.target_id, 0) + 1
+        if s.direction == "super_like":
+            super_like_counts[s.target_id] = super_like_counts.get(s.target_id, 0) + 1
 
     # Batch match counts
     mr = await session.execute(
@@ -240,6 +243,7 @@ async def list_my_jobs(
         d = _job_to_dict(j, tags_by_job.get(j.id, []))
         d["swipe_count"] = swipe_counts.get(j.id, 0)
         d["like_count"] = like_counts.get(j.id, 0)
+        d["super_like_count"] = super_like_counts.get(j.id, 0)
         d["match_count"] = match_counts.get(j.id, 0)
         out.append(d)
     return out

@@ -296,3 +296,23 @@ describe('moving a match to another job', () => {
     expect(screen.queryByRole('button', { name: 'Move to another job' })).toBeNull()
   })
 })
+
+describe('moving a match from the list', () => {
+  it('employers move a match straight from the Matches list', async () => {
+    mocked.moveMatch.mockImplementation(async (_t, id, jobId) => match(id, 'Wix', 'Dana Levi', jobId))
+    await open('employer', '/matches')
+    await screen.findByText('Dana Levi')
+    expect(within(screen.getByTestId('matches-job-j1')).getByText('Dana Levi')).toBeOnTheScreen()
+    await press('Move Dana Levi to another job')
+    expect(await screen.findByRole('radio', { name: 'Frontend Engineer' })).toBeChecked()
+    await act(async () => fireEvent.press(screen.getByRole('radio', { name: 'Backend Engineer' })))
+    expect(mocked.moveMatch).toHaveBeenCalledWith('token-employer', 'm1', 'j2')
+    await waitFor(() => expect(within(screen.getByTestId('matches-job-j2')).getByText('Dana Levi')).toBeOnTheScreen())
+  })
+
+  it('job seekers have nothing to move', async () => {
+    await open('worker', '/matches')
+    await screen.findByText('Wix')
+    expect(screen.queryByRole('button', { name: /to another job/ })).toBeNull()
+  })
+})

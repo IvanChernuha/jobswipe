@@ -53,7 +53,9 @@ export interface JobPosting {
   min_experience_years: number | null
   tags: Tag[]
   swipe_count: number
+  /** Likes + super likes. */
   like_count: number
+  super_like_count?: number
   match_count: number
 }
 

@@ -3,17 +3,19 @@ import { ActivityIndicator, FlatList, I18nManager, Pressable, RefreshControl, St
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
-import { getJobPostings, getMatches, getUnreadCounts, type Match } from '../../lib/api'
+import { getJobPostings, getMatches, getUnreadCounts, moveMatch, type Match } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
 import { groupByJob, otherSide, type JobGroup } from '../../lib/matches'
 import Avatar from '../../components/Avatar'
+import JobPicker, { type PickJob } from '../../components/JobPicker'
 import { Body, Button, Screen, Title } from '../../components/ui'
 import { colors, fonts, radius, space, TOUCH } from '../../lib/theme'
 
 type Load = 'loading' | 'ready' | 'error'
 
 // Same as the web Matches.tsx: one row per match, unread count, tap to chat.
-// Employers see them grouped under the job each match came from.
+// Employers see them grouped under the job each match came from, and can
+// move a match to another job (the candidate is notified).
 export default function Matches() {
   const { t, i18n } = useTranslation()
   const router = useRouter()
@@ -23,6 +25,7 @@ export default function Matches() {
 
   const [matches, setMatches] = useState<Match[]>([])
   const [jobs, setJobs] = useState<{ id: string; title: string }[]>([])
+  const [moving, setMoving] = useState<{ match: Match; name: string } | null>(null)
   const [unread, setUnread] = useState<Record<string, number>>({})
   const [load, setLoad] = useState<Load>('loading')
   const [refreshing, setRefreshing] = useState(false)
@@ -64,6 +67,18 @@ export default function Matches() {
   const date = (iso: string) =>
     new Date(iso).toLocaleDateString(i18n.resolvedLanguage ?? 'en', { month: 'short', day: 'numeric' })
 
+  async function moveTo(job: PickJob) {
+    const m = moving?.match
+    setMoving(null)
+    if (!m || !job.id) return
+    try {
+      const moved = await moveMatch(token, m.id, job.id)
+      setMatches((prev) => prev.map((x) => (x.id === m.id ? { ...x, job_posting_id: moved.job_posting_id } : x)))
+    } catch {
+      // Not allowed (e.g. a team viewer) or offline: the list stays as it was.
+    }
+  }
+
   const row = (m: Match) => {
     const other = otherSide(m, worker, t)
     const count = unread[m.id] ?? 0
@@ -90,6 +105,17 @@ export default function Matches() {
           {!!subtitle && <Text style={[styles.sub, { fontFamily: f.regular }]} numberOfLines={1}>{subtitle}</Text>}
           <Text style={[styles.date, { fontFamily: f.regular }]}>{t('matches.matchedOn', { date: date(m.matched_at) })}</Text>
         </View>
+        {!worker && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('mobile.moveNamed', { name: other.name })}
+            onPress={() => setMoving({ match: m, name: other.name })}
+            hitSlop={6}
+            style={styles.profileButton}
+          >
+            <Ionicons name="swap-horizontal" size={22} color={colors.gray[600]} />
+          </Pressable>
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('mobile.viewProfileOf', { name: other.name })}
@@ -154,6 +180,13 @@ export default function Matches() {
           </Text>
         }
         renderItem={({ item }) => ('matches' in item ? group(item) : row(item))}
+      />
+      <JobPicker
+        title={moving ? t('mobile.moveNamed', { name: moving.name }) : null}
+        jobs={jobs}
+        current={moving?.match.job_posting_id ?? null}
+        onPick={moveTo}
+        onClose={() => setMoving(null)}
       />
     </Screen>
   )

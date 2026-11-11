@@ -179,7 +179,8 @@ class JobPostingWithStats(BaseModel):
     min_experience_years: int | None = None
     tags: list[Tag] = []
     swipe_count: int = 0
-    like_count: int = 0
+    like_count: int = 0  # likes + super likes
+    super_like_count: int = 0
     match_count: int = 0
 
     model_config = {"extra": "ignore"}

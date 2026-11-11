@@ -689,6 +689,8 @@
     "viewProfileOf": "צפייה בפרופיל: {{name}}",
     "moveToJob": "העברה למשרה אחרת",
     "movedTo": "הועבר אל {{title}}",
-    "currentJob": "נוכחית"
+    "currentJob": "נוכחית",
+    "moveNamed": "העברת {{name}} למשרה אחרת",
+    "superLikes": "סופר-לייקים"
   }
 }

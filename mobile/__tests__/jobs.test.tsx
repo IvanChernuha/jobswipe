@@ -36,7 +36,7 @@ const job = (id: string, title: string, extra: Partial<api.JobPosting> = {}): ap
   salary_min: 15000, salary_max: 22000, skills_required: [], remote: false, active: true,
   created_at: '2026-11-01T10:00:00Z', expires_at: IN_A_MONTH, min_experience_years: null,
   tags: [{ ...react, requirement: 'required' }, { ...ts, requirement: 'nice' }],
-  swipe_count: 40, like_count: 12, match_count: 3, ...extra,
+  swipe_count: 40, like_count: 12, super_like_count: 4, match_count: 3, ...extra,
 })
 
 // What the AI makes of a posting (the server's parse-job-text answer).
@@ -74,7 +74,11 @@ describe('jobs list', () => {
     await open('/jobs')
     expect(await screen.findByText('Frontend Engineer')).toBeOnTheScreen()
     expect(inJob('j1').getByText('React')).toBeOnTheScreen()
-    expect(inJob('j1').getByText('12')).toBeOnTheScreen() // likes
+    // 12 likes in all, 4 of them super likes: shown as 8 likes + 4 super likes.
+    expect(inJob('j1').getByLabelText('Views: 40')).toBeOnTheScreen()
+    expect(inJob('j1').getByLabelText('Likes: 8')).toBeOnTheScreen()
+    expect(inJob('j1').getByLabelText('Super likes: 4')).toBeOnTheScreen()
+    expect(inJob('j1').getByLabelText('Matches: 3')).toBeOnTheScreen()
     expect(inJob('j2').getByText('Inactive')).toBeOnTheScreen()
     expect(mocked.getJobPostings).toHaveBeenCalledWith('token-employer')
   })
