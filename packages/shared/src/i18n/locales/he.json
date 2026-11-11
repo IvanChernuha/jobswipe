@@ -691,6 +691,11 @@
     "movedTo": "הועבר אל {{title}}",
     "currentJob": "נוכחית",
     "moveNamed": "העברת {{name}} למשרה אחרת",
-    "superLikes": "סופר-לייקים"
+    "superLikes": "סופר-לייקים",
+    "shareInviteFor": "שיתוף ההזמנה של {{email}}",
+    "revokeInviteFor": "ביטול ההזמנה של {{email}}",
+    "removeMember": "הסרת {{email}}",
+    "inviteMessage": "הצטרפו ל-{{org}} ב-JobSwipe: {{link}}",
+    "inviteSent": "ההזמנה נוצרה. שתפו איתם את הקישור."
   }
 }

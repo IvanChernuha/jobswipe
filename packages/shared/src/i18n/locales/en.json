@@ -667,6 +667,11 @@
     "movedTo": "Moved to {{title}}",
     "currentJob": "Current",
     "moveNamed": "Move {{name}} to another job",
-    "superLikes": "Super likes"
+    "superLikes": "Super likes",
+    "shareInviteFor": "Share invite for {{email}}",
+    "revokeInviteFor": "Revoke invite for {{email}}",
+    "removeMember": "Remove {{email}}",
+    "inviteMessage": "Join {{org}} on JobSwipe: {{link}}",
+    "inviteSent": "Invite created. Share the link with them."
   }
 }

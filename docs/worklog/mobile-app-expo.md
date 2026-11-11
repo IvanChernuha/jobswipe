@@ -563,3 +563,16 @@ A phone screenshot (via adb) showed the user on **Saved**, where nothing could b
   - Server: `GET /employers/jobs` adds `super_like_count`. `like_count` stays as likes + super likes, so the website's "Likes" number doesn't change. 1 test.
   - App: job cards show Views · Likes (plain) · Super likes · Matches, each with a spoken label.
 - **Verification (`scripts/test.sh`, all PASS):** backend 150, website 51, mobile 118, scripts.
+
+**Same day: Team tab (app 0.6.3).** The user, as demo_employer, found the Team tab empty, while the website shows the team.
+- `(tabs)/team.tsx` replaces the placeholder (AC7.3):
+  - Org name and your role.
+  - Members with their roles. Owners and admins can change a member's role (Admin / Manager / Viewer) or remove them (with a confirm); the owner and yourself can't be changed.
+  - Invite by email with a role, with each role's description shown.
+  - Pending invites, each with **Share** (the phone's share sheet sends `{webUrl}/join?token=…`) and **Revoke**.
+  - Viewers see the members only.
+  - Without a team: **Create Organization**, or **Join Organization** with a pasted invite link or code; the token is taken out of the link.
+- `config.webUrl` (the API host without `/api`) is used for invite links.
+- The `ComingSoon` placeholder is removed; no tab uses it now.
+- 11 tests.
+- **Verification (`scripts/test.sh`, all PASS):** backend 150, website 51, mobile 129, scripts.
