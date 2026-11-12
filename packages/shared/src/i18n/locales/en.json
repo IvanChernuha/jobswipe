@@ -413,7 +413,8 @@
     "deleteAccount": "Delete account",
     "deleteAccountHint": "Permanently delete your account and all associated data. This action cannot be undone.",
     "deletingEllipsis": "Deleting...",
-    "deleteMyAccount": "Delete my account"
+    "deleteMyAccount": "Delete my account",
+    "cvSavedFree": "CV saved. Reading it with AI (skills added for you) is part of Pro, so add your skills below."
   },
   "notif": {
     "bell": "Notifications",
@@ -672,6 +673,7 @@
     "revokeInviteFor": "Revoke invite for {{email}}",
     "removeMember": "Remove {{email}}",
     "inviteMessage": "Join {{org}} on JobSwipe: {{link}}",
-    "inviteSent": "Invite created. Share the link with them."
+    "inviteSent": "Invite created. Share the link with them.",
+    "typeDelete": "Type \"delete\" to confirm"
   }
 }

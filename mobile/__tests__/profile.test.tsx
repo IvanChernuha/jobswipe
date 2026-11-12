@@ -3,6 +3,8 @@
 // upload come later.
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library'
 import * as api from '@jobswipe/shared/api'
+import * as Sharing from 'expo-sharing'
+import * as ImagePicker from 'expo-image-picker'
 import { fakeSupabase, sessionFor } from './helpers/fakeSupabase'
 
 jest.mock('../src/lib/supabase', () => ({ supabase: require('./helpers/fakeSupabase').fakeSupabase }))
@@ -13,7 +15,19 @@ jest.mock('@jobswipe/shared/api', () => ({
   getEmployerProfile: jest.fn(),
   updateEmployerProfile: jest.fn(),
   getTags: jest.fn(),
+  exportMyData: jest.fn(),
+  deleteMyAccount: jest.fn(),
+  uploadAvatar: jest.fn(),
 }))
+const mockWrite = jest.fn(async () => {})
+jest.mock('expo-file-system', () => ({
+  Paths: { cache: 'file:///cache' },
+  File: jest.fn().mockImplementation((_dir: string, name: string) => ({
+    uri: `file:///cache/${name}`, create: jest.fn(), write: mockWrite,
+  })),
+}))
+jest.mock('expo-sharing', () => ({ shareAsync: jest.fn(async () => {}) }))
+jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }))
 
 const mocked = api as jest.Mocked<typeof api>
 const APP = './src/app'
@@ -117,5 +131,69 @@ describe('account', () => {
     expect(await screen.findByText('Failed to load profile.')).toBeOnTheScreen()
     expect(screen.getByText('worker@test.com')).toBeOnTheScreen()
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeOnTheScreen()
+  })
+})
+
+describe('data & privacy', () => {
+  it('downloads your data as a file you can save or send', async () => {
+    mocked.exportMyData.mockResolvedValue({ profile: { name: 'Alice Chen' }, swipes: [] })
+    await open('worker')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Download my data' })))
+    expect(mocked.exportMyData).toHaveBeenCalledWith('token-worker')
+    expect(mockWrite).toHaveBeenCalledWith(expect.stringContaining('"name": "Alice Chen"'))
+    expect(Sharing.shareAsync).toHaveBeenCalledWith(
+      'file:///cache/jobswipe-my-data.json', expect.objectContaining({ mimeType: 'application/json' }),
+    )
+  })
+
+  it('deleting the account needs you to type "delete", then signs you out', async () => {
+    mocked.deleteMyAccount.mockResolvedValue({ deleted: true })
+    await open('worker')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Delete account' })))
+    expect(screen.getByRole('button', { name: 'Delete my account' })).toBeDisabled()
+    await act(async () => fireEvent.changeText(screen.getByLabelText('Type "delete" to confirm'), 'Delete '))
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Delete my account' })))
+    expect(mocked.deleteMyAccount).toHaveBeenCalledWith('token-worker')
+    expect(fakeSupabase.auth.signOut).toHaveBeenCalled()
+    expect(await screen.findByText('Welcome back')).toBeOnTheScreen()
+  })
+
+  it('cancel keeps the account', async () => {
+    await open('worker')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Delete account' })))
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Cancel' })))
+    expect(screen.queryByLabelText('Type "delete" to confirm')).toBeNull()
+    expect(mocked.deleteMyAccount).not.toHaveBeenCalled()
+  })
+})
+
+describe('photo', () => {
+  const picker = ImagePicker as jest.Mocked<typeof ImagePicker>
+
+  it('change photo uploads the picture you pick', async () => {
+    picker.launchImageLibraryAsync.mockResolvedValueOnce({
+      canceled: false, assets: [{ uri: 'file:///pics/me.jpg', mimeType: 'image/jpeg', fileName: 'me.jpg', width: 1, height: 1 }],
+    } as never)
+    mocked.uploadAvatar.mockResolvedValue({ url: '/supabase/storage/v1/object/public/avatars/me.jpg' })
+    await open('worker')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Change photo' })))
+    expect(mocked.uploadAvatar).toHaveBeenCalledWith('token-worker', { uri: 'file:///pics/me.jpg', name: 'me.jpg', type: 'image/jpeg' })
+  })
+
+  it('cancelling the picker uploads nothing', async () => {
+    picker.launchImageLibraryAsync.mockResolvedValueOnce({ canceled: true, assets: null } as never)
+    await open('worker')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Change photo' })))
+    expect(mocked.uploadAvatar).not.toHaveBeenCalled()
+  })
+
+  it('says so when the upload fails', async () => {
+    picker.launchImageLibraryAsync.mockResolvedValueOnce({
+      canceled: false, assets: [{ uri: 'file:///pics/me.jpg', mimeType: 'image/jpeg', fileName: 'me.jpg', width: 1, height: 1 }],
+    } as never)
+    mocked.uploadAvatar.mockRejectedValueOnce(new Error('Image must be under 5 MB'))
+    await open('worker')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Change photo' })))
+    expect(await screen.findByText('Image must be under 5 MB')).toBeOnTheScreen()
   })
 })

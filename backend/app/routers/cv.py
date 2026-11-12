@@ -12,6 +12,7 @@ from app.deps import get_current_user, require_worker, require_employer
 from app.db.session import get_session
 from app.rate_limit import limiter, user_or_ip
 from app.services.llm_quota import consume_llm_units
+from app.services.plans import assert_ai_allowed
 from app.models.tables.worker import WorkerProfile
 from app.models.tables.employer import EmployerProfile
 from app.models.tables.job import JobPosting
@@ -46,8 +47,10 @@ async def parse_my_cv(
     request: Request,
     file: UploadFile = File(...),
     user: dict = Depends(require_worker),
+    session: AsyncSession = Depends(get_session),
 ):
-    """Upload a CV and trigger async tag extraction."""
+    """Upload a CV and trigger async tag extraction (Pro)."""
+    await assert_ai_allowed(session, user["id"])
     if file.content_type not in ALLOWED_CV_TYPES:
         raise HTTPException(400, "Unsupported file type. Use PDF, DOCX, or TXT.")
 
@@ -86,7 +89,8 @@ async def bulk_extract_job_tags(
     user: dict = Depends(require_employer),
     session: AsyncSession = Depends(get_session),
 ):
-    """Queue tag extraction for multiple job postings."""
+    """Queue tag extraction for multiple job postings (Pro)."""
+    await assert_ai_allowed(session, user["id"])
     if not payload.jobs:
         raise HTTPException(400, "No jobs provided")
     if len(payload.jobs) > MAX_BULK_JOBS:
@@ -130,7 +134,8 @@ async def extract_single_job_tags(
     user: dict = Depends(require_employer),
     session: AsyncSession = Depends(get_session),
 ):
-    """Re-trigger tag extraction for a single existing job posting."""
+    """Re-trigger tag extraction for a single existing job posting (Pro)."""
+    await assert_ai_allowed(session, user["id"])
     employer_id = uuid.UUID(user["id"])
     job = await session.get(JobPosting, uuid.UUID(job_id))
 
@@ -175,6 +180,7 @@ async def parse_job_files(
     rate limit, the per-account quota, and _LLM_SEMAPHORE; moving it to Celery
     is a follow-up that also needs a frontend change.
     """
+    await assert_ai_allowed(session, user["id"])
     if len(files) > MAX_JOB_FILES:
         raise HTTPException(400, f"Maximum {MAX_JOB_FILES} files per request")
 
@@ -227,7 +233,8 @@ async def parse_job_text_route(
 ):
     """Read a job posting typed into the form and return it as form data
     (title, location, salary, skills by requirement level). The app's
-    "Fill with AI" button; same output as parse-job-files, per job."""
+    "Fill with AI" button; same output as parse-job-files, per job. Pro."""
+    await assert_ai_allowed(session, user["id"])
     await consume_llm_units(user["id"], 1)
     try:
         async with _LLM_SEMAPHORE:

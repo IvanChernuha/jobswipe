@@ -209,6 +209,8 @@ export interface TagCategory {
 
 export interface UploadResponse {
   url: string
+  /** CV uploads: whether the AI is reading it (Pro only; false on Free). */
+  analyzing?: boolean
 }
 
 // ---------------------------------------------------------------------------

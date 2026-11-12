@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # Live (active, unexpired) jobs an employer/org may have without Pro.
     # Set to 0 once billing exists to make posting a paid feature.
     FREE_LIVE_JOBS: int = 1
+    # AI features (reading CVs and job posts) only on the Pro plan. Off = for
+    # everyone, e.g. a launch promotion; the daily quota still applies.
+    AI_PRO_ONLY: bool = True
     # SQL LIKE patterns for test/demo accounts left out of the admin liquidity
     # dashboard (unless the admin ticks "include test accounts").
     ANALYTICS_EXCLUDE_EMAILS: str = (

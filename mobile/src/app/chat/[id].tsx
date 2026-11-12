@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext'
 import { otherSide } from '../../lib/matches'
 import { usePolling } from '../../lib/usePolling'
 import Avatar from '../../components/Avatar'
+import ReportSheet from '../../components/ReportSheet'
 import { Body, Screen } from '../../components/ui'
 import { colors, fonts, radius, space, TOUCH } from '../../lib/theme'
 import i18n from '../../lib/i18n'
@@ -51,6 +52,7 @@ export default function Chat() {
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [reporting, setReporting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -123,6 +125,14 @@ export default function Chat() {
             style={styles.iconButton}
           >
             <Ionicons name="person-circle-outline" size={28} color={colors.brand} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('report.reportUser')}
+            onPress={() => setReporting(true)}
+            style={styles.iconButton}
+          >
+            <Ionicons name="flag-outline" size={22} color={colors.gray[500]} />
           </Pressable>
         </View>
 
@@ -200,6 +210,16 @@ export default function Chat() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      {match && (
+        <ReportSheet
+          visible={reporting}
+          token={token}
+          // The other side of the match: a worker reports the employer, and back.
+          targetId={role === 'employer' ? match.worker_id : match.employer_id}
+          onClose={() => setReporting(false)}
+          onBlocked={() => router.replace('/matches')}
+        />
+      )}
     </Screen>
   )
 }

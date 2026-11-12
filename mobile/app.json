@@ -38,7 +38,8 @@
           "imageWidth": 160
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-sharing"
     ],
     "extra": {
       "supportsRTL": true

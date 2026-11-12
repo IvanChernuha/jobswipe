@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext'
 import { matchToCard } from '../../lib/cards'
 import { mediaUrl } from '../../lib/media'
 import ProfileDetails, { BackHeader } from '../../components/ProfileDetails'
+import ReportSheet from '../../components/ReportSheet'
 import { Body, Button, ErrorBox, Screen } from '../../components/ui'
 import { colors, fonts, radius, space, TOUCH } from '../../lib/theme'
 
@@ -28,6 +29,7 @@ export default function MatchProfile() {
   const [jobs, setJobs] = useState<{ id: string; title: string }[] | null>(null)
   const [moved, setMoved] = useState<string | null>(null)
   const [moveError, setMoveError] = useState<string | null>(null)
+  const [reporting, setReporting] = useState(false)
 
   useEffect(() => {
     if (!token || !id) return
@@ -116,6 +118,14 @@ export default function MatchProfile() {
       )}
       {moved && <Body>{t('mobile.movedTo', { title: moved })}</Body>}
       {moveError && <ErrorBox message={moveError} />}
+      <Button title={t('report.reportUser')} variant="secondary" onPress={() => setReporting(true)} />
+      <ReportSheet
+        visible={reporting}
+        token={token}
+        targetId={worker ? match.employer_id : match.worker_id}
+        onClose={() => setReporting(false)}
+        onBlocked={() => router.replace('/matches')}
+      />
     </ProfileDetails>
   )
 }

@@ -1,0 +1,10 @@
+# Never bake secrets into images: settings come from the environment
+# (docker-compose env_file), credentials are mounted as a volume.
+.env
+*.env
+credentials/
+# Local clutter
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/

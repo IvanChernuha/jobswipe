@@ -576,3 +576,45 @@ A phone screenshot (via adb) showed the user on **Saved**, where nothing could b
 - The `ComingSoon` placeholder is removed; no tab uses it now.
 - 11 tests.
 - **Verification (`scripts/test.sh`, all PASS):** backend 150, website 51, mobile 129, scripts.
+
+### 2026-11-11 (later): faster builds, AI = Pro enforced, section 3 (report/block, account, photo)
+**Faster test builds** (`scripts/mobile/build-android.sh`; the user asked why builds take 15–20 min):
+- The build already used all cores (sampled up to ~780% CPU on 8 cores). The time went into repeated work:
+  - `npm ci` on every build
+  - `prebuild --clean` on every build
+  - native code compiled for 4 CPU types
+  - a 2 GB Gradle heap
+- Now:
+  - arm64 only by default (`--all-abis` for release)
+  - `npm ci` only when `package-lock.json` changes
+  - a from-scratch prebuild only when the native setup changes (hash of the lockfile + `app.json` without version numbers); otherwise prebuild in place
+  - `--build-cache`, 6 GB heap; `--clean` forces a from-scratch build
+- Measured: from scratch 10m08s; reusing the previous build **8m06s** (was ~15–20); APK **36 MB** (was 94).
+- The remaining time is Gradle's release build. The next speed-up is a dev-client build, which would show code changes in seconds.
+
+**Security finding:** `backend/.env`, with the real Gemini key, was baked into every **locally built** backend image (`COPY . .`, no `.dockerignore`); it showed up in a test failure's output.
+- It was never in git, CI or on Oracle: `.env` is git-ignored, and the deploy copies tracked files only.
+- Fixed with `backend/.dockerignore` (`.env`, `credentials/`, caches); verified the image has neither.
+- **Rotate the key** when topping up the AI credit.
+
+**AI = Pro only, enforced on the server** (decision 2026-11, the user said "lets enforce"):
+- `plans.ai_allowed` / `assert_ai_allowed` → 402 with a plain message on Free.
+- It covers CV read, job text, job files, bulk/re-extract.
+- A CV upload on Free still saves the file, so a matched employer can open it, but the AI doesn't read it (`analyzing: false`). The website shows a neutral note instead of waiting forever.
+- The `AI_PRO_ONLY` setting (default on) turns it off for everyone, e.g. for a launch promotion.
+- Job seekers can't buy Pro yet (§69C), so for now they get AI only through a granted code.
+- Tests: 8. The website change has no test (Profile.tsx has none yet); it's covered by the typecheck and build only.
+
+**Section 3:**
+- **Report / block** (`ReportSheet`), from the chat header (flag) and the match profile. Pick a reason, add details, and "Also block" is on by default. After a block, the app leaves the dead match. The server's message is shown, e.g. "You have already reported this".
+  - Website bug noted: `ReportModal` checks for "409" in the message, so duplicates show the generic error.
+  - Tests: 3.
+- **Data & Privacy** on Profile:
+  - **Download my data** writes `jobswipe-my-data.json` and opens the share sheet (expo-file-system + expo-sharing).
+  - **Delete account** asks you to type "delete", then deletes the account and signs out.
+  - Tests: 3.
+- **Change photo:** tap the avatar → expo-image-picker (square crop) → `uploadAvatar`. Tests: 3.
+- **Script guard:** `set_demo_password.sh` also accepts exactly `demo_employer@jobswipe.com`; `scripts/tests/test_set_demo_password.sh` checks that real users are still refused.
+- **Next:** notifications v2. Prefs are per type only today; the decision is per type × channel (in-app / push / email). Push via FCM needs the user's Firebase project.
+
+**Verification (`scripts/test.sh`, all PASS):** backend 158, website 51, mobile 138, scripts (deploy + password guard).

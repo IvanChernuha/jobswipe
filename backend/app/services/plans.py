@@ -149,3 +149,24 @@ async def redeem_code(session: AsyncSession, user_id: str, raw_code: str) -> dic
         await session.rollback()
         raise HTTPException(409, "This code was already redeemed for your account")
     return await plan_summary(session, user_id)
+
+
+AI_NEEDS_PRO = (
+    "AI features (reading CVs and job posts) are part of Pro. "
+    "Add skills by hand, or redeem a Pro code (Profile → Plan)."
+)
+
+
+async def ai_allowed(session: AsyncSession, user_id: str) -> bool:
+    """May this user (or their team) use the AI features?"""
+    if not settings.AI_PRO_ONLY:
+        return True
+    subject_type, subject_id, _ = await billing_subject(session, user_id)
+    is_pro, _ = await pro_status(session, subject_type, subject_id)
+    return is_pro
+
+
+async def assert_ai_allowed(session: AsyncSession, user_id: str) -> None:
+    """402 on the Free plan while AI_PRO_ONLY is on."""
+    if not await ai_allowed(session, user_id):
+        raise HTTPException(402, AI_NEEDS_PRO)

@@ -74,6 +74,7 @@ mobile() {
 scripts() {
   echo "==> Script tests"
   bash scripts/tests/test_deploy_oracle.sh
+  bash scripts/tests/test_set_demo_password.sh
 }
 
 case "$ONLY" in

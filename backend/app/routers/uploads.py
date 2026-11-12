@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import get_current_user
 from app.rate_limit import limiter, user_or_ip
 from app.services.llm_quota import consume_llm_units
+from app.services.plans import ai_allowed
 from app.services.image_moderation import check_image, resolve_mode
 from app.db.client import get_supabase_client
 from app.db.session import get_session
@@ -99,9 +100,13 @@ async def upload_resume(
     if len(content) > MAX_RESUME_BYTES:
         raise HTTPException(400, "Resume must be under 10 MB")
 
-    # Reserve LLM quota before any side effects so an over-quota request is
-    # rejected cleanly instead of storing the file and then refusing to parse it.
-    await consume_llm_units(user["id"], 1)
+    # The AI reads the CV only on Pro; on Free the file is still saved (a
+    # matched employer can open it) and the worker adds skills by hand.
+    analyze = await ai_allowed(session, user["id"])
+    if analyze:
+        # Reserve LLM quota before any side effects so an over-quota request is
+        # rejected cleanly instead of storing the file and then refusing to parse it.
+        await consume_llm_units(user["id"], 1)
 
     ext = RESUME_EXTENSIONS[file.content_type]
     path = f"resumes/{user['id']}/resume.{ext}"
@@ -124,8 +129,8 @@ async def upload_resume(
         session.add(profile)
         await session.commit()
 
-    # Trigger async CV tag extraction
-    from app.tasks.cv_processing import extract_cv_tags
-    extract_cv_tags.delay(user["id"], base64.b64encode(content).decode(), file.content_type)
+    if analyze:
+        from app.tasks.cv_processing import extract_cv_tags
+        extract_cv_tags.delay(user["id"], base64.b64encode(content).decode(), file.content_type)
 
-    return {"url": url}
+    return {"url": url, "analyzing": analyze}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Give a TEST account a known password, so the app can be tried as that user.
-# Refuses any address outside the test domains: never real users.
+# Refuses any address outside the test domains (and named demo accounts): never real users.
 #
 #   scripts/set_demo_password.sh local  alice.chen@demo.com 'Password1!'
 #   scripts/set_demo_password.sh oracle alice.chen@demo.com 'Password1!'
@@ -13,9 +13,11 @@ TARGET="${1:-}" EMAIL="${2:-}" PASSWORD="${3:-}"
 if [ -z "$TARGET" ] || [ -z "$EMAIL" ] || [ -z "$PASSWORD" ]; then
   sed -n '2,9p' "$0"; exit 2
 fi
+# Test domains, plus named demo accounts that live on the real domain.
 case "$EMAIL" in
   *@demo.com|*@test.com|*@jobswipe.dev) ;;
-  *) echo "Refusing: $EMAIL is not a test account (@demo.com, @test.com, @jobswipe.dev)." >&2; exit 1 ;;
+  demo_employer@jobswipe.com) ;;
+  *) echo "Refusing: $EMAIL is not a test account (@demo.com, @test.com, @jobswipe.dev, demo_employer@jobswipe.com)." >&2; exit 1 ;;
 esac
 [ "${#PASSWORD}" -ge 8 ] || { echo "Password must be at least 8 characters." >&2; exit 1; }
 

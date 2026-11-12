@@ -18,6 +18,8 @@ jest.mock('@jobswipe/shared/api', () => ({
   getJobPostings: jest.fn(),
   getMatchResume: jest.fn(),
   moveMatch: jest.fn(),
+  submitReport: jest.fn(),
+  blockUser: jest.fn(),
 }))
 // A real server address, so CV links (server paths) become full URLs.
 jest.mock('../src/lib/config', () => ({ config: { apiUrl: 'https://jobswipe.test/api', supabaseUrl: '', supabaseAnonKey: '' } }))
@@ -314,5 +316,49 @@ describe('moving a match from the list', () => {
     await open('worker', '/matches')
     await screen.findByText('Wix')
     expect(screen.queryByRole('button', { name: /to another job/ })).toBeNull()
+  })
+})
+
+describe('report and block', () => {
+  beforeEach(() => {
+    mocked.getMatch.mockResolvedValue(match('m1', 'Wix', 'Dana Levi', 'j1'))
+    mocked.submitReport.mockResolvedValue({} as never)
+    mocked.blockUser.mockResolvedValue({ blocked: true, matches_archived: 1 })
+  })
+
+  it('reports and blocks from the chat, then goes back to the matches', async () => {
+    const router = await open('worker', '/chat/m1')
+    await screen.findByText('Hi! Loved your profile')
+    await press('Report User')
+    await act(async () => fireEvent.press(screen.getByRole('radio', { name: 'Harassment' })))
+    await act(async () => fireEvent.changeText(screen.getByLabelText('Details (optional)'), 'Rude messages'))
+    expect(screen.getByRole('switch', { name: 'Also block this user' })).toBeChecked()
+    await press('Report & Block')
+    // A worker reports the employer side of the match.
+    expect(mocked.submitReport).toHaveBeenCalledWith('token-worker', 'id-employer', 'user', 'harassment', 'Rude messages')
+    expect(mocked.blockUser).toHaveBeenCalledWith('token-worker', 'id-employer')
+    expect(await screen.findByText('Reported & Blocked')).toBeOnTheScreen()
+    await press('Done')
+    await waitFor(() => expect(router.getPathname()).toBe('/matches'))
+  })
+
+  it('can report without blocking', async () => {
+    await open('employer', '/match/m1')
+    await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Report User' })))
+    await act(async () => fireEvent(screen.getByRole('switch', { name: 'Also block this user' }), 'valueChange', false))
+    await press('Submit Report')
+    expect(mocked.submitReport).toHaveBeenCalledWith('token-employer', 'id-worker', 'user', 'spam', '')
+    expect(mocked.blockUser).not.toHaveBeenCalled()
+    expect(await screen.findByText('Report Submitted')).toBeOnTheScreen()
+  })
+
+  it('says so when you already reported them', async () => {
+    mocked.submitReport.mockRejectedValueOnce(new Error('You have already reported this'))
+    await open('worker', '/chat/m1')
+    await screen.findByText('Hi! Loved your profile')
+    await press('Report User')
+    await press('Report & Block')
+    expect(await screen.findByText('You have already reported this')).toBeOnTheScreen()
+    expect(mocked.blockUser).not.toHaveBeenCalled()
   })
 })

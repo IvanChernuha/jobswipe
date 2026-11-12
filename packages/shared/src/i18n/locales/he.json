@@ -421,7 +421,8 @@
     "deleteAccount": "מחיקת חשבון",
     "deleteAccountHint": "מחיקה לצמיתות של החשבון שלך וכל הנתונים המשויכים אליו. לא ניתן לבטל את הפעולה.",
     "deletingEllipsis": "מוחק...",
-    "deleteMyAccount": "מחיקת החשבון שלי"
+    "deleteMyAccount": "מחיקת החשבון שלי",
+    "cvSavedFree": "קורות החיים נשמרו. קריאה עם AI (הוספת כישורים אוטומטית) היא חלק מ-Pro, אז הוסיפו את הכישורים שלכם למטה."
   },
   "notif": {
     "bell": "התראות",
@@ -696,6 +697,7 @@
     "revokeInviteFor": "ביטול ההזמנה של {{email}}",
     "removeMember": "הסרת {{email}}",
     "inviteMessage": "הצטרפו ל-{{org}} ב-JobSwipe: {{link}}",
-    "inviteSent": "ההזמנה נוצרה. שתפו איתם את הקישור."
+    "inviteSent": "ההזמנה נוצרה. שתפו איתם את הקישור.",
+    "typeDelete": "הקלידו \"delete\" לאישור"
   }
 }

@@ -127,6 +127,7 @@ function WorkerProfileForm({ token }: { token: string }) {
   const [resumeUrl, setResumeUrl] = useState<string | null>(null)
   const [uploadingResume, setUploadingResume] = useState(false)
   const [resumeErr, setResumeErr] = useState<string | null>(null)
+  const [resumeNote, setResumeNote] = useState<string | null>(null)
   const [cvAnalyzing, setCvAnalyzing] = useState(false)
   // One-shot success note written just before the post-extraction reload.
   const [cvFlash] = useState<string | null>(() => {
@@ -183,11 +184,17 @@ function WorkerProfileForm({ token }: { token: string }) {
     const file = e.target.files?.[0]
     if (!file) return
     setResumeErr(null)
+    setResumeNote(null)
     setUploadingResume(true)
     try {
       const res = await uploadResume(token, file)
       setResumeUrl(res.url)
       setUploadingResume(false)
+      // Free plan: the CV is saved but the AI doesn't read it (Pro only).
+      if (res.analyzing === false) {
+        setResumeNote(t('profile.cvSavedFree'))
+        return
+      }
       setCvAnalyzing(true)
       // Poll until extraction is done then reload
       cvPollRef.current = setInterval(async () => {
@@ -333,6 +340,7 @@ function WorkerProfileForm({ token }: { token: string }) {
           </button>
         ) : null}
         {resumeErr && <p className="text-xs text-red-500 mt-1">{resumeErr}</p>}
+        {resumeNote && <p className="text-xs text-gray-600 mt-1">{resumeNote}</p>}
         <input
           ref={resumeRef}
           type="file"
