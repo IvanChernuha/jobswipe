@@ -31,3 +31,7 @@ Thumbs.db
 # Docker
 *.log
 backend/credentials/
+
+# Firebase: app config and the server key for push (never commit)
+mobile/google-services.json
+mobile/GoogleService-Info.plist
