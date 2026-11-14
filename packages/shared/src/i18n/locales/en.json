@@ -477,7 +477,8 @@
     "tab": {
       "liquidity": "Liquidity",
       "moderation": "Moderation",
-      "plans": "Plans"
+      "plans": "Plans",
+      "feedback": "Feedback"
     },
     "liq": {
       "intro": "Is the marketplace working? These numbers show whether workers and employers are actually finding each other — signups, live jobs, how quickly new people get a first match, and whether matches turn into conversations. Test and demo accounts are left out unless you include them.",
@@ -595,6 +596,11 @@
       "proUntil": "until {{date}}",
       "revoke": "Revoke",
       "confirmRevoke": "End this account's Pro now? Their live jobs stay up until they expire."
+    },
+    "feedback": {
+      "empty": "No feedback yet.",
+      "average": "Average {{avg}} from {{count}} ratings",
+      "loadFailed": "Couldn't load feedback."
     }
   },
   "plan": {
@@ -674,6 +680,29 @@
     "removeMember": "Remove {{email}}",
     "inviteMessage": "Join {{org}} on JobSwipe: {{link}}",
     "inviteSent": "Invite created. Share the link with them.",
-    "typeDelete": "Type \"delete\" to confirm"
+    "typeDelete": "Type \"delete\" to confirm",
+    "feedbackTitle": "Tell us what you think",
+    "feedbackHint": "Your rating and comments go straight to the JobSwipe team.",
+    "feedbackPlaceholder": "What do you like? What's missing?",
+    "sendFeedback": "Send feedback",
+    "feedbackThanks": "Thanks! We read every message.",
+    "stars_one": "{{count}} star",
+    "stars_other": "{{count}} stars",
+    "feedbackLabel": "Your comments"
+  },
+  "download": {
+    "title": "Get the JobSwipe app",
+    "subtitle": "Swipe jobs and candidates from your phone. Free to try.",
+    "androidButton": "Download for Android",
+    "versionInfo": "Version {{version}} · {{size}} MB",
+    "installTitle": "How to install",
+    "step1": "Tap Download for Android.",
+    "step2": "Open the downloaded file. If Android asks, allow your browser to \"Install unknown apps\".",
+    "step3": "Tap Install, then open JobSwipe and sign in with your account.",
+    "iphone": "The iPhone version is coming. Meanwhile, use the website on your iPhone.",
+    "notReady": "The Android app is almost ready. Check back soon.",
+    "scan": "On a computer? Scan this with your phone:",
+    "feedback": "Tried it? Tell us what you think: in the app, open Profile → Tell us what you think.",
+    "getApp": "Get the app"
   }
 }

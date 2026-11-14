@@ -618,3 +618,37 @@ A phone screenshot (via adb) showed the user on **Saved**, where nothing could b
 - **Next:** notifications v2. Prefs are per type only today; the decision is per type × channel (in-app / push / email). Push via FCM needs the user's Firebase project.
 
 **Verification (`scripts/test.sh`, all PASS):** backend 158, website 51, mobile 138, scripts (deploy + password guard).
+
+### 2026-11-12: app signing key, in-app feedback, /app download page (app 0.7.0)
+The user wants people to try the Android app from the website and say whether they like it, before buying a Mac for iOS.
+
+**Release signing key:**
+- Created at `~/.config/jobswipe/signing/` (outside the repo, 700/600): `upload.keystore` (RSA 4096, alias `jobswipe`, valid to 2054) and `signing.env` (random password).
+- SHA-256 fingerprint: `81:42:0D:04:18:4F:CD:15:AE:03:4B:54:F1:2A:FA:86:04:3C:14:A3:80:66:CC:B0:27:BC:39:CA:B1:CF:27:37`.
+- **The user must back both files up**; if they're lost, installed apps can't be updated.
+- `mobile/plugins/withReleaseSigning.js` (config plugin, no hand edits to `android/`): release builds use the key when the build passes `JOBSWIPE_UPLOAD_*` properties, otherwise the debug key. 4 tests against the real template text.
+- `build-android.sh` passes the key through `ORG_GRADLE_PROJECT_*` env vars, so no password is on a command line.
+- For the Play Store later: enroll this key as the **app signing key** ("use your own key"), so people who installed from the website can update from Play without reinstalling.
+
+**In-app feedback:**
+- `017_app_feedback.sql` + `AppFeedback` (1–5 stars, message ≤ 5000, platform, app version; RLS on, API only).
+- `POST /api/feedback` (10/hour) and `GET /api/feedback` (admins only, with sender email and role).
+- Included in Download my data.
+- App: **Tell us what you think** card on Profile. Website: admin **Feedback** tab with the average rating.
+- Tests: 6 server, 2 shared, 3 app. The website tab has no test.
+
+**/app download page:**
+- `DownloadApp.tsx` reads `/downloads/latest.json`: Download for Android (version, size), install steps, a QR for desktop visitors, iPhone "coming soon", and "almost ready" when nothing is published. 4 tests.
+- Linked from the home page.
+- Server side: the frontend serves `./downloads` (compose volume). nginx `^~ /downloads/` sets `no-cache` and the APK content type; checked against real nginx.
+- The deploy (rsync without `--delete`) never touches `downloads/`.
+- `scripts/mobile/publish-apk.sh local|oracle --host`: **refuses debug-signed apps** (apksigner; checked against the real 0.6.3) and writes `jobswipe.apk`, `latest.json` (version, size, sha256, date) and `qr.png`. On Oracle it uploads under a temporary name, then renames, with `latest.json` last. 4 tests.
+
+**To go live (each needs the user's OK):**
+1. Apply `017` on Oracle (backup first).
+2. Deploy.
+3. Publish 0.7.0.
+
+The phone has debug-signed builds, so the first release-signed install needs **one uninstall** (Android refuses an update signed with a different key).
+
+**Verification (`scripts/test.sh`, all PASS):** backend 164, website 57, mobile 145, scripts (deploy, password guard, publish).

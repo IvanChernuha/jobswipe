@@ -18,6 +18,7 @@ jest.mock('@jobswipe/shared/api', () => ({
   exportMyData: jest.fn(),
   deleteMyAccount: jest.fn(),
   uploadAvatar: jest.fn(),
+  sendFeedback: jest.fn(),
 }))
 const mockWrite = jest.fn(async () => {})
 jest.mock('expo-file-system', () => ({
@@ -195,5 +196,32 @@ describe('photo', () => {
     await open('worker')
     await act(async () => fireEvent.press(await screen.findByRole('button', { name: 'Change photo' })))
     expect(await screen.findByText('Image must be under 5 MB')).toBeOnTheScreen()
+  })
+})
+
+describe('feedback', () => {
+  it('sends a star rating and a comment', async () => {
+    mocked.sendFeedback.mockResolvedValue({ ok: true })
+    await open('worker')
+    await act(async () => fireEvent.press(await screen.findByRole('radio', { name: '4 stars' })))
+    await act(async () => fireEvent.changeText(screen.getByLabelText('Your comments'), 'Love the swiping'))
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send feedback' })))
+    expect(mocked.sendFeedback).toHaveBeenCalledWith('token-worker', {
+      rating: 4, message: 'Love the swiping', platform: expect.stringMatching(/^(android|ios)$/), app_version: expect.any(String),
+    })
+    expect(await screen.findByText('Thanks! We read every message.')).toBeOnTheScreen()
+  })
+
+  it('needs a rating first', async () => {
+    await open('worker')
+    expect(await screen.findByRole('button', { name: 'Send feedback' })).toBeDisabled()
+  })
+
+  it('says why it was not sent', async () => {
+    mocked.sendFeedback.mockRejectedValueOnce(new Error('Too many requests'))
+    await open('worker')
+    await act(async () => fireEvent.press(await screen.findByRole('radio', { name: '2 stars' })))
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Send feedback' })))
+    expect(await screen.findByText('Too many requests')).toBeOnTheScreen()
   })
 })

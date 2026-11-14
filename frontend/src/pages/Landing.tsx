@@ -40,7 +40,12 @@ export default function Landing() {
           </Link>
         </div>
 
-        <p className="mt-6 text-sm text-gray-500">
+        <Link to="/app" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline">
+          <Icon name="download" className="w-4 h-4" />
+          {t('download.getApp')}
+        </Link>
+
+        <p className="mt-4 text-sm text-gray-500">
           {t('landing.haveAccount')}{' '}
           <Link to="/login" className="text-brand-600 font-semibold hover:underline">
             {t('common.signIn')}

@@ -6,7 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.observability import init_observability
 from app.rate_limit import limiter
-from app.routers import auth, workers, employers, swipes, matches, uploads, tags, messages, organizations, bookmarks, gdpr, reports, cv, blocks, admin, notifications, plans
+from app.routers import auth, workers, employers, swipes, matches, uploads, tags, messages, organizations, bookmarks, gdpr, reports, cv, blocks, admin, notifications, plans, feedback
 from app.db.client import get_supabase_client
 from app.db.engine import dispose_engine
 from app.db.redis import close_redis
@@ -54,6 +54,7 @@ app.include_router(blocks.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(plans.router, prefix="/api")
+app.include_router(feedback.router, prefix="/api")
 
 
 @app.on_event("startup")

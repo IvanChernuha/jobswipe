@@ -3,7 +3,7 @@
 // an absolute server address, a callback instead of a window event, and
 // React Native style file uploads.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { configureApi, getEmployerFeed, getMatches, getMatchResume, moveMatch, parseJobText, uploadAvatar, uploadResume } from '..'
+import { configureApi, getEmployerFeed, getFeedback, getMatches, getMatchResume, moveMatch, parseJobText, sendFeedback, uploadAvatar, uploadResume } from '..'
 
 const fetchMock = vi.fn()
 
@@ -107,5 +107,22 @@ describe('moveMatch', () => {
     expect(url).toBe('/api/matches/m1')
     expect(init.method).toBe('PATCH')
     expect(JSON.parse(init.body)).toEqual({ job_posting_id: 'j2' })
+  })
+})
+
+describe('feedback', () => {
+  it('sends a rating and a comment', async () => {
+    fetchMock.mockResolvedValue(json(201, { ok: true }))
+    await sendFeedback('tok', { rating: 4, message: 'Nice', platform: 'android', app_version: '0.7.0' })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/feedback')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({ rating: 4, message: 'Nice', platform: 'android', app_version: '0.7.0' })
+  })
+
+  it('admins read it', async () => {
+    fetchMock.mockResolvedValue(json(200, [{ id: 'f1', rating: 5 }]))
+    await expect(getFeedback('tok')).resolves.toEqual([{ id: 'f1', rating: 5 }])
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/feedback')
   })
 })

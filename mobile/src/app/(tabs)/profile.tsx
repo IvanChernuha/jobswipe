@@ -12,6 +12,7 @@ import {
 } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
 import Avatar from '../../components/Avatar'
+import FeedbackCard from '../../components/FeedbackCard'
 import LanguageSwitch from '../../components/LanguageSwitch'
 import { Body, Button, ErrorBox, Field, Screen } from '../../components/ui'
 import { colors, fonts, radius, space, TOUCH } from '../../lib/theme'
@@ -161,6 +162,8 @@ export default function Profile() {
             </>
           )}
         </View>
+
+        <FeedbackCard token={token} />
 
         <View style={styles.card}>
           <Text style={[styles.section, { fontFamily: f.semibold }]}>{t('mobile.account')}</Text>

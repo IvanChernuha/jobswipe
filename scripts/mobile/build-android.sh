@@ -19,8 +19,12 @@
 # from MOBILE_SUPABASE_ANON_KEY, else frontend/.env (VITE_SUPABASE_ANON_KEY).
 #
 # Output: mobile/build/jobswipe-<version>.apk
-# Release APKs are signed with the debug key from the template: fine for
-# sideloading onto test phones, NOT for Google Play (Mobile P9 adds a real key).
+# Signing: with our own key when it is on this machine (outside the repo, in
+# $JOBSWIPE_SIGNING_DIR, default ~/.config/jobswipe/signing: upload.keystore
+# and signing.env with STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD), else with the
+# template's debug key (fine for a test phone only). See
+# mobile/plugins/withReleaseSigning.js. Back the key up: losing it means
+# installed apps can't be updated.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -54,10 +58,28 @@ if [ -z "$ANON_KEY" ]; then
   exit 2
 fi
 
+SIGNING_DIR="${JOBSWIPE_SIGNING_DIR:-$HOME/.config/jobswipe/signing}"
+SIGNING_ARGS=()
+if [ -f "$SIGNING_DIR/upload.keystore" ] && [ -f "$SIGNING_DIR/signing.env" ]; then
+  # shellcheck disable=SC1091
+  . "$SIGNING_DIR/signing.env"
+  # Gradle reads ORG_GRADLE_PROJECT_* as properties: no passwords on a command line.
+  SIGNING_ARGS=(
+    -v "$SIGNING_DIR":/signing:ro
+    -e ORG_GRADLE_PROJECT_JOBSWIPE_UPLOAD_STORE_FILE=/signing/upload.keystore
+    -e ORG_GRADLE_PROJECT_JOBSWIPE_UPLOAD_STORE_PASSWORD="$STORE_PASSWORD"
+    -e ORG_GRADLE_PROJECT_JOBSWIPE_UPLOAD_KEY_ALIAS="$KEY_ALIAS"
+    -e ORG_GRADLE_PROJECT_JOBSWIPE_UPLOAD_KEY_PASSWORD="$KEY_PASSWORD"
+  )
+  SIGNED_WITH="our release key"
+else
+  SIGNED_WITH="the debug key (test phones only)"
+fi
+
 VERSION="$(python3 -c "import json;print(json.load(open('$ROOT/mobile/app.json'))['expo']['version'])")"
 IMAGE=reactnativecommunity/react-native-android:latest
 
-echo "==> Building JobSwipe $VERSION for Android ($ABIS, server: $HOST)"
+echo "==> Building JobSwipe $VERSION for Android ($ABIS, server: $HOST, signed with $SIGNED_WITH)"
 # The whole repo is mounted because the app imports packages/shared.
 # Named volumes keep the Gradle cache and any SDK/NDK downloads between builds.
 docker run --rm \
@@ -69,6 +91,7 @@ docker run --rm \
   -e EXPO_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY" \
   -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
   -e VERSION="$VERSION" -e ABIS="$ABIS" -e CLEAN="$CLEAN" \
+  "${SIGNING_ARGS[@]}" \
   "$IMAGE" bash -euo pipefail -c '
     # Files created as root inside the container go back to the host user.
     trap "chown -R $HOST_UID:$HOST_GID /repo/mobile/node_modules /repo/mobile/android /repo/mobile/build /repo/mobile/.expo 2>/dev/null || true" EXIT

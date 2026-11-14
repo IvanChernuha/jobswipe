@@ -4,9 +4,9 @@ import { useAuth } from '../hooks/useAuth'
 import {
   amIAdmin, getModerationStatus, getAdminReports, dismissReport, actionReport,
   getSuspendedUsers, unsuspendUser, getHiddenJobs, unhideJob, getLiquidity,
-  getPromoCodes, createPromoCode, deactivatePromoCode, getProAccounts, revokeProGrant,
+  getPromoCodes, createPromoCode, deactivatePromoCode, getProAccounts, revokeProGrant, getFeedback,
   type ModerationStatus, type AdminReport, type AdminReportStatus, type SuspendedUser,
-  type HiddenJob, type Liquidity, type PromoCode, type ProAccount,
+  type HiddenJob, type Liquidity, type PromoCode, type ProAccount, type FeedbackEntry,
 } from '../lib/api'
 import ColumnChart from '../components/ColumnChart'
 import Icon from '../components/Icon'
@@ -15,7 +15,7 @@ import Icon from '../components/Icon'
 const WORKER_COLOR = '#00908D'
 const EMPLOYER_COLOR = '#D07A0A'
 
-type Tab = 'liquidity' | 'moderation' | 'plans'
+type Tab = 'liquidity' | 'moderation' | 'plans' | 'feedback'
 
 export default function Admin() {
   const { t } = useTranslation()
@@ -46,7 +46,7 @@ export default function Admin() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">{t('admin.title')}</h1>
         <div className="flex rounded-xl bg-gray-100 p-1" role="tablist">
-          {(['liquidity', 'moderation', 'plans'] as Tab[]).map((k) => (
+          {(['liquidity', 'moderation', 'plans', 'feedback'] as Tab[]).map((k) => (
             <button
               key={k}
               role="tab"
@@ -64,6 +64,7 @@ export default function Admin() {
       {tab === 'liquidity' && <LiquidityTab token={token} />}
       {tab === 'moderation' && <ModerationTab token={token} />}
       {tab === 'plans' && <PlansTab token={token} />}
+      {tab === 'feedback' && <FeedbackTab token={token} />}
     </Shell>
   )
 }
@@ -586,6 +587,42 @@ function PlansTab({ token }: { token: string }) {
           </ul>
         )}
       </section>
+    </div>
+  )
+}
+
+/** What testers say in the app (Profile → Tell us what you think). */
+function FeedbackTab({ token }: { token: string }) {
+  const { t, i18n } = useTranslation()
+  const [rows, setRows] = useState<FeedbackEntry[] | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    getFeedback(token).then(setRows).catch(() => setFailed(true))
+  }, [token])
+
+  if (failed) return <Empty text={t('admin.feedback.loadFailed')} />
+  if (!rows) return <Spinner />
+  if (rows.length === 0) return <Empty text={t('admin.feedback.empty')} />
+
+  const avg = (rows.reduce((n, r) => n + r.rating, 0) / rows.length).toFixed(1)
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-gray-600">{t('admin.feedback.average', { avg, count: rows.length })}</p>
+      {rows.map((r) => (
+        <div key={r.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-amber-500 text-lg" aria-label={`${r.rating}/5`}>
+              {'★'.repeat(r.rating)}<span className="text-gray-300">{'★'.repeat(5 - r.rating)}</span>
+            </span>
+            <span className="text-xs text-gray-400">
+              {r.email} · {r.role} · {r.platform} {r.app_version}
+              {r.created_at ? ` · ${new Date(r.created_at).toLocaleString(i18n.resolvedLanguage ?? 'en')}` : ''}
+            </span>
+          </div>
+          {r.message && <p dir="auto" className="mt-2 text-sm text-gray-800 whitespace-pre-wrap">{r.message}</p>}
+        </div>
+      ))}
     </div>
   )
 }

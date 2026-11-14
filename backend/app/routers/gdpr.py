@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import get_current_user
 from app.db.client import get_auth_client
 from app.db.session import get_session
+from app.models.tables.feedback import AppFeedback
 from app.models.tables.user import User
 from app.models.tables.worker import WorkerProfile, WorkerTag
 from app.models.tables.employer import EmployerProfile
@@ -101,6 +102,13 @@ async def export_my_data(user: dict = Depends(get_current_user), session: AsyncS
     omr = await session.execute(select(OrgMember).where(OrgMember.user_id == uid))
     org_memberships = [{"org_id": str(o.org_id), "role": o.role, "created_at": str(o.created_at)} for o in omr.scalars().all()]
 
+    # In-app feedback
+    fr = await session.execute(select(AppFeedback).where(AppFeedback.user_id == uid).order_by(AppFeedback.created_at))
+    feedback = [{
+        "rating": f.rating, "message": f.message, "platform": f.platform,
+        "app_version": f.app_version, "created_at": str(f.created_at),
+    } for f in fr.scalars().all()]
+
     profile_data = None
     if profile:
         profile_data = {k: v for k, v in profile.__dict__.items() if not k.startswith("_")}
@@ -122,6 +130,7 @@ async def export_my_data(user: dict = Depends(get_current_user), session: AsyncS
         "bookmarks": bookmarks,
         "reports_filed": reports,
         "org_memberships": org_memberships,
+        "feedback": feedback,
         "exported_at": datetime.now(timezone.utc).isoformat(),
     }
 

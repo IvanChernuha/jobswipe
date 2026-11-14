@@ -1047,3 +1047,30 @@ export function getProAccounts(token: string): Promise<ProAccount[]> {
 export function revokeProGrant(token: string, id: string): Promise<unknown> {
   return request(`/admin/pro-grants/${id}/revoke`, { method: 'POST', token })
 }
+
+// ---------------------------------------------------------------------------
+// Feedback (testers rate the app; admins read it)
+// ---------------------------------------------------------------------------
+
+export interface FeedbackInput {
+  rating: number
+  message: string
+  platform: 'android' | 'ios' | 'web'
+  app_version?: string
+}
+
+export interface FeedbackEntry extends Required<FeedbackInput> {
+  id: string
+  created_at: string | null
+  email: string
+  role: string
+}
+
+export function sendFeedback(token: string, data: FeedbackInput): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/feedback', { method: 'POST', token, body: JSON.stringify(data) })
+}
+
+/** Admins only. Newest first. */
+export function getFeedback(token: string): Promise<FeedbackEntry[]> {
+  return request<FeedbackEntry[]>('/feedback', { token })
+}

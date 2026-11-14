@@ -35,3 +35,6 @@ backend/credentials/
 # Firebase: app config and the server key for push (never commit)
 mobile/google-services.json
 mobile/GoogleService-Info.plist
+
+# Published app downloads (scripts/mobile/publish-apk.sh)
+/downloads/

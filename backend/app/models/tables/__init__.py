@@ -15,6 +15,7 @@ from app.models.tables.report import Report
 from app.models.tables.block import BlockedUser
 from app.models.tables.notification import Notification, NotificationPref
 from app.models.tables.plan import PromoCode, ProGrant
+from app.models.tables.feedback import AppFeedback
 
 __all__ = [
     "User",
@@ -31,5 +32,5 @@ __all__ = [
     "Report",
     "BlockedUser",
     "Notification", "NotificationPref",
-    "PromoCode", "ProGrant",
+    "PromoCode", "ProGrant", "AppFeedback",
 ]

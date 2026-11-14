@@ -80,6 +80,10 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: jobswipe-frontend
     restart: unless-stopped
+    # The Android app for /app (published by scripts/mobile/publish-apk.sh;
+    # not in git, and the deploy never touches it).
+    volumes:
+      - ./downloads:/usr/share/nginx/html/downloads:ro
     networks:
       - jobswipe
 

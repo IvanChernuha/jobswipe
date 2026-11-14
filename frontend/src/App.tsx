@@ -11,6 +11,7 @@ import Profile from './pages/Profile'
 import Chat from './pages/Chat'
 import Jobs from './pages/Jobs'
 import Team from './pages/Team'
+import DownloadApp from './pages/DownloadApp'
 import JoinOrg from './pages/JoinOrg'
 import Bookmarks from './pages/Bookmarks'
 import Admin from './pages/Admin'
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/join" element={<JoinOrg />} />
+          <Route path="/app" element={<DownloadApp />} />
           <Route
             path="/onboarding"
             element={
