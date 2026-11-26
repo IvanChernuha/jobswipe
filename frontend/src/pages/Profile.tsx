@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom'
 import type { WorkerProfile, EmployerProfile, Tag, NotificationType, NotificationPrefs } from '../lib/api'
 import TagPicker from '../components/TagPicker'
 import PlanCard from '../components/PlanCard'
+import FeedbackCard from '../components/FeedbackCard'
 import { getPlan, type PlanSummary } from '../lib/api'
 
 // ---------------------------------------------------------------------------
@@ -633,6 +634,8 @@ export default function Profile() {
         {role === 'employer' && <EmployerPlan token={token} />}
 
         {(role === 'worker' || role === 'employer') && <NotificationPrefsCard token={token} role={role} />}
+
+        <FeedbackCard token={token} />
 
         {/* Data & Privacy */}
         <div className="mt-8 bg-white rounded-3xl shadow-xl shadow-gray-100 p-6 sm:p-8">

@@ -652,3 +652,21 @@ The user wants people to try the Android app from the website and say whether th
 The phone has debug-signed builds, so the first release-signed install needs **one uninstall** (Android refuses an update signed with a different key).
 
 **Verification (`scripts/test.sh`, all PASS):** backend 164, website 57, mobile 145, scripts (deploy, password guard, publish).
+
+### 2026-11-14: the website installs as an app (iPhone, Mac, PC) + website feedback
+The user's reason: most HR people they'll contact use iPhones and Macs, and the native iPhone app needs a Mac + Xcode first. Decision: a **PWA** (the website, installable), not Electron. It covers Windows, Mac and iPhone at once, needs no store, and updates with every deploy.
+
+**Installable website:**
+- `public/manifest.webmanifest` (standalone, start `/`, teal theme), icons in `public/icons/` (192, 512, maskable 512, apple-touch 180). These come from a new brand icon (swipe cards + briefcase, `public/icons/icon-full.svg`; `favicon.svg` replaced). The phone app still has Expo's placeholder icon.
+- `public/sw.js`: caches **only** `/offline.html`. Page loads go to the network, with the offline page as fallback. The API, `/downloads/`, other sites and non-GET requests pass through untouched, so there is no stale-site risk after deploys. Registered only in production (`registerServiceWorker`).
+- nginx: `sw.js` and the manifest are `no-cache` (otherwise the 1-year `.js` rule would pin an old worker).
+- `src/lib/pwa.ts`: `platformOf` (iPhone/iPad incl. iPadOS "Macintosh + touch", Android, Mac Safari, other desktop), `isStandalone`, and `useInstallPrompt`. The latter keeps Chrome/Edge's `beforeinstallprompt` from page load (`listenForInstallOffer` in `main.tsx`) until /app shows the **Install JobSwipe** button.
+- `/app`: an "iPhone, iPad, Mac and PC" card with the button when the browser offers it, otherwise this device's steps (Safari Share → Add to Home Screen; Mac Safari File → Add to Dock; Chrome/Edge install icon), plus "Other devices". Android visitors see the Android card first. "Already installed" when opened from the icon.
+- Checked in real Chromium (Playwright, production image): `Page.getInstallabilityErrors` = none, manifest errors none, service worker active. The headless browser never fires the install offer, so the button is covered by tests only.
+
+**Website feedback:** `components/FeedbackCard.tsx` on Profile, the same as the app's card (platform `web`). `app_version` records how they used it, e.g. `installed ios` / `browser desktop`, so the admin Feedback tab shows whether testers used the installed version.
+
+**Tests:** pwa 10 (device detection, manifest + icons exist, index.html links, service worker behaviour run against a fake worker), /app +6, FeedbackCard 4.
+
+**Verification (`scripts/test.sh`, all PASS):** website 77; backend, mobile and scripts unchanged and passing; production image builds.
+

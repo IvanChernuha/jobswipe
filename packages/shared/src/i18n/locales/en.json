@@ -692,17 +692,27 @@
   },
   "download": {
     "title": "Get the JobSwipe app",
-    "subtitle": "Swipe jobs and candidates from your phone. Free to try.",
+    "subtitle": "Swipe jobs and candidates from your phone or computer. Free to try.",
     "androidButton": "Download for Android",
     "versionInfo": "Version {{version}} · {{size}} MB",
     "installTitle": "How to install",
     "step1": "Tap Download for Android.",
     "step2": "Open the downloaded file. If Android asks, allow your browser to \"Install unknown apps\".",
     "step3": "Tap Install, then open JobSwipe and sign in with your account.",
-    "iphone": "The iPhone version is coming. Meanwhile, use the website on your iPhone.",
+    "iphone": "A native iPhone app is coming too. Until then, the installed website works the same way.",
     "notReady": "The Android app is almost ready. Check back soon.",
     "scan": "On a computer? Scan this with your phone:",
-    "feedback": "Tried it? Tell us what you think: in the app, open Profile → Tell us what you think.",
-    "getApp": "Get the app"
+    "feedback": "Tried it? Tell us what you think: open Profile → Tell us what you think, in the app or on the website.",
+    "getApp": "Get the app",
+    "androidTitle": "Android phones",
+    "webTitle": "iPhone, iPad, Mac and PC",
+    "webIntro": "Install JobSwipe from this website. It gets its own icon and window, like any app. No store, nothing to set up.",
+    "installButton": "Install JobSwipe",
+    "installed": "Installed! Open JobSwipe from your desktop, Start menu or Dock.",
+    "standalone": "You're using the installed JobSwipe app.",
+    "howIos": "iPhone and iPad: open this page in Safari, tap Share (the square with an arrow), then Add to Home Screen.",
+    "howMac": "Mac (Safari): open the File menu and choose Add to Dock.",
+    "howDesktop": "Windows or Mac (Chrome or Edge): click the install icon at the right end of the address bar, or open the browser menu and choose Install JobSwipe.",
+    "otherDevices": "Other devices"
   }
 }

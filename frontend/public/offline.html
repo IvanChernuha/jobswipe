@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0E7C7B" />
+  <title>JobSwipe: no connection</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           background: #F5F1EA; color: #1F2937; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center; }
+    main { max-width: 22rem; padding: 1.5rem; }
+    img { width: 72px; height: 72px; border-radius: 16px; }
+    h1 { font-size: 1.35rem; margin: 1rem 0 .5rem; }
+    p { color: #4B5563; margin: .25rem 0; }
+    button { margin-top: 1.25rem; min-height: 48px; padding: 0 1.5rem; border: 0; border-radius: 999px;
+             background: #0E7C7B; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="/icons/icon-192.png" alt="" />
+    <h1>You're offline</h1>
+    <p>JobSwipe needs the internet. Check your connection and try again.</p>
+    <p dir="rtl" lang="he">אין חיבור לאינטרנט. בדקו את החיבור ונסו שוב.</p>
+    <button type="button" onclick="location.reload()">Try again · נסו שוב</button>
+  </main>
+</body>
+</html>
