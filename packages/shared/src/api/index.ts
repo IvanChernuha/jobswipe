@@ -211,6 +211,8 @@ export interface UploadResponse {
   url: string
   /** CV uploads: whether the AI is reading it (Pro only; false on Free). */
   analyzing?: boolean
+  /** This month's AI budget is used up: saved, not read. */
+  ai_paused?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -1068,6 +1070,20 @@ export interface FeedbackEntry extends Required<FeedbackInput> {
 
 export function sendFeedback(token: string, data: FeedbackInput): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>('/feedback', { method: 'POST', token, body: JSON.stringify(data) })
+}
+
+/** This month's AI (Claude) spend against the monthly budget (admins only). */
+export interface AiUsage {
+  month: string
+  spent_usd: number
+  budget_usd: number
+  calls: number
+  model: string
+  by_feature: Record<string, { calls: number; spent_usd: number }>
+}
+
+export function getAiUsage(token: string): Promise<AiUsage> {
+  return request<AiUsage>('/admin/ai-usage', { token })
 }
 
 /** Admins only. Newest first. */

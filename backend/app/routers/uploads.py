@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import get_current_user
 from app.rate_limit import limiter, user_or_ip
 from app.services.llm_quota import consume_llm_units
+from app.services.llm.ai_budget import budget_left
 from app.services.plans import ai_allowed
 from app.services.image_moderation import check_image, resolve_mode
 from app.db.client import get_supabase_client
@@ -103,6 +104,9 @@ async def upload_resume(
     # The AI reads the CV only on Pro; on Free the file is still saved (a
     # matched employer can open it) and the worker adds skills by hand.
     analyze = await ai_allowed(session, user["id"])
+    # This month's AI budget used up: save the file, skip the reading.
+    ai_paused = analyze and not await budget_left()
+    analyze = analyze and not ai_paused
     if analyze:
         # Reserve LLM quota before any side effects so an over-quota request is
         # rejected cleanly instead of storing the file and then refusing to parse it.
@@ -133,4 +137,4 @@ async def upload_resume(
         from app.tasks.cv_processing import extract_cv_tags
         extract_cv_tags.delay(user["id"], base64.b64encode(content).decode(), file.content_type)
 
-    return {"url": url, "analyzing": analyze}
+    return {"url": url, "analyzing": analyze, "ai_paused": ai_paused}

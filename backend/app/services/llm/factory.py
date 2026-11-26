@@ -6,6 +6,14 @@ def get_llm_provider() -> LLMProvider:
     """Return the configured LLM provider based on LLM_PROVIDER env var."""
     provider = settings.LLM_PROVIDER.lower()
 
+    if provider == "claude":
+        if not settings.ANTHROPIC_API_KEY:
+            raise ValueError("ANTHROPIC_API_KEY is not set in environment")
+        from app.services.llm.claude import ClaudeProvider
+        return ClaudeProvider(
+            api_key=settings.ANTHROPIC_API_KEY, model=settings.CLAUDE_MODEL, effort=settings.CLAUDE_EFFORT,
+        )
+
     if provider == "gemini":
         if not settings.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY is not set in environment")
@@ -27,4 +35,4 @@ def get_llm_provider() -> LLMProvider:
         from app.services.llm.deepseek import DeepSeekProvider
         return DeepSeekProvider(api_key=settings.DEEPSEEK_API_KEY)
 
-    raise ValueError(f"Unknown LLM_PROVIDER: '{provider}'. Use 'gemini', 'vertex', or 'deepseek'.")
+    raise ValueError(f"Unknown LLM_PROVIDER: '{provider}'. Use 'claude', 'gemini', 'vertex', or 'deepseek'.")

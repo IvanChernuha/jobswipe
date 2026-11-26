@@ -9,13 +9,14 @@ import {
   type HiddenJob, type Liquidity, type PromoCode, type ProAccount, type FeedbackEntry,
 } from '../lib/api'
 import ColumnChart from '../components/ColumnChart'
+import AiUsageCard from '../components/AiUsageCard'
 import Icon from '../components/Icon'
 
 // Validated pair (teal / amber): passes chroma, CVD and contrast checks on white.
 const WORKER_COLOR = '#00908D'
 const EMPLOYER_COLOR = '#D07A0A'
 
-type Tab = 'liquidity' | 'moderation' | 'plans' | 'feedback'
+type Tab = 'liquidity' | 'moderation' | 'plans' | 'feedback' | 'ai'
 
 export default function Admin() {
   const { t } = useTranslation()
@@ -46,7 +47,7 @@ export default function Admin() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">{t('admin.title')}</h1>
         <div className="flex rounded-xl bg-gray-100 p-1" role="tablist">
-          {(['liquidity', 'moderation', 'plans', 'feedback'] as Tab[]).map((k) => (
+          {(['liquidity', 'moderation', 'plans', 'feedback', 'ai'] as Tab[]).map((k) => (
             <button
               key={k}
               role="tab"
@@ -65,6 +66,7 @@ export default function Admin() {
       {tab === 'moderation' && <ModerationTab token={token} />}
       {tab === 'plans' && <PlansTab token={token} />}
       {tab === 'feedback' && <FeedbackTab token={token} />}
+      {tab === 'ai' && <AiUsageCard token={token} />}
     </Shell>
   )
 }

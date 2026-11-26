@@ -191,9 +191,9 @@ function WorkerProfileForm({ token }: { token: string }) {
       const res = await uploadResume(token, file)
       setResumeUrl(res.url)
       setUploadingResume(false)
-      // Free plan: the CV is saved but the AI doesn't read it (Pro only).
+      // Free plan, or the month's AI budget is used up: saved, not read.
       if (res.analyzing === false) {
-        setResumeNote(t('profile.cvSavedFree'))
+        setResumeNote(t(res.ai_paused ? 'profile.cvSavedPaused' : 'profile.cvSavedFree'))
         return
       }
       setCvAnalyzing(true)

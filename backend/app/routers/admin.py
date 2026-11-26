@@ -23,6 +23,7 @@ from app.models.tables.report import Report
 from app.models.tables.user import User
 from app.models.tables.worker import WorkerProfile
 from app.services.moderation import apply_action
+from app.services.llm.ai_budget import spend_summary
 from app.services.plans import generate_code, normalize_code
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -59,6 +60,12 @@ def _uuid(value: str) -> uuid.UUID:
 async def am_i_admin(user: dict = Depends(get_current_user)):
     """Lets the frontend decide whether to show the Admin link, without a 403 for everyone else."""
     return {"admin": (user.get("email") or "").strip().lower() in _admin_emails()}
+
+
+@router.get("/ai-usage")
+async def ai_usage(user: dict = Depends(require_admin)):
+    """This month's AI spend against the monthly budget, per feature (cv, job, tags)."""
+    return await spend_summary()
 
 
 @router.get("/moderation/status")

@@ -81,7 +81,17 @@ class Settings(BaseSettings):
     RELEASE: str = ""
 
     # LLM tag extraction
-    LLM_PROVIDER: str = "gemini"   # "gemini" | "vertex" | "deepseek"
+    LLM_PROVIDER: str = "claude"   # "claude" | "gemini" | "vertex" | "deepseek"
+    # Claude (services/llm/claude.py). Haiku: reading a CV or job post is simple
+    # extraction, so the cheapest model does it (~$0.001 per CV; user 2026-11-24:
+    # "the most optimal, not the best"). Effort "low": it needs little thinking.
+    ANTHROPIC_API_KEY: str = ""
+    CLAUDE_MODEL: str = "claude-haiku-5-5"
+    CLAUDE_EFFORT: str = "low"
+    # Monthly cap on what the AI may spend (USD, priced from real token usage;
+    # services/llm/ai_budget.py). When it's used up the AI pauses until the 1st.
+    # 0 = AI off. Set the Anthropic Console spend limit too, as the hard backstop.
+    AI_MONTHLY_BUDGET_USD: float = 10.0
     GEMINI_API_KEY: str = ""
     DEEPSEEK_API_KEY: str = ""
     # Vertex AI (for Google Cloud $300 credits)

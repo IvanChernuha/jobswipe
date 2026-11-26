@@ -414,7 +414,8 @@
     "deleteAccountHint": "Permanently delete your account and all associated data. This action cannot be undone.",
     "deletingEllipsis": "Deleting...",
     "deleteMyAccount": "Delete my account",
-    "cvSavedFree": "CV saved. Reading it with AI (skills added for you) is part of Pro, so add your skills below."
+    "cvSavedFree": "CV saved. Reading it with AI (skills added for you) is part of Pro, so add your skills below.",
+    "cvSavedPaused": "CV saved. Automatic CV reading is paused for now, so please add your skills below."
   },
   "notif": {
     "bell": "Notifications",
@@ -478,7 +479,8 @@
       "liquidity": "Liquidity",
       "moderation": "Moderation",
       "plans": "Plans",
-      "feedback": "Feedback"
+      "feedback": "Feedback",
+      "ai": "AI spend"
     },
     "liq": {
       "intro": "Is the marketplace working? These numbers show whether workers and employers are actually finding each other — signups, live jobs, how quickly new people get a first match, and whether matches turn into conversations. Test and demo accounts are left out unless you include them.",
@@ -601,6 +603,21 @@
       "empty": "No feedback yet.",
       "average": "Average {{avg}} from {{count}} ratings",
       "loadFailed": "Couldn't load feedback."
+    },
+    "ai": {
+      "title": "AI spend in {{month}}",
+      "spentOf": "{{spent}} of {{budget}}",
+      "calls_one": "{{count}} call · {{model}}",
+      "calls_other": "{{count}} calls · {{model}}",
+      "budgetUsed": "Monthly AI budget used",
+      "paused": "The budget is used up: AI reading is paused until the 1st of next month.",
+      "off": "AI is off (the monthly budget is 0).",
+      "hint": "Change the budget with AI_MONTHLY_BUDGET_USD on the server. Set a spend limit in the Anthropic Console too.",
+      "feature": {
+        "cv": "CVs",
+        "job": "Job posts",
+        "tags": "Job tags"
+      }
     }
   },
   "plan": {

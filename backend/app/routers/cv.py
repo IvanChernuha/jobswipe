@@ -19,10 +19,14 @@ from app.models.tables.job import JobPosting
 from app.tasks.cv_processing import extract_cv_tags, extract_job_tags, extract_job_tags_bulk
 from app.services.cv_parser import extract_text
 from app.services.llm.factory import get_llm_provider
+from app.services.llm.ai_budget import AIBudgetExceeded
 from app.services.job_parsing import load_taxonomy, parse_job_text, profile_to_form
 from app.models.cv import ParseJobTextRequest
 
 router = APIRouter(prefix="/cv", tags=["cv"])
+
+# Shown when this month's AI budget is used up (services/llm/ai_budget.py).
+AI_PAUSED = "AI reading is paused for now. Please fill this in by hand, or try again next month."
 
 ALLOWED_CV_TYPES = {
     "application/pdf",
@@ -214,6 +218,8 @@ async def parse_job_files(
             async with _LLM_SEMAPHORE:
                 profile = await provider.extract_job_profile(raw_text, taxonomy_names)
             return {"filename": file.filename, **profile_to_form(profile, taxonomy), "error": None}
+        except AIBudgetExceeded:
+            return {"filename": file.filename, "error": AI_PAUSED}
         except Exception as e:
             import logging as _log
             _log.getLogger(__name__).error("parse-job-files error for %s: %s", file.filename, e)
@@ -239,6 +245,8 @@ async def parse_job_text_route(
     try:
         async with _LLM_SEMAPHORE:
             return await parse_job_text(session, get_llm_provider(), payload.text)
+    except AIBudgetExceeded:
+        raise HTTPException(503, AI_PAUSED)
     except Exception as e:
         import logging as _log
         _log.getLogger(__name__).error("parse-job-text error: %s", e)
