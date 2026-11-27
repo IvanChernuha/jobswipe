@@ -38,8 +38,33 @@ def profile_to_form(profile: JobProfile, taxonomy: dict[str, str]) -> dict:
     }
 
 
+MIN_TEXT = 20  # characters of real text; less is an empty or scanned file
+
+NO_TEXT = ("We couldn't find any text in this file. If it's a scan or a photo, "
+           "upload the original document (PDF, Word or text) instead.")
+
+
+class NotAJobPost(Exception):
+    """The text isn't a job post (a CV, or something else): the wrong file or text."""
+
+    def __init__(self, kind: str):
+        self.kind = kind
+        if kind == "cv":
+            message = "This looks like a CV, not a job post. Check that you picked the right file or text."
+        else:
+            message = "This doesn't look like a job post. Check that you picked the right file or text."
+        super().__init__(message)
+
+
+def check_is_job_post(profile: JobProfile) -> None:
+    if (getattr(profile, "kind", "job_post") or "job_post") != "job_post":
+        raise NotAJobPost(profile.kind)
+
+
 async def parse_job_text(session: AsyncSession, provider, text: str) -> dict:
-    """Ask the AI to read a job posting and return it as job form data."""
+    """Ask the AI to read a job posting and return it as job form data.
+    Raises NotAJobPost for a CV or anything else that isn't a job post."""
     taxonomy = await load_taxonomy(session)
     profile = await provider.extract_job_profile(text, list(taxonomy))
+    check_is_job_post(profile)
     return profile_to_form(profile, taxonomy)

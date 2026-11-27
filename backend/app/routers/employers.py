@@ -23,6 +23,7 @@ from app.services.likes import LIKE_RANK, likes_from
 from app.services.blocks import blocked_ids_for
 from app.services.notifications import notify_team
 from app.services.plans import assert_can_go_live
+from app.services.job_quality import blocking, job_issues, missing_message
 from app.services.scoring import (
     expand_tags_with_implications_async, batch_expand_implications, compute_match_score,
 )
@@ -96,8 +97,26 @@ async def _verify_job_access(session: AsyncSession, job_id: str, user: dict) -> 
     return job
 
 
+def _issues_for(job: JobPosting, tag_count: int, required_count: int) -> list[dict]:
+    return job_issues(
+        title=job.title, description=job.description, location=job.location, remote=job.remote,
+        skill_count=tag_count, required_skill_count=required_count,
+        salary_min=job.salary_min, salary_max=job.salary_max,
+    )
+
+
+def _assert_complete(issues: list[dict]) -> None:
+    """422 with what's missing, when the job can't go live as it is (the job check)."""
+    if blocking(issues):
+        raise HTTPException(422, missing_message(issues))
+
+
 def _job_to_dict(job: JobPosting, tags: list[dict]) -> dict:
+    required = sum(1 for t in tags if t.get("requirement") == "required")
     return {
+        "issues": _issues_for(job, len(tags), required),
+        "source": job.source,
+        "held_reason": job.held_reason,
         "id": str(job.id), "employer_id": str(job.employer_id), "title": job.title,
         "description": job.description or "", "skills_required": job.skills_required or [],
         "salary_min": job.salary_min or 0, "salary_max": job.salary_max or 0,
@@ -158,6 +177,15 @@ async def create_job(
     session: AsyncSession = Depends(get_session),
 ):
     await assert_can_go_live(session, user["id"])
+    # The job check: it goes live now, so it must be complete.
+    required_ids = await _validate_tag_ids(session, body.required_tag_ids)
+    all_ids = set(required_ids) | set(await _validate_tag_ids(session, body.tag_ids)) \
+        | set(await _validate_tag_ids(session, body.preferred_tag_ids))
+    _assert_complete(job_issues(
+        title=body.title, description=body.description, location=body.location, remote=body.remote,
+        skill_count=len(all_ids), required_skill_count=len(required_ids),
+        salary_min=body.salary_min, salary_max=body.salary_max,
+    ))
     job = JobPosting(
         id=uuid.uuid4(),
         employer_id=uuid.UUID(user["id"]),
@@ -275,6 +303,21 @@ async def update_job(
         if s_min is not None and s_max is not None and s_max > 0 and s_min > s_max:
             raise HTTPException(422, "salary_min cannot exceed salary_max")
 
+    # The job check: a live job must stay complete (a switched-off one may be a draft).
+    if job.active:
+        if tag_ids is not None or required_tag_ids is not None or preferred_tag_ids is not None:
+            req = await _validate_tag_ids(session, required_tag_ids or [])
+            every = set(req) | set(await _validate_tag_ids(session, tag_ids or [])) \
+                | set(await _validate_tag_ids(session, preferred_tag_ids or []))
+            tag_count, required_count = len(every), len(req)
+        else:
+            current = await _fetch_job_tags(session, job.id)
+            tag_count = len(current)
+            required_count = sum(1 for t in current if t.get("requirement") == "required")
+        after = {k: updates.get(k, getattr(job, k)) for k in ("title", "description", "location", "remote",
+                                                              "salary_min", "salary_max")}
+        _assert_complete(job_issues(**after, skill_count=tag_count, required_skill_count=required_count))
+
     for key, val in updates.items():
         setattr(job, key, val)
     session.add(job)
@@ -300,9 +343,13 @@ async def toggle_job_active(
     session: AsyncSession = Depends(get_session),
 ):
     job = await _verify_job_access(session, job_id, user)
-    if not job.active and job.expires_at > datetime.now(timezone.utc):
-        await assert_can_go_live(session, user["id"])
+    if not job.active:
+        current = await _fetch_job_tags(session, job.id)
+        _assert_complete(_issues_for(job, len(current), sum(1 for t in current if t.get("requirement") == "required")))
+        if job.expires_at > datetime.now(timezone.utc):
+            await assert_can_go_live(session, user["id"])
     job.active = not job.active
+    job.held_reason = None  # the employer decides now
     session.add(job)
     await session.commit()
 

@@ -1,3 +1,4 @@
+import { shekels } from '@jobswipe/shared/jobs'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Icon from '../components/Icon'
 import { useTranslation } from 'react-i18next'
@@ -669,13 +670,13 @@ function FilterPanel({
           {/* Salary minimum */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">
-              {t('feed.minSalary')} {filters.salary_min ? t('feed.minSalaryAmount', { amount: `$${(filters.salary_min / 1000).toFixed(0)}k` }) : ''}
+              {t('feed.minSalary')} {filters.salary_min ? t('feed.minSalaryAmount', { amount: `${shekels(filters.salary_min)}` }) : ''}
             </label>
             <input
               type="range"
               min={0}
-              max={300000}
-              step={10000}
+              max={50000}
+              step={1000}
               value={filters.salary_min ?? 0}
               onChange={(e) => {
                 const v = Number(e.target.value)

@@ -261,3 +261,17 @@ def test_the_factory_needs_a_key(monkeypatch):
     monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "")
     with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
         factory.get_llm_provider()
+
+
+async def test_says_when_the_text_is_a_cv_not_a_job_post(redis):
+    """A wrong file or text (user 2026-11-26): Claude says what it is."""
+    provider, create = claude(answer({
+        "title": None, "description": None, "location": None, "remote": False, "salary_min": None,
+        "salary_max": None, "min_experience_years": None, "required_tags": [], "preferred_tags": [],
+        "nice_tags": [], "kind": "cv",
+    }))
+    job = await provider.extract_job_profile("Dana Levi. QA engineer, 5 years...", TAXONOMY)
+    assert job.kind == "cv"
+    schema = create.call_args.kwargs["output_config"]["format"]["schema"]
+    assert schema["properties"]["kind"]["enum"] == ["job_post", "cv", "other"]
+    assert "kind" in schema["required"]

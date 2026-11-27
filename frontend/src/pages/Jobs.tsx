@@ -1,3 +1,5 @@
+import { blocking, jobIssues, shekels } from '@jobswipe/shared/jobs'
+import JobChecklist from '../components/JobChecklist'
 import { useState, useEffect, useRef } from 'react'
 import Icon from '../components/Icon'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +13,7 @@ import TagPicker from '../components/TagPicker'
 import { RedeemForm, planUntilLabel } from '../components/PlanCard'
 import { getPlan, type PlanSummary } from '../lib/api'
 import TagBadge from '../components/TagBadge'
+import ComeetCard from '../components/ComeetCard'
 
 export default function Jobs() {
   const { t } = useTranslation()
@@ -42,13 +45,17 @@ export default function Jobs() {
     action()
   }
 
-  useEffect(() => {
-    if (!token) return
+  function loadJobs() {
     setLoading(true)
     getJobPostings(token)
       .then(setJobs)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : t('jobs.failedToLoad')))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    if (!token) return
+    loadJobs()
   }, [token])
 
   async function handleToggle(jobId: string) {
@@ -120,6 +127,11 @@ export default function Jobs() {
       refreshPlan()
     } catch (err) { setActionError(err instanceof Error ? err.message : t('jobs.couldNotCreate')) }
   }
+
+  // File results that pass the job check (the others need editing first).
+  const readyParsed = (parsedJobs ?? []).filter((p) => !p.error && blocking(parsedIssues(p)).length === 0)
+  // Imported from Comeet but missing something: kept off until completed.
+  const comeetNeedCheck = jobs.filter((j) => j.source === 'comeet' && j.held_reason === 'incomplete').length
 
   if (loading) {
     return (
@@ -200,6 +212,11 @@ export default function Jobs() {
           </div>
         </div>
 
+        {/* Comeet import: one paste, then jobs sync by themselves (#3297) */}
+        <div className="mb-6">
+          <ComeetCard token={token} needCheck={comeetNeedCheck} onJobsChanged={() => { loadJobs(); refreshPlan() }} />
+        </div>
+
         {plan && (
           <PlanBanner
             plan={plan}
@@ -233,16 +250,16 @@ export default function Jobs() {
                 />
               ))}
             </div>
-            {parsedJobs.filter((p) => !p.error).length > 1 && (
+            {readyParsed.length > 1 && (
               <button
                 onClick={async () => {
-                  for (const p of parsedJobs.filter((j) => !j.error)) {
+                  for (const p of readyParsed) {
                     await handleCreateParsed(p)
                   }
                 }}
                 className="mt-4 w-full btn-primary py-2.5 text-sm"
               >
-                {t('jobs.createAll', { count: parsedJobs.filter((p) => !p.error).length })}
+                {t('jobs.createAll', { count: readyParsed.length })}
               </button>
             )}
           </div>
@@ -390,7 +407,7 @@ function JobCard({
 
   const salary =
     job.salary_min || job.salary_max
-      ? `$${((job.salary_min ?? 0) / 1000).toFixed(0)}k – $${((job.salary_max ?? 0) / 1000).toFixed(0)}k`
+      ? `${shekels((job.salary_min ?? 0))} – ${shekels((job.salary_max ?? 0))}`
       : null
 
   return (
@@ -404,6 +421,11 @@ function JobCard({
             {expired && (
               <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-full uppercase">
                 {t('jobs.expired')}
+              </span>
+            )}
+            {(job.issues ?? []).some((i) => i.level === 'must') && (
+              <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-semibold rounded-full uppercase">
+                {t('jobCheck.needsCheck')}
               </span>
             )}
             {!job.active && !expired && (
@@ -427,6 +449,12 @@ function JobCard({
 
           {job.description && (
             <p dir="auto" className="text-sm text-gray-600 mt-2 line-clamp-2">{job.description}</p>
+          )}
+          {(job.issues ?? []).some((i) => i.level === 'must') && (
+            <div className="mt-2 space-y-1">
+              {job.held_reason === 'incomplete' && <p className="text-xs text-red-700">{t('jobCheck.heldImported')}</p>}
+              <JobChecklist compact issues={job.issues ?? []} />
+            </div>
           )}
 
           {/* Tags */}
@@ -594,6 +622,16 @@ function JobFormModal({
     }
   }
 
+  // The job check (user 2026-11-26): what's missing before it can go live.
+  const issues = jobIssues({
+    title: form.title, description: form.description, location: form.location, remote: form.remote,
+    skillCount: requiredTags.length + preferredTags.length + selectedTags.length,
+    requiredSkillCount: requiredTags.length, salaryMin: form.salary_min, salaryMax: form.salary_max,
+  })
+  // A switched-off job may be saved unfinished (a draft); a live or new one may not.
+  const goesLive = !job || job.active
+  const blocked = goesLive && blocking(issues).length > 0
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={onClose}>
       <div
@@ -661,6 +699,8 @@ function JobFormModal({
             <TagPicker selectedTags={selectedTags} onChange={setSelectedTags} label={t('jobs.form.niceToHaveSkills')} />
           </div>
 
+          <JobChecklist issues={issues} />
+
           {formError && (
             <div ref={formErrorRef} className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert">
               {formError}
@@ -671,7 +711,7 @@ function JobFormModal({
             <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
               {t('common.cancel')}
             </button>
-            <button type="submit" disabled={saving} className="flex-1 btn-primary py-2.5 text-sm">
+            <button type="submit" disabled={saving || blocked} className="flex-1 btn-primary py-2.5 text-sm disabled:opacity-50">
               {saving ? t('common.savingEllipsis') : job ? t('jobs.saveChanges') : t('jobs.createJob')}
             </button>
           </div>
@@ -679,6 +719,15 @@ function JobFormModal({
       </div>
     </div>
   )
+}
+
+/** The job check for an AI-read file, before it becomes a job. */
+function parsedIssues(p: ParsedJobFile) {
+  return jobIssues({
+    title: p.title, description: p.description, location: p.location, remote: p.remote,
+    skillCount: p.required_tag_ids.length + p.preferred_tag_ids.length + p.tag_ids.length,
+    requiredSkillCount: p.required_tag_ids.length, salaryMin: p.salary_min, salaryMax: p.salary_max,
+  })
 }
 
 function ParsedJobCard({
@@ -708,10 +757,12 @@ function ParsedJobCard({
   }
 
   const salary = parsed.salary_min || parsed.salary_max
-    ? `$${((parsed.salary_min ?? 0) / 1000).toFixed(0)}k – $${((parsed.salary_max ?? 0) / 1000).toFixed(0)}k`
+    ? `${shekels((parsed.salary_min ?? 0))} – ${shekels((parsed.salary_max ?? 0))}`
     : null
 
   const allTags = [...parsed.required_tags, ...parsed.preferred_tags, ...parsed.nice_tags]
+  const issues = parsedIssues(parsed)
+  const complete = blocking(issues).length === 0
 
   return (
     <div className="bg-white border border-brand-100 rounded-2xl p-4 shadow-sm">
@@ -737,11 +788,16 @@ function ParsedJobCard({
           )}
         </div>
       </div>
+      {!complete && <div className="mt-3"><JobChecklist compact issues={issues} /></div>}
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-        <button onClick={onCreate} className="btn-primary text-xs py-1.5 px-3">
-          {t('jobs.create')}
-        </button>
-        <button onClick={onEdit} className="text-xs font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100">
+        {complete && (
+          <button onClick={onCreate} className="btn-primary text-xs py-1.5 px-3">
+            {t('jobs.create')}
+          </button>
+        )}
+        <button onClick={onEdit} className={complete
+          ? 'text-xs font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100'
+          : 'btn-primary text-xs py-1.5 px-3'}>
           {t('jobs.editBeforeCreating')}
         </button>
         <div className="flex-1" />

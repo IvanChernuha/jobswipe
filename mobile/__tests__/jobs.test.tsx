@@ -18,6 +18,8 @@ jest.mock('@jobswipe/shared/api', () => ({
   getTags: jest.fn(),
   parseJobText: jest.fn(),
   parseJobFiles: jest.fn(),
+  // Comeet import has its own tests (comeet.test.tsx); here it stays out of the way.
+  getComeetStatus: jest.fn(() => Promise.reject(new Error('not used here'))),
 }))
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }))
 
@@ -32,7 +34,7 @@ const ts = { id: 't2', name: 'TypeScript', category: 'language' }
 const python = { id: 't3', name: 'Python', category: 'language' }
 
 const job = (id: string, title: string, extra: Partial<api.JobPosting> = {}): api.JobPosting => ({
-  id, employer_id: 'id-employer', title, description: 'Build our app', location: 'Tel Aviv',
+  id, employer_id: 'id-employer', title, description: 'Build our app with React and TypeScript for many users.', location: 'Tel Aviv',
   salary_min: 15000, salary_max: 22000, skills_required: [], remote: false, active: true,
   created_at: '2026-11-01T10:00:00Z', expires_at: IN_A_MONTH, min_experience_years: null,
   tags: [{ ...react, requirement: 'required' }, { ...ts, requirement: 'nice' }],
@@ -57,6 +59,16 @@ async function open(url: string) {
 const press = async (label: string) => act(async () => fireEvent.press(screen.getByRole('button', { name: label })))
 const type = async (label: string, text: string) => act(async () => fireEvent.changeText(screen.getByLabelText(label), text))
 const inJob = (id: string) => within(screen.getByTestId(`job-${id}`))
+const DESCRIPTION = 'Build our web app with React and TypeScript, and ship every week.'
+
+/** Everything a job needs before it can go live (the job check). */
+async function fillComplete(jobTitle = 'React Developer') {
+  await type('Job title', jobTitle)
+  await type('Description', DESCRIPTION)
+  await type('Location', 'Tel Aviv')
+  await type('Search skills (e.g. React, Python, AWS)...', 'rea')
+  await press('React')
+}
 
 beforeEach(() => {
   jest.clearAllMocks()
@@ -127,11 +139,43 @@ describe('jobs list', () => {
   })
 })
 
+describe('the job check in the list', () => {
+  it('marks jobs that need a check and says what is missing', async () => {
+    mocked.getJobPostings.mockResolvedValue([
+      job('j1', 'Frontend Engineer'),
+      job('j3', 'Imported from Comeet', {
+        active: false, source: 'comeet', held_reason: 'incomplete', issues: [{ code: 'skills', level: 'must' }],
+      }),
+    ])
+    await open('/jobs')
+    await screen.findByText('Frontend Engineer')
+    expect(inJob('j3').getByText('Needs a check')).toBeOnTheScreen()
+    expect(inJob('j3').getByText(/Imported, but missing something/)).toBeOnTheScreen()
+    expect(inJob('j3').getByText('• Add at least one skill')).toBeOnTheScreen()
+    expect(inJob('j1').queryByText('Needs a check')).toBeNull()
+  })
+})
+
 describe('posting a job', () => {
-  it('needs a title before it can be created', async () => {
+  it('lists what it still needs, and Create waits until the job is complete', async () => {
     await open('/job/new')
     expect(await screen.findByRole('button', { name: 'Create Job' })).toBeDisabled()
+    expect(screen.getByText('Before it can go live:')).toBeOnTheScreen()
+    expect(screen.getByText('• Add a description (a few sentences about the job)')).toBeOnTheScreen()
+    expect(screen.getByText('• Add at least one skill')).toBeOnTheScreen()
+    await fillComplete()
+    expect(screen.getByText('✓ Ready to go live')).toBeOnTheScreen()
+    expect(screen.getByRole('button', { name: 'Create Job' })).toBeEnabled()
+  })
+
+  it('remote jobs need no location', async () => {
+    await open('/job/new')
     await type('Job title', 'React Developer')
+    await type('Description', DESCRIPTION)
+    await type('Search skills (e.g. React, Python, AWS)...', 'rea')
+    await press('React')
+    expect(screen.getByText('• Add a location, or mark the job as remote')).toBeOnTheScreen()
+    await act(async () => fireEvent(screen.getByRole('switch', { name: 'Remote job' }), 'valueChange', true))
     expect(screen.getByRole('button', { name: 'Create Job' })).toBeEnabled()
   })
 
@@ -140,7 +184,7 @@ describe('posting a job', () => {
     await screen.findByText('Frontend Engineer')
     await press('New Job')
     await type('Job title', 'React Developer')
-    await type('Description', 'Build our web app')
+    await type('Description', DESCRIPTION)
     await type('Location', 'Tel Aviv')
     await type('Min salary (₪/month)', '15000')
     await type('Max salary (₪/month)', '22000')
@@ -151,7 +195,7 @@ describe('posting a job', () => {
     await act(async () => fireEvent(screen.getByRole('switch', { name: 'Must-have: React' }), 'valueChange', true))
     await press('Create Job')
     expect(mocked.createJobPosting).toHaveBeenCalledWith('token-employer', expect.objectContaining({
-      title: 'React Developer', description: 'Build our web app', location: 'Tel Aviv',
+      title: 'React Developer', description: DESCRIPTION, location: 'Tel Aviv',
       salary_min: 15000, salary_max: 22000, remote: false, min_experience_years: null,
       required_tag_ids: ['t1'], tag_ids: ['t2'], expires_in_days: 30,
     }))
@@ -161,7 +205,7 @@ describe('posting a job', () => {
   it("shows the server's reason when it refuses", async () => {
     mocked.createJobPosting.mockRejectedValueOnce(new Error('Free plan allows 1 live job. Upgrade to Pro for more.'))
     await open('/job/new')
-    await type('Job title', 'Second job')
+    await fillComplete('Second job')
     await press('Create Job')
     expect(await screen.findByText('Free plan allows 1 live job. Upgrade to Pro for more.')).toBeOnTheScreen()
   })
@@ -255,6 +299,19 @@ describe('AI reads the posting', () => {
     expect(await screen.findByDisplayValue('Junior React Developer')).toBeOnTheScreen()
     // A file has no typed description yet: the AI's one is used.
     expect(screen.getByLabelText('Description')).toHaveDisplayValue('Rewritten by AI')
+  })
+
+  it('a wrong file (e.g. a CV) says so and fills nothing', async () => {
+    picker.getDocumentAsync.mockResolvedValueOnce({
+      canceled: false, assets: [{ uri: 'file:///cache/cv.pdf', name: 'my-cv.pdf', mimeType: 'application/pdf', lastModified: 0 }],
+    } as never)
+    mocked.parseJobFiles.mockResolvedValueOnce([{
+      filename: 'my-cv.pdf', error: 'This looks like a CV, not a job post. Check that you picked the right file or text.',
+    } as api.ParsedJobFile])
+    await open('/job/new')
+    await press('From a file')
+    expect(await screen.findByText(/This looks like a CV, not a job post/)).toBeOnTheScreen()
+    expect(screen.getByLabelText('Job title')).toHaveDisplayValue('')
   })
 
   it('cancelling the file picker changes nothing', async () => {

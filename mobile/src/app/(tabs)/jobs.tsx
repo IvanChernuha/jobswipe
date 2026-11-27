@@ -7,6 +7,8 @@ import { deleteJobPosting, getJobPostings, toggleJobActive, type JobPosting } fr
 import { useAuth } from '../../context/AuthContext'
 import { salaryRange } from '../../lib/cards'
 import { Body, Button, ErrorBox, Screen, Title } from '../../components/ui'
+import ComeetCard from '../../components/ComeetCard'
+import JobChecklist from '../../components/JobChecklist'
 import { colors, fonts, radius, space, TOUCH } from '../../lib/theme'
 
 type Load = 'loading' | 'ready' | 'error'
@@ -106,6 +108,8 @@ export default function Jobs() {
               <Title>{t('jobs.emptyTitle')}</Title>
               <Body muted>{t('jobs.emptyHint')}</Body>
               <Button title={t('jobs.createJob')} onPress={newJob} />
+              {/* No jobs yet: the moment importing from Comeet helps most (#3297). */}
+              <ComeetCard token={token} onJobsChanged={fetchJobs} />
             </>
           )}
         </View>
@@ -138,6 +142,12 @@ export default function Jobs() {
               <Text style={[styles.newText, { fontFamily: f.semibold }]}>{t('jobs.newJob')}</Text>
             </Pressable>
             {actionError && <View style={styles.fullWidth}><ErrorBox message={actionError} /></View>}
+            <View style={styles.fullWidth}>
+              <ComeetCard
+                token={token} onJobsChanged={fetchJobs}
+                needCheck={jobs.filter((j) => j.source === 'comeet' && j.held_reason === 'incomplete').length}
+              />
+            </View>
           </View>
         }
         renderItem={({ item: j }) => {
@@ -163,6 +173,18 @@ export default function Jobs() {
                   </Text>
                 </View>
               </Pressable>
+
+              {(j.issues ?? []).some((i) => i.level === 'must') && (
+                <View style={styles.check}>
+                  <View style={[styles.pill, styles.needsCheck]}>
+                    <Text style={[styles.pillText, styles.needsCheckText, { fontFamily: f.semibold }]}>{t('jobCheck.needsCheck')}</Text>
+                  </View>
+                  {j.held_reason === 'incomplete' && (
+                    <Text style={[styles.held, { fontFamily: f.regular }]}>{t('jobCheck.heldImported')}</Text>
+                  )}
+                  <JobChecklist compact issues={j.issues ?? []} />
+                </View>
+              )}
 
               {mustHave.length > 0 && (
                 <View style={styles.tags}>
@@ -224,6 +246,10 @@ const styles = StyleSheet.create({
   list: { padding: space.lg, gap: space.md },
   top: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.md, marginBottom: space.sm },
   fullWidth: { width: '100%' },
+  check: { gap: space.sm, alignItems: 'flex-start' },
+  needsCheck: { backgroundColor: '#FEE2E2' },
+  needsCheckText: { color: '#B91C1C' },
+  held: { fontSize: 13, color: '#B91C1C', textAlign: 'left' },
   heading: { fontSize: 26, color: colors.ink, textAlign: 'left' },
   count: { fontSize: 14, color: colors.muted, textAlign: 'left' },
   newButton: {

@@ -25,6 +25,8 @@ class JobProfile:
     required_tags: list[str] = field(default_factory=list)
     preferred_tags: list[str] = field(default_factory=list)
     nice_tags: list[str] = field(default_factory=list)
+    # What the text is: "job_post", "cv" or "other" (a wrong file, user 2026-11-26).
+    kind: str = "job_post"
 
 
 class LLMProvider(ABC):

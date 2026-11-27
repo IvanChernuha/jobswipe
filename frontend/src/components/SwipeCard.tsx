@@ -1,3 +1,4 @@
+import { shekels } from '@jobswipe/shared/jobs'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
@@ -41,9 +42,9 @@ export function workerToCard(w: WorkerCard): CardData {
 export function employerToCard(e: EmployerCard): CardData {
   const salary =
     e.salary_min && e.salary_max
-      ? `$${(e.salary_min / 1000).toFixed(0)}k\u2013$${(e.salary_max / 1000).toFixed(0)}k`
+      ? `${shekels(e.salary_min)}\u2013${shekels(e.salary_max)}`
       : e.salary_min
-        ? i18n.t('swipeCard.fromSalary', { amount: `$${(e.salary_min / 1000).toFixed(0)}k` })
+        ? i18n.t('swipeCard.fromSalary', { amount: `${shekels(e.salary_min)}` })
         : null
 
   return {

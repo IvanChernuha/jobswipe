@@ -61,6 +61,9 @@ From the job post, extract:
 - required_tags: skills from the list the candidate must have
 - preferred_tags: skills from the list that are preferred or an advantage
 - nice_tags: other skills from the list the job mentions
+- kind: "job_post" if the text is a job post or job description; "cv" if it is a
+  CV / résumé (someone describing themselves); "other" for anything else (an
+  invoice, an article, random text). Only fill the other fields for a job post.
 Use null when the post doesn't say. {_UNTRUSTED}"""
 
 _TAGS_TASK = f"""You tag texts for JobSwipe, a job matching app.
@@ -93,6 +96,7 @@ _JOB_SCHEMA = _object(
     remote={"type": "boolean"}, salary_min=_nullable("integer"), salary_max=_nullable("integer"),
     min_experience_years=_nullable("integer"),
     required_tags=_TAG_LIST, preferred_tags=_TAG_LIST, nice_tags=_TAG_LIST,
+    kind={"type": "string", "enum": ["job_post", "cv", "other"]},
 )
 _TAGS_SCHEMA = _object(tags=_TAG_LIST)
 _BATCH_SCHEMA = _object(jobs={"type": "array", "items": _object(job_id={"type": "string"}, tags=_TAG_LIST)})
@@ -179,6 +183,7 @@ class ClaudeProvider(LLMProvider):
             required_tags=_known(data.get("required_tags"), taxonomy),
             preferred_tags=_known(data.get("preferred_tags"), taxonomy),
             nice_tags=_known(data.get("nice_tags"), taxonomy),
+            kind=data.get("kind") if data.get("kind") in ("job_post", "cv", "other") else "job_post",
         )
 
     async def extract_tags(self, text: str, taxonomy: list[str]) -> list[str]:

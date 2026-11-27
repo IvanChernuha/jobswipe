@@ -114,6 +114,10 @@ class JobPosting(BaseModel):
     expires_at: Optional[str] = None
     min_experience_years: int | None = None
     tags: list[Tag] = []
+    # The job check (services/job_quality.py): [{"code", "level": "must"|"should"}].
+    issues: list[dict] = []
+    source: Optional[str] = None       # "comeet" when imported
+    held_reason: Optional[str] = None  # "incomplete": imported, off until complete
 
     model_config = {"extra": "ignore"}
 
@@ -178,6 +182,10 @@ class JobPostingWithStats(BaseModel):
     expires_at: Optional[str] = None
     min_experience_years: int | None = None
     tags: list[Tag] = []
+    # The job check (services/job_quality.py): [{"code", "level": "must"|"should"}].
+    issues: list[dict] = []
+    source: Optional[str] = None       # "comeet" when imported
+    held_reason: Optional[str] = None  # "incomplete": imported, off until complete
     swipe_count: int = 0
     like_count: int = 0  # likes + super likes
     super_like_count: int = 0

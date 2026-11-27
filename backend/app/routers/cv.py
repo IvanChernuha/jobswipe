@@ -20,7 +20,9 @@ from app.tasks.cv_processing import extract_cv_tags, extract_job_tags, extract_j
 from app.services.cv_parser import extract_text
 from app.services.llm.factory import get_llm_provider
 from app.services.llm.ai_budget import AIBudgetExceeded
-from app.services.job_parsing import load_taxonomy, parse_job_text, profile_to_form
+from app.services.job_parsing import (
+    MIN_TEXT, NO_TEXT, NotAJobPost, check_is_job_post, load_taxonomy, parse_job_text, profile_to_form,
+)
 from app.models.cv import ParseJobTextRequest
 
 router = APIRouter(prefix="/cv", tags=["cv"])
@@ -215,9 +217,17 @@ async def parse_job_files(
 
         try:
             raw_text = extract_text(content, effective_type)
+        except Exception:
+            return {"filename": fname, "error": "This file couldn't be opened. Is it a real PDF, Word or text file?"}
+        if len(raw_text.strip()) < MIN_TEXT:
+            return {"filename": fname, "error": NO_TEXT}
+        try:
             async with _LLM_SEMAPHORE:
                 profile = await provider.extract_job_profile(raw_text, taxonomy_names)
+            check_is_job_post(profile)
             return {"filename": file.filename, **profile_to_form(profile, taxonomy), "error": None}
+        except NotAJobPost as e:
+            return {"filename": file.filename, "error": str(e)}
         except AIBudgetExceeded:
             return {"filename": file.filename, "error": AI_PAUSED}
         except Exception as e:
@@ -247,6 +257,8 @@ async def parse_job_text_route(
             return await parse_job_text(session, get_llm_provider(), payload.text)
     except AIBudgetExceeded:
         raise HTTPException(503, AI_PAUSED)
+    except NotAJobPost as e:
+        raise HTTPException(422, str(e))
     except Exception as e:
         import logging as _log
         _log.getLogger(__name__).error("parse-job-text error: %s", e)

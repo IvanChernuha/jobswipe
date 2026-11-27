@@ -11,6 +11,8 @@ import {
 } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import SkillPicker from './SkillPicker'
+import JobChecklist from './JobChecklist'
+import { blocking, jobIssues } from '@jobswipe/shared/jobs'
 import { Body, Button, ErrorBox, Field, Screen } from './ui'
 import { colors, fonts, space, TOUCH } from '../lib/theme'
 
@@ -50,6 +52,8 @@ export default function JobForm({ jobId }: { jobId?: string }) {
   const [error, setError] = useState<string | null>(null)
   const [aiBusy, setAiBusy] = useState<'text' | 'file' | null>(null)
   const [aiNote, setAiNote] = useState<string | null>(null)
+  // Editing a switched-off job may save an unfinished draft; a new or live one may not.
+  const [wasActive, setWasActive] = useState(true)
 
   useEffect(() => {
     if (!jobId || !token) return
@@ -57,6 +61,7 @@ export default function JobForm({ jobId }: { jobId?: string }) {
       .then((jobs) => {
         const job = jobs.find((j) => j.id === jobId)
         if (!job) throw new Error(t('jobs.failedToLoad'))
+        setWasActive(job.active)
         setTitle(job.title)
         setDescription(job.description ?? '')
         setLocation(job.location ?? '')
@@ -141,8 +146,16 @@ export default function JobForm({ jobId }: { jobId?: string }) {
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/jobs'))
 
+  // The job check (user 2026-11-26): what's missing before it can go live.
+  const issues = jobIssues({
+    title, description, location, remote, skillCount: skills.length + preferred.length,
+    requiredSkillCount: skills.filter((s) => required.has(s.id)).length,
+    salaryMin: num(salaryMin), salaryMax: num(salaryMax),
+  })
+  const blocked = (!jobId || wasActive) && blocking(issues).length > 0
+
   async function save() {
-    if (!title.trim() || saving) return
+    if (!title.trim() || blocked || saving) return
     setSaving(true)
     setError(null)
     const data: JobInput = {
@@ -247,12 +260,13 @@ export default function JobForm({ jobId }: { jobId?: string }) {
 
             <Field label={t('jobs.form.expiresAfterDays')} value={days} onChangeText={setDays} keyboardType="number-pad" />
 
+            <JobChecklist issues={issues} />
             {error && <ErrorBox message={error} />}
             <Button
               title={jobId ? t('jobs.saveChanges') : t('jobs.createJob')}
               onPress={save}
               busy={saving}
-              disabled={!title.trim()}
+              disabled={!title.trim() || blocked}
             />
           </ScrollView>
         )}

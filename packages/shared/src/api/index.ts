@@ -57,6 +57,12 @@ export interface JobPosting {
   like_count: number
   super_like_count?: number
   match_count: number
+  /** The job check (shared/jobs): what it's missing. Set by the server. */
+  issues?: { code: string; level: 'must' | 'should' }[]
+  /** "comeet" when imported from Comeet. */
+  source?: string | null
+  /** "incomplete": imported, switched off until it passes the job check. */
+  held_reason?: string | null
 }
 
 // Cards shown in the feed
@@ -1070,6 +1076,38 @@ export interface FeedbackEntry extends Required<FeedbackInput> {
 
 export function sendFeedback(token: string, data: FeedbackInput): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>('/feedback', { method: 'POST', token, body: JSON.stringify(data) })
+}
+
+// ---------------------------------------------------------------------------
+// Comeet import (OpenProject #3297): one paste, then jobs sync automatically
+// ---------------------------------------------------------------------------
+
+export interface ComeetStatus {
+  connected: boolean
+  company_name?: string
+  status?: 'importing' | 'connected' | 'error'
+  job_count?: number
+  live_count?: number
+  last_synced_at?: string | null
+  last_error?: string | null
+}
+
+export function getComeetStatus(token: string): Promise<ComeetStatus> {
+  return request<ComeetStatus>('/integrations/comeet', { token })
+}
+
+/** `text`: the company UID and Token pasted together, in any form. Pro only. */
+export function connectComeet(token: string, text: string): Promise<{ company_name: string; found: number; status: 'importing' }> {
+  return request('/integrations/comeet', { method: 'POST', token, body: JSON.stringify({ text }) })
+}
+
+export function syncComeet(token: string): Promise<{ status: 'importing' }> {
+  return request('/integrations/comeet/sync', { method: 'POST', token })
+}
+
+/** Stops syncing and switches off the imported jobs. */
+export function disconnectComeet(token: string): Promise<{ disconnected: boolean; jobs_switched_off: number }> {
+  return request('/integrations/comeet', { method: 'DELETE', token })
 }
 
 /** This month's AI (Claude) spend against the monthly budget (admins only). */

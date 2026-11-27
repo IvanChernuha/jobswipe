@@ -27,6 +27,15 @@ class JobPosting(SQLModel, table=True):
     updated_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
     expires_at: datetime = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=False))
     min_experience_years: Optional[int] = None
+    # Imported from an employer's hiring system (migration 018): source "comeet",
+    # the position's id there, its apply page, and when it last changed there.
+    source: Optional[str] = None
+    source_id: Optional[str] = None
+    source_url: Optional[str] = None
+    source_updated_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True)))
+    # Why an imported job is off without the employer switching it off:
+    # "incomplete" = it failed the job check; the sync switches it on once complete.
+    held_reason: Optional[str] = None
 
 
 class JobPostingTag(SQLModel, table=True):

@@ -1,3 +1,4 @@
+import { shekels } from '@jobswipe/shared/jobs'
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon'
 import { useTranslation } from 'react-i18next'
@@ -278,7 +279,7 @@ function BookmarkCard({
   const desc = isJob ? bm.description : bm.bio
   const loc = bm.location || ''
   const salary = isJob && (bm.salary_min || bm.salary_max)
-    ? `$${((bm.salary_min ?? 0) / 1000).toFixed(0)}k – $${((bm.salary_max ?? 0) / 1000).toFixed(0)}k`
+    ? `${shekels((bm.salary_min ?? 0))} – ${shekels((bm.salary_max ?? 0))}`
     : null
   const avatarUrl = bm.avatar_url
   const initials = title.charAt(0).toUpperCase()

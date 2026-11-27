@@ -1,0 +1,116 @@
+[
+  {
+    "uid": "E8.91F",
+    "name": "Android Developer",
+    "department": "Engineering",
+    "employment_type": "Full-time",
+    "experience_level": "Entry-level",
+    "workplace_type": "On-site",
+    "location": {
+      "name": "New York",
+      "country": "US",
+      "city": "Brooklyn",
+      "state": "NY",
+      "postal_code": "11249",
+      "street_name": "109 South 5th Street",
+      "arrival_instructions": null,
+      "street_number": "109",
+      "timezone": "America/New_York",
+      "location_uid": "0F.105",
+      "is_remote": false
+    },
+    "details": [
+      {
+        "name": "Description",
+        "value": "<p><strong>What you'll be doing:</strong></p><ul><li>Develops different layers of Android apps</li><li>Helps maintain native mobile apps</li><li>Performs test runs and iterative development processes</li><li>Utilizes Android software development kit (SDK) for effective app integration</li><li>Participates in the full software development cycle</li><li>Troubleshoots bugs and documents errors</li></ul>",
+        "order": 1
+      },
+      {
+        "name": "Requirements",
+        "value": "<p><strong>Helpful Skills &amp; Experience You’ll Need to Succeed</strong></p><ul><li>Minimum 1 year of extensive and hands-on Java and Android development experience</li><li>Excellent programming skills and proficient in JavaScript, C++, and XML</li><li>Experience with Android development tools such as Android Studio, APIs, Material Design, Android SDK</li><li>Excellent communication skills</li><li>Strong analytical, organizational, and problem-solving skills</li><li>Bachelor’s degree in Computer Science, Computer Engineering, Software Development, or related field</li></ul>",
+        "order": 2
+      }
+    ],
+    "url_active_page": "https://www.comeet.com/jobs/careersapi-sandbox/E5.007/android-developer/E8.91F",
+    "url_comeet_hosted_page": "https://www.comeet.com/jobs/careersapi-sandbox/E5.007/android-developer/E8.91F",
+    "time_updated": "2020-10-08T16:19:06Z",
+    "company_name": "Careers API Sandbox",
+    "email": "careersapi-sandbox.E8.91F@applynow.io"
+  },
+  {
+    "uid": "F8.912",
+    "name": "Machine Learning Engineer",
+    "department": "Engineering",
+    "employment_type": "Full-time",
+    "experience_level": "Entry-level",
+    "workplace_type": "On-site",
+    "location": {
+      "name": "New York",
+      "country": "US",
+      "city": "Brooklyn",
+      "state": "NY",
+      "postal_code": "11249",
+      "street_name": "109 South 5th Street",
+      "arrival_instructions": null,
+      "street_number": "109",
+      "timezone": "America/New_York",
+      "location_uid": "0F.105",
+      "is_remote": false
+    },
+    "details": [
+      {
+        "name": "Description",
+        "value": "<p><strong>What you'll be doing:</strong></p><ul><li>Analyzes and modifies data science-based models</li><li>Creates systems for machine learning per requirements</li><li>Performs experiments and tests</li><li>Analyzes and modifies models according to test results</li><li>Improves existing machine learning frameworks and libraries</li></ul>",
+        "order": 1
+      },
+      {
+        "name": "Requirements",
+        "value": "<p><strong>Helpful Skills &amp; Experience You’ll Need to Succeed</strong></p><ul><li>Proven track record in machine learning or other applicable role</li><li>Comprehensive understanding of software architecture and data structures</li><li>Consummate knowledge of math, statistics, and algorithms</li><li>Experience with frameworks and libraries such as Keras and scikit-learn</li><li>Bachelor’s degree in Mathematics, Computer Science, or related field; Master’s degree is a plus</li></ul>",
+        "order": 2
+      }
+    ],
+    "url_active_page": "https://www.comeet.com/jobs/careersapi-sandbox/E5.007/machine-learning-engineer/F8.912",
+    "url_comeet_hosted_page": "https://www.comeet.com/jobs/careersapi-sandbox/E5.007/machine-learning-engineer/F8.912",
+    "time_updated": "2020-10-08T16:18:50Z",
+    "company_name": "Careers API Sandbox",
+    "email": "careersapi-sandbox.F8.912@applynow.io"
+  },
+  {
+    "uid": "F8.910",
+    "name": "Marketing Manager",
+    "department": "Marketing",
+    "employment_type": "Part-time",
+    "experience_level": "Intermediate",
+    "workplace_type": "On-site",
+    "location": {
+      "name": "San Francisco",
+      "country": "US",
+      "city": "San Francisco",
+      "state": "CA",
+      "postal_code": "",
+      "street_name": "Dolores Street",
+      "arrival_instructions": null,
+      "street_number": "",
+      "timezone": "America/Los_Angeles",
+      "location_uid": "0F.106",
+      "is_remote": false
+    },
+    "details": [
+      {
+        "name": "Description",
+        "value": "<p><strong>What you'll be doing:</strong></p><ul><li>Develop, plan, execute and track high performing marketing campaigns to drive brand awareness and achieve demand generation objectives&nbsp;</li><li>Help marketing team achieve strategic goals and meet KPIs</li><li>Track and analyze the performance of marketing campaigns across email, social, digital, event and other channels</li><li>Run digital campaigns across organic and paid channels, analyzing results and optimizing future efforts</li><li>Create, test and refine product positioning and messaging</li><li>Direct and manage internal and external resources such as designers or agencies&nbsp;</li><li>Monitor all marketing project requirements, deadlines, schedules, dependencies and costs</li><li>Create compelling marketing content (e.g., blog posts, social media posts, collateral, presentations, etc.)</li><li>Research competitive offerings and identify ways to effectively demonstrate company differentiators</li><li>Provide regular status reports to fellow team members and management on marketing projects</li><li>Assist in developing effective company marketing strategies</li><li>Assist in creating and tracking marketing budget</li><li>Stay current with new technologies to improve marketing processes</li></ul>",
+        "order": 1
+      },
+      {
+        "name": "Requirements",
+        "value": "<p><strong>What you're bringing:</strong></p><ul><li>3+ years of proven marketing experience</li><li>Excellent verbal and written communication skills; demonstrated strong business writing ability</li><li>Experience in executing campaigns that drove quantitative business results</li><li>Strong analytical, data-driven and testing mindset</li><li>Experience in developing compelling product positioning and messaging</li><li>Experience using marketing automation platforms, CRMs and other related marketing software applications and technologies (e.g. email, online advertising)</li><li>Strong attention to detail</li><li>Excellent organizational and project management skills</li><li>Team player; strong bias towards collaboration</li><li>Experience in copywriting, web design, SEO, online advertising and/or analytics a plus</li><li>Bachelor’s degree in marketing or related field; advanced business degree a plus</li><li>Marketing certification / education preferred</li></ul>",
+        "order": 2
+      }
+    ],
+    "url_active_page": "https://www.comeet.com/jobs/careersapi-sandbox/E5.007/marketing-manager/F8.910",
+    "url_comeet_hosted_page": "https://www.comeet.com/jobs/careersapi-sandbox/E5.007/marketing-manager/F8.910",
+    "time_updated": "2020-10-08T16:18:37Z",
+    "company_name": "Careers API Sandbox",
+    "email": "careersapi-sandbox.F8.910@applynow.io"
+  }
+]
