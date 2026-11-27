@@ -1,15 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { readComeetPaste } from '@jobswipe/shared/comeet'
 import {
   connectComeet, disconnectComeet, getComeetStatus, syncComeet, type ComeetStatus,
 } from '../lib/api'
 
 const SETTINGS_URL = 'https://app.comeet.co/app/company/settings/careers'
+/**
+ * The open popup and what was typed, for this tab only: on a phone, opening
+ * Comeet backgrounds the tab and the browser may reload it (user 2026-11-27).
+ */
+const DRAFT = 'jobswipe.comeetDraft'
+
+function readDraft(): { uid: string; token: string } | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
 
 /**
- * Jobs page: import jobs from Comeet (OpenProject #3297). One paste of the
- * company's UID + Token; the server imports every published job in the
- * background and keeps them in sync. Polls while an import runs.
+ * Jobs page: import jobs from Comeet (OpenProject #3297). A popup with a UID
+ * box and a Token box, each with a Paste button (user 2026-11-27); the server
+ * imports every published job in the background and keeps them in sync.
+ * Polls while an import runs.
  */
 export default function ComeetCard({ token, onJobsChanged, needCheck = 0, pollMs = 3000 }: {
   token: string
@@ -20,14 +36,24 @@ export default function ComeetCard({ token, onJobsChanged, needCheck = 0, pollMs
 }) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<ComeetStatus | null>(null)
-  const [open, setOpen] = useState(false)
-  const [paste, setPaste] = useState('')
+  const [draft] = useState(readDraft)
+  const [open, setOpen] = useState(draft !== null)
+  const [uid, setUid] = useState(draft?.uid ?? '')
+  const [secret, setSecret] = useState(draft?.token ?? '')
+  const [pasteBlocked, setPasteBlocked] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [found, setFound] = useState<{ company: string; count: number } | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const changed = useRef(onJobsChanged)
   changed.current = onJobsChanged
+
+  useEffect(() => {
+    try {
+      if (open) sessionStorage.setItem(DRAFT, JSON.stringify({ uid, token: secret }))
+      else sessionStorage.removeItem(DRAFT)
+    } catch { /* private mode etc.: the popup just won't survive a reload */ }
+  }, [open, uid, secret])
 
   const load = useCallback(async () => {
     try {
@@ -58,14 +84,47 @@ export default function ComeetCard({ token, onJobsChanged, needCheck = 0, pollMs
     return () => { if (timer.current) clearTimeout(timer.current) }
   }, [load, watch])
 
+  /** Sort a paste into the right box(es); unrecognised text goes where it was pasted. */
+  function fill(text: string, into: 'uid' | 'token') {
+    const found = readComeetPaste(text)
+    if (found.uid) setUid(found.uid)
+    if (found.token) setSecret(found.token)
+    if (!found.uid && !found.token) (into === 'uid' ? setUid : setSecret)(text.trim())
+  }
+
+  async function pasteInto(into: 'uid' | 'token') {
+    setPasteBlocked(false)
+    try {
+      fill(await navigator.clipboard.readText(), into)
+    } catch {
+      setPasteBlocked(true)
+    }
+  }
+
+  /** Ctrl+V of both values (or of one into the wrong box) still lands right. */
+  function onPaste(e: React.ClipboardEvent<HTMLInputElement>, into: 'uid' | 'token') {
+    const found = readComeetPaste(e.clipboardData.getData('text'))
+    const other = into === 'uid' ? found.token : found.uid
+    if (!other) return
+    e.preventDefault()
+    fill(e.clipboardData.getData('text'), into)
+  }
+
+  function closeDialog() {
+    setOpen(false)
+    setUid('')
+    setSecret('')
+    setError(null)
+    setPasteBlocked(false)
+  }
+
   async function connect() {
     setBusy(true)
     setError(null)
     try {
-      const res = await connectComeet(token, paste)
+      const res = await connectComeet(token, `${uid.trim()} ${secret.trim()}`)
       setFound({ company: res.company_name, count: res.found })
-      setOpen(false)
-      setPaste('')
+      closeDialog()
       const next: ComeetStatus = { ...(status ?? {}), connected: true, company_name: res.company_name, status: 'importing' }
       setStatus(next)
       watch(next)
@@ -105,6 +164,27 @@ export default function ComeetCard({ token, onJobsChanged, needCheck = 0, pollMs
   const small = 'text-sm font-medium px-4 py-2 rounded-xl border min-h-[40px] disabled:opacity-50'
 
   if (!status.connected) {
+    const ready = uid.trim() !== '' && secret.trim() !== ''
+    const field = (id: 'uid' | 'token', value: string, set: (v: string) => void) => (
+      <div>
+        <label htmlFor={`comeet-${id}`} className="block text-sm font-medium text-gray-700 mb-1">
+          {t(id === 'uid' ? 'comeet.uidLabel' : 'comeet.tokenLabel')}
+        </label>
+        <div className="flex gap-2">
+          <input
+            id={`comeet-${id}`} autoFocus={id === 'uid'} value={value} onChange={(e) => set(e.target.value)} onPaste={(e) => onPaste(e, id)}
+            placeholder={t(id === 'uid' ? 'comeet.uidPlaceholder' : 'comeet.tokenPlaceholder')}
+            className="input flex-1 min-w-0 font-mono text-sm" dir="ltr" autoComplete="off" spellCheck={false}
+          />
+          <button
+            type="button" onClick={() => pasteInto(id)} aria-label={t(id === 'uid' ? 'comeet.pasteUid' : 'comeet.pasteToken')}
+            className={`${small} border-brand-200 text-brand-700 hover:bg-brand-50`}
+          >
+            {t('comeet.paste')}
+          </button>
+        </div>
+      </div>
+    )
     return (
       <section className={box}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -112,38 +192,37 @@ export default function ComeetCard({ token, onJobsChanged, needCheck = 0, pollMs
             <h2 className="font-semibold text-gray-900">{t('comeet.title')}</h2>
             <p className="text-sm text-gray-600">{t('comeet.pitch')}</p>
           </div>
-          {!open && (
-            <button type="button" onClick={() => setOpen(true)} className="btn-primary min-h-[44px] px-5">
-              {t('comeet.start')}
-            </button>
-          )}
+          <button type="button" onClick={() => setOpen(true)} className="btn-primary min-h-[44px] px-5">
+            {t('comeet.start')}
+          </button>
         </div>
         {open && (
-          <div className="space-y-3">
-            <ol className="list-decimal ps-5 space-y-1 text-sm text-gray-700">
-              <li>{t('comeet.step1')}</li>
-              <li>{t('comeet.step2')}</li>
-              <li>{t('comeet.step3')}</li>
-            </ol>
-            <a href={SETTINGS_URL} target="_blank" rel="noreferrer" className="inline-block text-sm font-medium text-brand-700 underline">
-              {t('comeet.openSettings')}
-            </a>
-            <div>
-              <label htmlFor="comeet-paste" className="block text-sm font-medium text-gray-700 mb-1">{t('comeet.pasteLabel')}</label>
-              <textarea
-                id="comeet-paste" rows={3} value={paste} onChange={(e) => setPaste(e.target.value)}
-                placeholder={t('comeet.pastePlaceholder')} className="input w-full font-mono text-sm" dir="ltr"
-                autoComplete="off" spellCheck={false}
-              />
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <div className="flex gap-2">
-              <button type="button" onClick={connect} disabled={!paste.trim() || busy} className="btn-primary min-h-[44px] px-5 disabled:opacity-50">
-                {t('comeet.connect')}
-              </button>
-              <button type="button" onClick={() => { setOpen(false); setError(null) }} className={`${small} border-gray-200 text-gray-600`}>
-                {t('comeet.cancel')}
-              </button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={closeDialog}>
+            <div
+              role="dialog" aria-modal="true" aria-labelledby="comeet-dialog-title"
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-pop-in"
+              onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') closeDialog() }}
+            >
+              <h2 id="comeet-dialog-title" className="text-lg font-semibold text-gray-900">{t('comeet.dialogTitle')}</h2>
+              <div className="space-y-1">
+                <p className="text-sm text-gray-600">{t('comeet.where')}</p>
+                <a href={SETTINGS_URL} target="_blank" rel="noreferrer" className="inline-block text-sm font-medium text-brand-700 underline">
+                  {t('comeet.openSettings')}
+                </a>
+              </div>
+              {field('uid', uid, setUid)}
+              {field('token', secret, setSecret)}
+              {pasteBlocked && <p className="text-sm text-amber-700">{t('comeet.pasteBlocked')}</p>}
+              <p className="text-xs text-gray-500">{t('comeet.safe')}</p>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <div className="flex gap-2">
+                <button type="button" onClick={connect} disabled={!ready || busy} className="btn-primary min-h-[44px] px-5 disabled:opacity-50">
+                  {t('comeet.connect')}
+                </button>
+                <button type="button" onClick={closeDialog} className={`${small} border-gray-200 text-gray-600`}>
+                  {t('comeet.cancel')}
+                </button>
+              </div>
             </div>
           </div>
         )}

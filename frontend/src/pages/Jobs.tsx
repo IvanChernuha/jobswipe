@@ -22,6 +22,10 @@ export default function Jobs() {
 
   const [jobs, setJobs] = useState<JobPosting[]>([])
   const [loading, setLoading] = useState(true)
+  // Only the first load shows the full-page spinner. Later reloads (e.g. the
+  // login refreshing when a phone comes back from another app) keep the page,
+  // so open forms and popups aren't thrown away.
+  const [loadedOnce, setLoadedOnce] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [editingJob, setEditingJob] = useState<JobPosting | null>(null)
@@ -50,7 +54,7 @@ export default function Jobs() {
     getJobPostings(token)
       .then(setJobs)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : t('jobs.failedToLoad')))
-      .finally(() => setLoading(false))
+      .finally(() => { setLoading(false); setLoadedOnce(true) })
   }
 
   useEffect(() => {
@@ -133,7 +137,7 @@ export default function Jobs() {
   // Imported from Comeet but missing something: kept off until completed.
   const comeetNeedCheck = jobs.filter((j) => j.source === 'comeet' && j.held_reason === 'incomplete').length
 
-  if (loading) {
+  if (loading && !loadedOnce) {
     return (
       <Shell>
         <div className="flex flex-col items-center gap-3 py-20">

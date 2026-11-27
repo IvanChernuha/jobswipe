@@ -104,3 +104,35 @@ The user (2026-11-26): employers on Comeet should bring their jobs into JobSwipe
 
 ## Re-verified before commit (2026-11-27)
 `scripts/test.sh`: all PASS (backend 244, website 104, app 153, scripts). Committed together with the job check work, since both change the same files.
+
+## Connect popup (2026-11-27)
+User: "i want ppl just to click and make the connect to their comeet ... make it insta",
+then "at least add popup ... click here to add uid / and token". Comeet has no
+"sign in with Comeet" (OAuth) for outside apps; only the job board partner program
+removes the copy step (asked for in the partner email). So, until then:
+- "Import from Comeet" opens a popup (web dialog / app bottom sheet) with a **UID** box
+  and a **Token** box, each with a **Paste** button, the "Open Comeet settings" link,
+  and a line that the token only reads published jobs.
+- Whatever is pasted is sorted into the right box: both at once, labelled, the API
+  link, or one value in the wrong box (`packages/shared/src/comeet` `readComeetPaste`,
+  same patterns as backend `parse_credentials`). Connect sends "UID Token"; no backend
+  change.
+- If the browser blocks the Paste button, or the phone's clipboard is empty, it says
+  how to paste by hand. App uses `expo-clipboard` (new native module: needs a new build).
+- Tests: shared `comeet/__tests__/paste.test.ts` (8), web `ComeetCard` (13), app
+  `comeet.test.tsx` (7). `scripts/test.sh` all PASS: backend 244, website 117, app 155.
+
+### Coming back from Comeet keeps the popup (2026-11-27)
+User: "for phones make sure it doesn't reset the windows once they open web". Found two
+ways it reset:
+- Website: when a phone came back to the tab, the login refresh changed the token, the
+  Jobs page reloaded and swapped the whole page for a spinner, unmounting the popup
+  (and any open job form). Now only the first load shows the spinner.
+- Phones reload/close backgrounded tabs and apps. The popup and what was typed are now
+  remembered: website in `sessionStorage` (this tab only), app in the encrypted
+  `secureSessionStorage` (same as the login). Cancel and Connect forget it; saves run
+  one at a time so a slow save can't bring it back after Cancel.
+- App opens Comeet in an in-app browser (`expo-web-browser`), closing with ✕ back to the
+  popup; falls back to the phone browser.
+- Tests: web `ComeetCard` +2, `Jobs.test` +1; app `comeet.test.tsx` +4.
+  `scripts/test.sh` all PASS: backend 244, website 120, app 159.

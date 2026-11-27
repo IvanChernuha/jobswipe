@@ -2,7 +2,7 @@
   "expo": {
     "name": "JobSwipe",
     "slug": "jobswipe",
-    "version": "0.7.1",
+    "version": "0.7.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,7 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.jobswipe.app",
-      "versionCode": 12
+      "versionCode": 13
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -40,7 +40,8 @@
       ],
       "expo-asset",
       "expo-sharing",
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      "expo-web-browser"
     ],
     "extra": {
       "supportsRTL": true

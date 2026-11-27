@@ -7,7 +7,8 @@ import { MemoryRouter } from 'react-router-dom'
 import * as api from '../../lib/api'
 import Jobs from '../Jobs'
 
-vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ session: { access_token: 'tok' }, role: 'employer' }) }))
+const auth = vi.hoisted(() => ({ token: 'tok' }))
+vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ session: { access_token: auth.token }, role: 'employer' }) }))
 vi.mock('../../lib/api', async (original) => ({
   ...(await original<typeof import('../../lib/api')>()),
   getJobPostings: vi.fn(),
@@ -45,6 +46,7 @@ async function uploadFiles(results: api.ParsedJobFile[]) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  auth.token = 'tok'
   m.getJobPostings.mockResolvedValue([])
   m.getPlan.mockResolvedValue({ plan: 'pro', pro_until: null, shared_with_team: false, can_redeem: true, live_jobs: 0, free_live_jobs: 1 })
   m.getTags.mockResolvedValue([])
@@ -109,5 +111,18 @@ describe('the job check', () => {
     m.getJobPostings.mockResolvedValue([job('Complete job')])
     page()
     expect(await screen.findByText('₪12k – ₪15k')).toBeInTheDocument()
+  })
+
+  // The login refreshes when a phone comes back from another app (e.g. from
+  // Comeet). Reloading the list must not blank the page: that closed popups.
+  it('reloading the list keeps the page (and any open popup) on screen', async () => {
+    m.getJobPostings.mockResolvedValue([job('Complete job')])
+    const view = page()
+    expect(await screen.findByText('Complete job')).toBeInTheDocument()
+    m.getJobPostings.mockReturnValue(new Promise(() => {}))
+    auth.token = 'tok-refreshed'
+    view.rerender(<MemoryRouter><Jobs /></MemoryRouter>)
+    await waitFor(() => expect(m.getJobPostings).toHaveBeenCalledTimes(2))
+    expect(screen.getByText('Complete job')).toBeInTheDocument()
   })
 })
